@@ -44,6 +44,11 @@ export const rainLevels: RainLevel[] = [
 ];
 
 export const getRainLevel = (rainfall: number): RainLevel => {
+  // Tratar caso especial de 0mm
+  if (rainfall === 0) {
+    return rainLevels[0]; // sem chuva
+  }
+  
   for (const level of rainLevels) {
     if (level.max === null && rainfall >= level.min) {
       return level;

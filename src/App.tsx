@@ -3,11 +3,11 @@ import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useRainData } from './hooks/useRainData';
 import { RainStationCard } from './components/RainStationCard';
 import { RainLegend } from './components/RainLegend';
-import { RioMap } from './components/RioMap';
+import { GoogleMap } from './components/GoogleMap';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
-  const { stations, loading, error, lastUpdate, refresh } = useRainData();
+  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-yellow-50">
@@ -22,11 +22,24 @@ function App() {
               <p className="text-gray-600 font-medium">
                 Monitoramento de chuvas em tempo real no Rio de Janeiro
               </p>
-              {lastUpdate && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Última atualização: {lastUpdate.toLocaleString('pt-BR')}
-                </p>
-              )}
+              <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                {lastUpdate && (
+                  <span>
+                    Última atualização: {lastUpdate.toLocaleString('pt-BR')}
+                  </span>
+                )}
+                {totalStations > 0 && (
+                  <span>
+                    {totalStations} estações ativas
+                  </span>
+                )}
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${apiAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className={apiAvailable ? 'text-green-600' : 'text-red-600'}>
+                    {apiAvailable ? 'API Online' : 'API Offline'}
+                  </span>
+                </div>
+              </div>
             </div>
             <button
               onClick={refresh}
@@ -57,7 +70,7 @@ function App() {
                 <LoadingSpinner />
               </div>
             ) : (
-              <RioMap stations={stations} />
+              <GoogleMap stations={stations} />
             )}
           </div>
 
@@ -85,9 +98,20 @@ function App() {
                 </h3>
                 <div className="space-y-2 text-sm text-gray-600">
                   <p>• Dados fornecidos pela Prefeitura do Rio</p>
-                  <p>• Atualização a cada 5 minutos</p>
+                  <p>• Atualização automática a cada 5 minutos</p>
                   <p>• Medições em milímetros (mm)</p>
                   <p>• Horário local de Brasília</p>
+                  <p>• API: websempre.rio.rj.gov.br</p>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">
+                      Status: {apiAvailable ? '✅ Conectado' : '❌ Desconectado'}
+                    </p>
+                    {totalStations > 0 && (
+                      <p className="text-xs text-gray-500">
+                        Estações: {totalStations} ativas
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

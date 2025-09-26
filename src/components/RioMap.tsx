@@ -1,184 +1,297 @@
 import React from 'react';
+import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
 import { RainStation } from '../types/rain';
 import { getRainLevel } from '../utils/rainLevel';
+import { useBairrosData } from '../hooks/useCitiesData';
+import { findBairroByName, getBairroCenter, getCentroBairro, isValidCoordinate } from '../services/citiesApi';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface RioMapProps {
   stations: RainStation[];
 }
 
 export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
-  // Função para obter a cor da região baseada nas estações próximas
-  const getRegionColor = (regionStations: string[]) => {
-    const regionData = stations.filter(station => 
-      regionStations.some(name => 
-        station.name.toLowerCase().includes(name.toLowerCase())
+  const { bairrosData, loading, error } = useBairrosData();
+
+  // Função para obter a cor do bairro baseada nas estações próximas
+  const getBairroColor = (bairroName: string) => {
+    // Mapeamento mais abrangente de estações para bairros do Rio
+    const stationToBairroMap: { [key: string]: string[] } = {
+      'copacabana': ['copacabana'],
+      'ipanema': ['ipanema'],
+      'leblon': ['leblon'],
+      'botafogo': ['botafogo'],
+      'flamengo': ['flamengo'],
+      'laranjeiras': ['laranjeiras'],
+      'centro': ['centro', 'lapa', 'santa teresa'],
+      'tijuca': ['tijuca', 'maracanã', 'vila isabel', 'tijuca/muda'],
+      'grajaú': ['grajaú'],
+      'alto da boa vista': ['alto da boa vista'],
+      'barra': ['barra', 'recreio', 'recreio dos bandeirantes'],
+      'jacarepaguá': ['jacarepaguá'],
+      'campo grande': ['campo grande'],
+      'bangu': ['bangu'],
+      'santa cruz': ['santa cruz'],
+      'sepetiba': ['sepetiba'],
+      'ilha do governador': ['ilha do governador', 'galeão'],
+      'penha': ['penha'],
+      'madureira': ['madureira'],
+      'irajá': ['irajá'],
+      'são cristóvão': ['são cristóvão'],
+      'grande méier': ['grande méier'],
+      'anchieta': ['anchieta'],
+      'grota funda': ['grota funda'],
+      'av. brasil/mendanha': ['av. brasil/mendanha'],
+      'piedade': ['piedade'],
+      'vidigal': ['vidigal'],
+      'rocinha': ['rocinha'],
+      'urca': ['urca']
+    };
+
+    const bairroKey = bairroName.toLowerCase();
+    const possibleStations = stationToBairroMap[bairroKey] || [];
+    
+    const station = stations.find(station => 
+      possibleStations.some(stationName => 
+        station.name.toLowerCase().includes(stationName.toLowerCase())
       )
     );
     
-    if (regionData.length === 0) return '#E5E7EB'; // Cinza padrão
+    if (!station) return '#F8FAFC'; // Cinza muito claro para bairros sem dados
     
-    // Pega a maior intensidade de chuva da região
-    const maxRainfall = Math.max(...regionData.map(s => s.data.h01));
-    const rainLevel = getRainLevel(maxRainfall);
+    const rainLevel = getRainLevel(station.data.h01);
     return rainLevel.color;
   };
 
+  // Função para obter posição da estação no mapa
+  const getStationPosition = (stationName: string): [number, number] => {
+    // Primeiro tenta encontrar o bairro correspondente
+    if (bairrosData) {
+      const bairro = findBairroByName(bairrosData, stationName);
+      if (bairro) {
+        const coords = getBairroCenter(bairro);
+        if (isValidCoordinate(coords)) {
+          return coords;
+        }
+      }
+    }
+    
+    // Coordenadas aproximadas para estações não encontradas
+    const fallbackPositions: { [key: string]: [number, number] } = {
+      'copacabana': [-43.1911, -22.9711],
+      'ipanema': [-43.2075, -22.9844],
+      'leblon': [-43.2250, -22.9889],
+      'botafogo': [-43.1833, -22.9500],
+      'flamengo': [-43.1750, -22.9333],
+      'centro': [-43.1833, -22.9000],
+      'lapa': [-43.1750, -22.9167],
+      'tijuca': [-43.2333, -22.9167],
+      'maracanã': [-43.2333, -22.9000],
+      'barra': [-43.3667, -23.0000],
+      'recreio': [-43.4500, -23.0167],
+      'jacarepaguá': [-43.3167, -22.9500],
+      'campo grande': [-43.5500, -22.9000],
+      'bangu': [-43.4667, -22.8833],
+      'ilha do governador': [-43.1333, -22.8000],
+      'niterói': [-43.1000, -22.8833],
+      'nova iguaçu': [-43.4500, -22.7500],
+      'são gonçalo': [-43.0500, -22.8167],
+      'duque de caxias': [-43.3000, -22.7833],
+      'campos dos goytacazes': [-41.3000, -21.7500],
+      'volta redonda': [-44.1000, -22.5167],
+      'petrópolis': [-43.1833, -22.5167],
+      'magé': [-43.1333, -22.6500],
+      'itaboraí': [-42.8667, -22.7500]
+    };
+
+    const coords = fallbackPositions[stationName.toLowerCase()] || [-43.1833, -22.9000];
+    
+    // Validação final das coordenadas
+    if (!isValidCoordinate(coords)) {
+      console.warn(`Coordenadas inválidas para estação ${stationName}:`, coords);
+      return [-43.1833, -22.9000]; // Coordenadas padrão do Rio de Janeiro
+    }
+    
+    return coords;
+  };
+
+  if (loading) {
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa do Rio de Janeiro</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa das Cidades do Rio de Janeiro</h3>
+        <div className="h-96 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa das Cidades do Rio de Janeiro</h3>
+        <div className="h-96 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-600 font-medium mb-2">Erro ao carregar mapa</p>
+            <p className="text-gray-500 text-sm">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!bairrosData) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
+        <div className="h-96 flex items-center justify-center">
+          <p className="text-gray-500">Nenhum dado geográfico disponível</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Obter o bairro do Centro para destacar
+  const centroBairro = getCentroBairro(bairrosData);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-6">
+      <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
       
-      <div className="relative w-full h-96 bg-blue-50 rounded-xl overflow-hidden">
-        <svg
-          viewBox="0 0 800 600"
+      <div className="relative w-full h-[600px] bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden shadow-inner">
+        <ComposableMap
+          projection="geoMercator"
+          projectionConfig={{
+            center: [-43.1833, -22.9000], // Centro do Rio de Janeiro
+            scale: 200000, // Aumentado drasticamente para mostrar detalhes dos bairros
+            rotate: [0, 0, 0]
+          }}
+          width={800}
+          height={600}
           className="w-full h-full"
-          xmlns="http://www.w3.org/2000/svg"
         >
-          {/* Zona Norte */}
-          <path
-            d="M150 80 L450 80 L480 120 L460 180 L400 200 L350 190 L300 170 L200 150 L150 120 Z"
-            fill={getRegionColor(['tijuca', 'maracanã', 'vila isabel', 'grajaú', 'andaraí'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Zona Norte - Tijuca, Maracanã, Vila Isabel</title>
-          </path>
+          <Geographies geography={bairrosData}>
+            {({ geographies }: { geographies: any[] }) =>
+              geographies.map((geo: any) => {
+                const bairroName = geo.properties.nome;
+                const isCentro = centroBairro && geo.properties.nome === centroBairro.properties.nome;
+                const color = getBairroColor(bairroName);
+                
+                return (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    fill={color}
+                    stroke="#ffffff"
+                    strokeWidth={isCentro ? 1.5 : 0.5}
+                    className="hover:opacity-90 transition-all duration-200 cursor-pointer"
+                    style={{
+                      default: {
+                        fill: color,
+                        stroke: '#ffffff',
+                        strokeWidth: isCentro ? 1.5 : 0.5,
+                        strokeOpacity: 0.8,
+                      },
+                      hover: {
+                        fill: color,
+                        stroke: '#ffffff',
+                        strokeWidth: isCentro ? 2 : 1,
+                        strokeOpacity: 1,
+                        opacity: 0.9,
+                        filter: 'brightness(1.1)',
+                      },
+                      pressed: {
+                        fill: color,
+                        stroke: '#ffffff',
+                        strokeWidth: isCentro ? 2 : 1,
+                        strokeOpacity: 1,
+                        opacity: 0.8,
+                        filter: 'brightness(0.95)',
+                      },
+                    }}
+                  >
+                    <title>{`${bairroName} - ${geo.properties.regiao_adm || 'RJ'}`}</title>
+                  </Geography>
+                );
+              })
+            }
+          </Geographies>
 
-          {/* Centro */}
-          <path
-            d="M300 170 L400 200 L420 250 L380 280 L320 270 L280 250 L270 200 Z"
-            fill={getRegionColor(['centro', 'lapa', 'santa teresa', 'cidade nova'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Centro - Lapa, Santa Teresa, Cidade Nova</title>
-          </path>
-
-          {/* Zona Sul */}
-          <path
-            d="M280 250 L380 280 L400 350 L380 420 L320 450 L250 430 L220 380 L240 320 Z"
-            fill={getRegionColor(['copacabana', 'ipanema', 'leblon', 'botafogo', 'flamengo', 'urca'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Zona Sul - Copacabana, Ipanema, Leblon, Botafogo</title>
-          </path>
-
-          {/* Barra da Tijuca */}
-          <path
-            d="M50 300 L220 380 L250 430 L200 480 L120 500 L60 450 L40 380 Z"
-            fill={getRegionColor(['barra', 'recreio', 'jacarepaguá', 'cidade de deus'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Barra da Tijuca - Recreio, Jacarepaguá</title>
-          </path>
-
-          {/* Zona Oeste */}
-          <path
-            d="M480 120 L650 100 L680 150 L670 220 L620 250 L550 240 L500 200 L460 180 Z"
-            fill={getRegionColor(['campo grande', 'santa cruz', 'bangu', 'realengo'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Zona Oeste - Campo Grande, Santa Cruz, Bangu</title>
-          </path>
-
-          {/* Baixada Fluminense (parte) */}
-          <path
-            d="M420 250 L550 240 L580 300 L550 350 L480 360 L450 320 L440 280 Z"
-            fill={getRegionColor(['deodoro', 'ricardo de albuquerque', 'irajá'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Subúrbios - Deodoro, Irajá</title>
-          </path>
-
-          {/* Ilha do Governador */}
-          <circle
-            cx="500"
-            cy="180"
-            r="25"
-            fill={getRegionColor(['ilha do governador', 'galeão'])}
-            stroke="#fff"
-            strokeWidth="2"
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <title>Ilha do Governador</title>
-          </circle>
-
-          {/* Pontos das estações */}
-          {stations.map((station, index) => {
+          {/* Marcadores das estações */}
+          {stations.map((station) => {
             const rainLevel = getRainLevel(station.data.h01);
-            // Posições aproximadas baseadas nos bairros
-            const positions: { [key: string]: { x: number; y: number } } = {
-              'copacabana': { x: 320, y: 380 },
-              'ipanema': { x: 300, y: 390 },
-              'leblon': { x: 280, y: 400 },
-              'botafogo': { x: 340, y: 350 },
-              'flamengo': { x: 330, y: 330 },
-              'centro': { x: 350, y: 230 },
-              'lapa': { x: 320, y: 240 },
-              'tijuca': { x: 380, y: 140 },
-              'maracanã': { x: 400, y: 160 },
-              'barra': { x: 150, y: 420 },
-              'recreio': { x: 100, y: 450 },
-              'jacarepaguá': { x: 180, y: 350 },
-              'campo grande': { x: 580, y: 180 },
-              'bangu': { x: 520, y: 160 },
-              'ilha do governador': { x: 500, y: 180 }
-            };
-
-            const position = positions[station.name.toLowerCase()] || 
-                           { x: 400, y: 300 };
+            const [lng, lat] = getStationPosition(station.name);
+            
+            // Validação das coordenadas antes de renderizar
+            if (!isValidCoordinate([lng, lat])) {
+              console.warn(`Coordenadas inválidas para estação ${station.name}:`, [lng, lat]);
+              return null;
+            }
 
             return (
-              <circle
-                key={station.id}
-                cx={position.x}
-                cy={position.y}
-                r="6"
-                fill={rainLevel.color}
-                stroke="#fff"
-                strokeWidth="2"
-                className="hover:r-8 transition-all cursor-pointer"
-              >
-                <title>{`${station.name} - ${station.data.h01.toFixed(1)}mm`}</title>
-              </circle>
+              <Marker key={station.id} coordinates={[lng, lat]}>
+                <g>
+                  {/* Sombra do círculo */}
+                  <circle
+                    r={4}
+                    fill="rgba(0,0,0,0.2)"
+                    transform="translate(1,1)"
+                  />
+                  {/* Círculo principal */}
+                  <circle
+                    r={4}
+                    fill={rainLevel.color}
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                    className="hover:r-6 transition-all duration-200 cursor-pointer drop-shadow-lg"
+                    style={{
+                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+                    }}
+                  >
+                    <title>{`${station.name} - ${station.data.h01.toFixed(1)}mm (última hora)`}</title>
+                  </circle>
+                  {/* Ponto central */}
+                  <circle
+                    r={1}
+                    fill="#ffffff"
+                    opacity={0.9}
+                  />
+                </g>
+              </Marker>
             );
           })}
-
-          {/* Labels das regiões */}
-          <text x="300" y="130" textAnchor="middle" className="fill-gray-700 text-sm font-medium">
-            Zona Norte
-          </text>
-          <text x="340" y="230" textAnchor="middle" className="fill-gray-700 text-sm font-medium">
-            Centro
-          </text>
-          <text x="320" y="380" textAnchor="middle" className="fill-gray-700 text-sm font-medium">
-            Zona Sul
-          </text>
-          <text x="150" y="420" textAnchor="middle" className="fill-gray-700 text-sm font-medium">
-            Barra
-          </text>
-          <text x="580" y="180" textAnchor="middle" className="fill-gray-700 text-sm font-medium">
-            Zona Oeste
-          </text>
-          <text x="500" y="200" textAnchor="middle" className="fill-gray-700 text-xs font-medium">
-            Ilha do Gov.
-          </text>
-        </svg>
+        </ComposableMap>
       </div>
       
-      <div className="mt-4 text-xs text-gray-500">
-        <p>• Passe o mouse sobre as regiões para ver detalhes</p>
-        <p>• Círculos representam estações meteorológicas</p>
+      <div className="mt-4 space-y-2">
+        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"></div>
+            <span>Bairros sem dados</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-green-500 border border-white"></div>
+            <span>Sem chuva (0mm)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-yellow-500 border border-white"></div>
+            <span>Chuva fraca (0.1-2.5mm)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-orange-500 border border-white"></div>
+            <span>Chuva moderada (2.6-10mm)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-red-500 border border-white"></div>
+            <span>Chuva forte (&gt;10mm)</span>
+          </div>
+        </div>
+        <div className="text-xs text-gray-500 space-y-1">
+          <p>• Passe o mouse sobre os bairros para ver detalhes</p>
+          <p>• Círculos representam estações meteorológicas com dados em tempo real</p>
         <p>• Cores baseadas na intensidade de chuva da última hora</p>
+          <p>• Dados geográficos da Prefeitura do Rio de Janeiro</p>
+        </div>
       </div>
     </div>
   );
