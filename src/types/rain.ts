@@ -1,14 +1,20 @@
 export interface RainStation {
   id: string;
-  nome: string;
-  bairro: string;
-  estacao: string;
-  chuva_15min: number;
-  chuva_1h: number;
-  chuva_4h: number;
-  chuva_24h: number;
-  chuva_96h: number;
-  ultima_atualizacao: string;
+  name: string;
+  location: [number, number];
+  read_at: string;
+  is_new: boolean;
+  data: {
+    m05: number;
+    m15: number;
+    h01: number;
+    h02: number;
+    h03: number;
+    h04: number;
+    h24: number;
+    h96: number;
+    mes: number;
+  };
 }
 
 export interface RainLevel {

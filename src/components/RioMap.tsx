@@ -11,15 +11,14 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
   const getRegionColor = (regionStations: string[]) => {
     const regionData = stations.filter(station => 
       regionStations.some(name => 
-        station.nome.toLowerCase().includes(name.toLowerCase()) ||
-        station.bairro.toLowerCase().includes(name.toLowerCase())
+        station.name.toLowerCase().includes(name.toLowerCase())
       )
     );
     
     if (regionData.length === 0) return '#E5E7EB'; // Cinza padrão
     
     // Pega a maior intensidade de chuva da região
-    const maxRainfall = Math.max(...regionData.map(s => s.chuva_1h));
+    const maxRainfall = Math.max(...regionData.map(s => s.data.h01));
     const rainLevel = getRainLevel(maxRainfall);
     return rainLevel.color;
   };
@@ -115,7 +114,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
 
           {/* Pontos das estações */}
           {stations.map((station, index) => {
-            const rainLevel = getRainLevel(station.chuva_1h);
+            const rainLevel = getRainLevel(station.data.h01);
             // Posições aproximadas baseadas nos bairros
             const positions: { [key: string]: { x: number; y: number } } = {
               'copacabana': { x: 320, y: 380 },
@@ -135,8 +134,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
               'ilha do governador': { x: 500, y: 180 }
             };
 
-            const position = positions[station.bairro.toLowerCase()] || 
-                           positions[station.nome.toLowerCase()] || 
+            const position = positions[station.name.toLowerCase()] || 
                            { x: 400, y: 300 };
 
             return (
@@ -150,7 +148,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
                 strokeWidth="2"
                 className="hover:r-8 transition-all cursor-pointer"
               >
-                <title>{`${station.nome} - ${station.chuva_1h.toFixed(1)}mm`}</title>
+                <title>{`${station.name} - ${station.data.h01.toFixed(1)}mm`}</title>
               </circle>
             );
           })}
