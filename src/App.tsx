@@ -3,6 +3,7 @@ import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useRainData } from './hooks/useRainData';
 import { RainStationCard } from './components/RainStationCard';
 import { RainLegend } from './components/RainLegend';
+import { RioMap } from './components/RioMap';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
@@ -49,6 +50,17 @@ function App() {
         )}
 
         <div className="grid lg:grid-cols-4 gap-8">
+          {/* Map Section */}
+          <div className="lg:col-span-4 mb-8">
+            {loading ? (
+              <div className="bg-white rounded-2xl shadow-lg p-6 h-96 flex items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <RioMap stations={stations} />
+            )}
+          </div>
+
           {/* Stations Grid */}
           <div className="lg:col-span-3">
             {loading ? (
