@@ -44,6 +44,7 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const polygonsRef = useRef<google.maps.Polygon[]>([]);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const activeInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = React.useState(false);
 
   // Verificar se o Google Maps está carregado
@@ -195,9 +196,19 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
           `
         });
 
-        polygon.addListener('click', () => {
+        polygon.addListener('click', (event) => {
+          // Fechar tooltip ativo anterior
+          if (activeInfoWindowRef.current) {
+            activeInfoWindowRef.current.close();
+          }
+          
+          // Definir posição baseada no clique
+          const clickPosition = event.latLng;
           infoWindow.setPosition(polygon.getPath().getAt(0));
           infoWindow.open(map);
+          
+          // Armazenar referência do tooltip ativo
+          activeInfoWindowRef.current = infoWindow;
         });
       }
     });
@@ -248,7 +259,15 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
       });
 
       marker.addListener('click', () => {
+        // Fechar tooltip ativo anterior
+        if (activeInfoWindowRef.current) {
+          activeInfoWindowRef.current.close();
+        }
+        
         infoWindow.open(map, marker);
+        
+        // Armazenar referência do tooltip ativo
+        activeInfoWindowRef.current = infoWindow;
       });
     });
 
@@ -258,6 +277,10 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
   useEffect(() => {
     return () => {
       // Limpar polígonos e marcadores quando o componente for desmontado
+      if (activeInfoWindowRef.current) {
+        activeInfoWindowRef.current.close();
+        activeInfoWindowRef.current = null;
+      }
       polygonsRef.current.forEach(polygon => polygon.setMap(null));
       markersRef.current.forEach(marker => marker.setMap(null));
     };
