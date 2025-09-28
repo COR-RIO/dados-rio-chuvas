@@ -294,6 +294,70 @@ const ErrorComponent: React.FC<{ status: Status }> = ({ status }) => (
 // Componente principal
 export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
   const { bairrosData, loading, error } = useBairrosData();
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  
+  // Se não há chave da API, mostra mensagem informativa
+  if (!apiKey || apiKey === 'DEMO_KEY') {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
+        
+        <div className="relative w-full h-[600px] bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center">
+          <div className="text-center p-8">
+            <div className="text-6xl mb-4">🗺️</div>
+            <h4 className="text-xl font-semibold text-gray-700 mb-2">Mapa Indisponível</h4>
+            <p className="text-gray-600 mb-4">
+              Para visualizar o mapa interativo, configure sua chave da API do Google Maps.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
+              <p className="text-sm text-yellow-800 mb-2">
+                <strong>Como configurar:</strong>
+              </p>
+              <ol className="text-sm text-yellow-700 space-y-1">
+                <li>1. Obtenha uma chave da API no Google Cloud Console</li>
+                <li>2. Crie um arquivo <code className="bg-yellow-100 px-1 rounded">.env.local</code></li>
+                <li>3. Adicione: <code className="bg-yellow-100 px-1 rounded">VITE_GOOGLE_MAPS_API_KEY=sua_chave</code></li>
+                <li>4. Reinicie o servidor de desenvolvimento</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 space-y-2">
+          <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"></div>
+              <span>Bairros sem dados</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-emerald-500 border border-white"></div>
+              <span>Sem chuva (0mm)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-emerald-600 border border-white"></div>
+              <span>Chuva fraca (<1,25mm)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-amber-500 border border-white"></div>
+              <span>Chuva moderada (1,25-6,25mm)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-orange-500 border border-white"></div>
+              <span>Chuva forte (6,25-12,25mm)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-red-600 border border-white"></div>
+              <span>Chuva muito forte (>12,25mm)</span>
+            </div>
+          </div>
+          <div className="text-xs text-gray-500 space-y-1">
+            <p>• Configure a chave da API do Google Maps para ver o mapa interativo</p>
+            <p>• Consulte o arquivo GOOGLE_MAPS_SETUP.md para instruções detalhadas</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const render = (status: Status) => {
     switch (status) {
@@ -320,7 +384,7 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
       
       <div className="relative w-full h-[600px] bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden shadow-inner">
         <Wrapper
-          apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'DEMO_KEY'}
+          apiKey={apiKey}
           render={render}
           libraries={['geometry']}
         />

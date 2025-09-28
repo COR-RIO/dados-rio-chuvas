@@ -143,13 +143,30 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
 // Função para verificar se a API está disponível
 export const checkApiAvailability = async (): Promise<boolean> => {
   try {
-    const response = await fetch(RIO_RAIN_API_URL, {
+    // Primeiro tenta o proxy
+    let response = await fetch(RIO_RAIN_API_URL, {
       method: 'GET',
       cache: 'no-cache'
     });
+    
+    if (response.ok) {
+      return true;
+    }
+    
+    // Se o proxy falhar, tenta acesso direto
+    console.log('Proxy falhou, tentando acesso direto à API...');
+    response = await fetch('https://websempre.rio.rj.gov.br/json/chuvas', {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-cache'
+    });
+    
     return response.ok;
   } catch (error) {
-    console.warn('API da Prefeitura do Rio não disponível:', error);
+    console.warn('API da Prefeitura do Rio não disponível (proxy e direto):', error);
     return false;
   }
 };
