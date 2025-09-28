@@ -335,7 +335,7 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-emerald-600 border border-white"></div>
-              <span>Chuva fraca (<1,25mm)</span>
+              <span>Chuva fraca (&lt;1,25mm)</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-amber-500 border border-white"></div>
