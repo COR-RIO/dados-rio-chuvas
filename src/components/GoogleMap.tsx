@@ -428,5 +428,3 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
     </div>
   );
 };
-
-}
