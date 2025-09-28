@@ -356,6 +356,7 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
           </div>
         </div>
       </div>
+    )
     );
   }
 
@@ -428,3 +429,5 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
     </div>
   );
 };
+
+}
