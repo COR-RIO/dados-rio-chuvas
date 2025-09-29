@@ -6,39 +6,39 @@ export const rainLevels: RainLevel[] = [
     description: '0 mm',
     min: 0,
     max: 0,
-    color: '#10B981',
+    color: '#1FCC70',
     bgColor: 'bg-emerald-100'
   },
   {
     name: 'chuva fraca',
-    description: '< 1,25mm',
-    min: 0.01,
-    max: 1.25,
-    color: '#059669',
-    bgColor: 'bg-emerald-200'
+    description: '0,2 a 5,0mm/h',
+    min: 0.2,
+    max: 5.0,
+    color: '#61BBFF',
+    bgColor: 'bg-blue-200'
   },
   {
     name: 'chuva moderada',
-    description: '1,25 a 6,25mm',
-    min: 1.25,
-    max: 6.25,
-    color: '#F59E0B',
-    bgColor: 'bg-amber-200'
+    description: '5,1 a 25,0mm/h',
+    min: 5.1,
+    max: 25.0,
+    color: '#EAF000',
+    bgColor: 'bg-yellow-200'
   },
   {
     name: 'chuva forte',
-    description: '6,25 a 12,25mm',
-    min: 6.25,
-    max: 12.25,
-    color: '#F97316',
+    description: '25,1 a 50,0mm/h',
+    min: 25.1,
+    max: 50.0,
+    color: '#FEA600',
     bgColor: 'bg-orange-200'
   },
   {
     name: 'chuva muito forte',
-    description: '> 12,25mm',
-    min: 12.25,
+    description: 'Acima de 50,0mm/h',
+    min: 50.1,
     max: null,
-    color: '#DC2626',
+    color: '#EE0000',
     bgColor: 'bg-red-200'
   }
 ];
@@ -49,13 +49,16 @@ export const getRainLevel = (rainfall: number): RainLevel => {
     return rainLevels[0]; // sem chuva
   }
   
+  // Buscar o nível apropriado baseado nos novos parâmetros
   for (const level of rainLevels) {
     if (level.max === null && rainfall >= level.min) {
       return level;
     }
-    if (level.max !== null && rainfall >= level.min && rainfall < level.max) {
+    if (level.max !== null && rainfall >= level.min && rainfall <= level.max) {
       return level;
     }
   }
-  return rainLevels[0]; // sem chuva
+  
+  // Se não encontrar nenhum nível, retornar o mais alto (chuva muito forte)
+  return rainLevels[rainLevels.length - 1];
 };

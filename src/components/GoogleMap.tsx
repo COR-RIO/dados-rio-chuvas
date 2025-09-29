@@ -69,6 +69,33 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
       console.log(`  - ${station.name}: h01=${station.data.h01}mm, h24=${station.data.h24}mm`);
     });
 
+     // Debug: Listar todos os bairros relacionados à Ilha do Governador e São Cristóvão
+     console.log('🏝️ Bairros relacionados à Ilha do Governador:');
+     console.log('⛪ Bairros relacionados à São Cristóvão:');
+     bairrosData.features.forEach((feature: any) => {
+       const nome = feature.properties.nome;
+       const nomeLower = nome.toLowerCase();
+       if (nomeLower.includes('ilha') || nomeLower.includes('governador') || 
+           nomeLower.includes('galeão') || nomeLower.includes('galeao') ||
+           nomeLower.includes('tauá') || nomeLower.includes('taua') ||
+           nomeLower.includes('valente') || nomeLower.includes('cocotá') ||
+           nomeLower.includes('cocota') || nomeLower.includes('moneró') ||
+           nomeLower.includes('monero') || nomeLower.includes('pitangueiras') ||
+           nomeLower.includes('zumbi') || nomeLower.includes('cacuia') ||
+           nomeLower.includes('freguesia') || nomeLower.includes('banco') ||
+           nomeLower.includes('guanabara') || nomeLower.includes('portuguesa') ||
+           nomeLower.includes('carioca') || nomeLower.includes('ribeira') ||
+           nomeLower.includes('bandeira') || nomeLower.includes('praia') ||
+           nomeLower.includes('bancários') || nomeLower.includes('bancarios')) {
+         console.log(`  - "${nome}"`);
+       }
+       if (nomeLower.includes('são cristóvão') || nomeLower.includes('sao cristovao') ||
+           nomeLower.includes('cristóvão') || nomeLower.includes('cristovao') ||
+           nomeLower.includes('cristovão') || nomeLower.includes('cristóvao')) {
+         console.log(`  - "${nome}"`);
+       }
+     });
+
     // Verificar se o elemento existe e é válido
     const mapElement = mapRef.current;
     if (!mapElement || !(mapElement instanceof Element)) return;
@@ -93,63 +120,245 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
         'flamengo': ['flamengo'],
         'laranjeiras': ['laranjeiras'],
         'centro': ['centro', 'lapa', 'santa teresa'],
+        'santa teresa': ['santa teresa'],
+        'teresa': ['santa teresa'],
         'tijuca': ['tijuca', 'maracanã', 'vila isabel', 'tijuca/muda'],
         'grajaú': ['grajaú'],
         'alto da boa vista': ['alto da boa vista'],
-        'barra': ['barra', 'recreio', 'recreio dos bandeirantes'],
-        'jacarepaguá': ['jacarepaguá'],
+        'barra': ['barra', 'recreio', 'recreio dos bandeirantes', 'barra/barrinha', 'barra/riocentro'],
+        'jacarepaguá': ['jacarepaguá', 'jacarepaguá/tanque', 'jacarepaguá/cidade de deus'],
         'campo grande': ['campo grande'],
         'bangu': ['bangu'],
         'santa cruz': ['santa cruz'],
         'sepetiba': ['sepetiba'],
-        'ilha do governador': ['ilha do governador', 'galeão'],
+         'Ilha do governador': ['Ilha do governador', 'galeão'],
+         'ilha do governador': ['Ilha do governador', 'galeão'],
+         'ilha governador': ['Ilha do governador', 'galeão'],
+         'governador': ['Ilha do governador', 'galeão'],
+         'galeão': ['Ilha do governador', 'galeão'],
+         'galeao': ['Ilha do governador', 'galeão'],
+         'tauá': ['Ilha do governador', 'galeão'],
+         'taua': ['Ilha do governador', 'galeão'],
+         'ponte valente': ['Ilha do governador', 'galeão'],
+         'valente': ['Ilha do governador', 'galeão'],
+         'banco de areia': ['Ilha do governador', 'galeão'],
+         'cocotá': ['Ilha do governador', 'galeão'],
+         'cocota': ['Ilha do governador', 'galeão'],
+         'moneró': ['Ilha do governador', 'galeão'],
+         'monero': ['Ilha do governador', 'galeão'],
+         'pitangueiras': ['Ilha do governador', 'galeão'],
+         'zumbi': ['Ilha do governador', 'galeão'],
+         'cacuia': ['Ilha do governador', 'galeão'],
+         'freguesia': ['Ilha do governador', 'galeão'],
+         'freguesia da ilha': ['Ilha do governador', 'galeão'],
+         'jardim guanabara': ['Ilha do governador', 'galeão'],
+         'guanabara': ['Ilha do governador', 'galeão'],
+         'portuguesa': ['Ilha do governador', 'galeão'],
+         'jardim carioca': ['Ilha do governador', 'galeão'],
+         'carioca': ['Ilha do governador', 'galeão'],
+         'ribeira': ['Ilha do governador', 'galeão'],
+         'ribeira da ilha': ['Ilha do governador', 'galeão'],
+         'ribeira do governador': ['Ilha do governador', 'galeão'],
+         'praia da bandeira': ['Ilha do governador', 'galeão'],
+         'bandeira': ['Ilha do governador', 'galeão'],
+         'praia do cocotá': ['Ilha do governador', 'galeão'],
+         'praia do zumbi': ['Ilha do governador', 'galeão'],
+         'praia da freguesia': ['Ilha do governador', 'galeão'],
+         'praia do moneró': ['Ilha do governador', 'galeão'],
+         'praia do monero': ['Ilha do governador', 'galeão'],
+         'praia do tauá': ['Ilha do governador', 'galeão'],
+         'praia do taua': ['Ilha do governador', 'galeão'],
+         'praia do cacuia': ['Ilha do governador', 'galeão'],
+         'praia do pitangueiras': ['Ilha do governador', 'galeão'],
+         'praia do banco de areia': ['Ilha do governador', 'galeão'],
+         'praia da ponte valente': ['Ilha do governador', 'galeão'],
+         'praia do galeão': ['Ilha do governador', 'galeão'],
+         'praia do galeao': ['Ilha do governador', 'galeão'],
+         'praia da ilha do governador': ['Ilha do governador', 'galeão'],
+         'praia da ilha governador': ['Ilha do governador', 'galeão'],
+         'praia do governador': ['Ilha do governador', 'galeão'],
+         'praia da portuguesa': ['Ilha do governador', 'galeão'],
+         'praia do jardim guanabara': ['Ilha do governador', 'galeão'],
+         'praia do jardim carioca': ['Ilha do governador', 'galeão'],
+         'praia da ribeira': ['Ilha do governador', 'galeão'],
+         'praia da bandeira': ['Ilha do governador', 'galeão'],
+         'bancários': ['Ilha do governador', 'galeão'],
+         'bancarios': ['Ilha do governador', 'galeão'],
+         'praia dos bancários': ['Ilha do governador', 'galeão'],
+         'praia dos bancarios': ['Ilha do governador', 'galeão'],
         'penha': ['penha'],
         'madureira': ['madureira'],
         'irajá': ['irajá'],
         'são cristóvão': ['são cristóvão'],
+        'sao cristovao': ['são cristóvão'],
+        'cristóvão': ['são cristóvão'],
+        'cristovao': ['são cristóvão'],
+        'são cristovão': ['são cristóvão'],
+        'sao cristóvão': ['são cristóvão'],
+        'são cristovao': ['são cristóvão'],
+        'cristovão': ['são cristóvão'],
+        'cristóvao': ['são cristóvão'],
         'grande méier': ['grande méier'],
         'anchieta': ['anchieta'],
         'grota funda': ['grota funda'],
+        'grota': ['grota funda'],
         'av. brasil/mendanha': ['av. brasil/mendanha'],
         'piedade': ['piedade'],
         'vidigal': ['vidigal'],
         'rocinha': ['rocinha'],
-        'urca': ['urca']
+        'urca': ['urca'],
+        'saúde': ['saúde'],
+        'jardim botânico': ['jardim botânico'],
+        'guaratiba': ['guaratiba'],
+        'est. grajaú/jacarepaguá': ['est. grajaú/jacarepaguá'],
+        // Adicionar variações comuns de nomes de bairros
+        'méier': ['grande méier'],
+        'méier grande': ['grande méier'],
+        'barra da tijuca': ['barra', 'barra/barrinha', 'barra/riocentro'],
+        'recreio': ['recreio dos bandeirantes'],
+        'bandeirantes': ['recreio dos bandeirantes'],
+        'cidade de deus': ['jacarepaguá/cidade de deus'],
+        'tanque': ['jacarepaguá/tanque'],
+        'riocentro': ['barra/riocentro'],
+        'barrinha': ['barra/barrinha'],
+        'estação grajaú': ['est. grajaú/jacarepaguá'],
+        'estação jacarepaguá': ['est. grajaú/jacarepaguá'],
+        'brasil mendanha': ['av. brasil/mendanha'],
+        'avenida brasil': ['av. brasil/mendanha'],
+        'botânico': ['jardim botânico'],
+        'jardim': ['jardim botânico']
       };
 
       const bairroKey = bairroName.toLowerCase();
       const possibleStations = stationToBairroMap[bairroKey] || [];
       
-      // Debug para Copacabana
-      if (bairroKey === 'copacabana') {
-        console.log('🔍 Debug Copacabana:');
-        console.log('  - Bairro:', bairroName);
-        console.log('  - Possíveis estações:', possibleStations);
-        console.log('  - Todas as estações disponíveis:', stations.map(s => s.name));
-        console.log('  - Estação Copacabana encontrada:', stations.find(s => s.name.toLowerCase().includes('copacabana')));
-      }
-      
-      const station = stations.find(station => 
-        possibleStations.some(stationName => 
-          station.name.toLowerCase().includes(stationName.toLowerCase())
-        )
+       // Busca principal com múltiplas estratégias
+       let station = stations.find(station => 
+         possibleStations.some(searchStationName => {
+           const stationNameLower = station.name.toLowerCase();
+           const searchNameLower = searchStationName.toLowerCase();
+          
+          // Normalizar acentos e caracteres especiais
+          const normalize = (str: string) => str
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[ç]/g, 'c')
+            .replace(/[ã]/g, 'a')
+            .replace(/[õ]/g, 'o')
+            .replace(/[áàâãä]/g, 'a')
+            .replace(/[éèêë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óòôõö]/g, 'o')
+            .replace(/[úùûü]/g, 'u');
+          
+          const stationNormalized = normalize(stationNameLower);
+          const searchNormalized = normalize(searchNameLower);
+          
+          // Busca exata
+          if (stationNormalized === searchNormalized) return true;
+          
+          // Busca por inclusão
+          if (stationNormalized.includes(searchNormalized)) return true;
+          if (searchNormalized.includes(stationNormalized)) return true;
+          
+          // Busca por palavras-chave (para casos como "Jacarepaguá/Tanque" -> "jacarepaguá")
+          const stationWords = stationNormalized.split(/[\s\/\-_]+/);
+          const searchWords = searchNormalized.split(/[\s\/\-_]+/);
+          
+          return stationWords.some(word => 
+            searchWords.some(searchWord => 
+              word.includes(searchWord) || searchWord.includes(word)
+            )
+          );
+        })
       );
       
+      // Se não encontrou, tentar busca mais agressiva para Ilha do Governador e São Cristóvão
+      if (!station && (bairroKey.includes('ilha') || bairroKey.includes('governador') || 
+          bairroKey.includes('galeão') || bairroKey.includes('galeao') ||
+          bairroKey.includes('tauá') || bairroKey.includes('taua') ||
+          bairroKey.includes('valente') || bairroKey.includes('cocotá') ||
+          bairroKey.includes('cocota') || bairroKey.includes('moneró') ||
+          bairroKey.includes('monero') || bairroKey.includes('pitangueiras') ||
+          bairroKey.includes('zumbi') || bairroKey.includes('cacuia') ||
+          bairroKey.includes('freguesia') || bairroKey.includes('banco') ||
+          bairroKey.includes('guanabara') || bairroKey.includes('portuguesa') ||
+          bairroKey.includes('carioca') || bairroKey.includes('ribeira') ||
+          bairroKey.includes('bandeira') || bairroKey.includes('praia') ||
+          bairroKey.includes('bancários') || bairroKey.includes('bancarios'))) {
+        station = stations.find(s => {
+          const stationName = s.name.toLowerCase();
+          return stationName.includes('ilha') && stationName.includes('governador');
+        });
+      }
+      
+      // Busca agressiva para São Cristóvão
+      if (!station && (bairroKey.includes('são cristóvão') || bairroKey.includes('sao cristovao') ||
+          bairroKey.includes('cristóvão') || bairroKey.includes('cristovao') ||
+          bairroKey.includes('cristovão') || bairroKey.includes('cristóvao'))) {
+        station = stations.find(s => {
+          const stationName = s.name.toLowerCase();
+          return stationName.includes('são') && stationName.includes('cristóvão');
+        });
+      }
+      
+       // Debug específico para Ilha do Governador e São Cristóvão
+       if (bairroKey.includes('ilha') || bairroKey.includes('governador') || 
+           bairroKey.includes('galeão') || bairroKey.includes('galeao') ||
+           bairroKey.includes('tauá') || bairroKey.includes('taua') ||
+           bairroKey.includes('valente') || bairroKey.includes('cocotá') ||
+           bairroKey.includes('cocota') || bairroKey.includes('moneró') ||
+           bairroKey.includes('monero') || bairroKey.includes('pitangueiras') ||
+           bairroKey.includes('zumbi') || bairroKey.includes('cacuia') ||
+           bairroKey.includes('freguesia') || bairroKey.includes('banco') ||
+           bairroKey.includes('guanabara') || bairroKey.includes('portuguesa') ||
+           bairroKey.includes('carioca') || bairroKey.includes('ribeira') ||
+           bairroKey.includes('bandeira') || bairroKey.includes('praia') ||
+           bairroKey.includes('bancários') || bairroKey.includes('bancarios') ||
+           bairroKey.includes('são cristóvão') || bairroKey.includes('sao cristovao') ||
+           bairroKey.includes('cristóvão') || bairroKey.includes('cristovao') ||
+           bairroKey.includes('cristovão') || bairroKey.includes('cristóvao')) {
+         console.log(`🏝️⛪ Debug Ilha do Governador / São Cristóvão:`);
+         console.log(`   Bairro original: "${bairroName}"`);
+         console.log(`   Bairro key: "${bairroKey}"`);
+         console.log(`   Possíveis estações: [${possibleStations.join(', ')}]`);
+         console.log(`   Estação encontrada: ${station ? `"${station.name}"` : 'NENHUMA'}`);
+         
+         if (station) {
+           console.log(`   ✅ Estação encontrada: "${station.name}"`);
+           console.log(`   📊 Dados h24: ${station.data.h24}mm`);
+           console.log(`   🎨 Cor aplicada: ${getRainLevel(station.data.h24).color}`);
+         } else {
+           console.log(`   ❌ Nenhuma estação encontrada`);
+         }
+       }
+      
       if (!station) {
-        if (bairroKey === 'copacabana') {
-          console.log('  - ❌ Nenhuma estação encontrada para Copacabana');
+        console.log(`❌ Nenhuma estação encontrada para bairro: ${bairroName}`);
+        console.log(`   Possíveis estações: [${possibleStations.join(', ')}]`);
+        console.log(`   Estações disponíveis: [${stations.map(s => s.name).join(', ')}]`);
+        
+        // Debug específico para bairros problemáticos
+        if (bairroKey.includes('ilha') || bairroKey.includes('governador') || 
+            bairroKey.includes('são cristóvão') || bairroKey.includes('sao cristovao') ||
+            bairroKey.includes('grota funda') || bairroKey.includes('santa teresa')) {
+          console.log(`🔍 Debug específico para ${bairroName}:`);
+          console.log(`   Bairro key: "${bairroKey}"`);
+          console.log(`   Possíveis estações: [${possibleStations.join(', ')}]`);
+          stations.forEach(s => {
+            const stationLower = s.name.toLowerCase();
+            if (stationLower.includes('ilha') || stationLower.includes('governador') ||
+                stationLower.includes('são cristóvão') || stationLower.includes('sao cristovao') ||
+                stationLower.includes('grota funda') || stationLower.includes('santa teresa')) {
+              console.log(`   Estação encontrada: "${s.name}"`);
+            }
+          });
         }
+        
         return '#F8FAFC'; // Cinza claro para bairros sem dados
       }
       
       const rainLevel = getRainLevel(station.data.h24);
-      
-      if (bairroKey === 'copacabana') {
-        console.log('  - ✅ Estação encontrada:', station.name);
-        console.log('  - Dados h24 (24h):', station.data.h24);
-        console.log('  - Nível de chuva:', rainLevel.name);
-        console.log('  - Cor aplicada:', rainLevel.color);
-      }
       
       return rainLevel.color;
     };
@@ -157,6 +366,27 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
     // Criar polígonos dos bairros
     bairrosData.features.forEach((feature: any) => {
       const bairroName = feature.properties.nome;
+       
+       // Debug específico para Ilha do Governador e São Cristóvão
+       const bairroLower = bairroName.toLowerCase();
+       if (bairroLower.includes('ilha') || bairroLower.includes('governador') || 
+           bairroLower.includes('galeão') || bairroLower.includes('galeao') ||
+           bairroLower.includes('tauá') || bairroLower.includes('taua') ||
+           bairroLower.includes('valente') || bairroLower.includes('cocotá') ||
+           bairroLower.includes('cocota') || bairroLower.includes('moneró') ||
+           bairroLower.includes('monero') || bairroLower.includes('pitangueiras') ||
+           bairroLower.includes('zumbi') || bairroLower.includes('cacuia') ||
+           bairroLower.includes('freguesia') || bairroLower.includes('banco') ||
+           bairroLower.includes('guanabara') || bairroLower.includes('portuguesa') ||
+           bairroLower.includes('carioca') || bairroLower.includes('ribeira') ||
+           bairroLower.includes('bandeira') || bairroLower.includes('praia') ||
+           bairroLower.includes('bancários') || bairroLower.includes('bancarios') ||
+           bairroLower.includes('são cristóvão') || bairroLower.includes('sao cristovao') ||
+           bairroLower.includes('cristóvão') || bairroLower.includes('cristovao') ||
+           bairroLower.includes('cristovão') || bairroLower.includes('cristóvao')) {
+         console.log(`🏝️⛪ Bairro encontrado: "${bairroName}"`);
+       }
+       
       const color = getBairroColor(bairroName);
       
       // Converter coordenadas para o formato do Google Maps
@@ -196,14 +426,13 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
           `
         });
 
-        polygon.addListener('click', (event) => {
+         polygon.addListener('click', () => {
           // Fechar tooltip ativo anterior
           if (activeInfoWindowRef.current) {
             activeInfoWindowRef.current.close();
           }
           
-          // Definir posição baseada no clique
-          const clickPosition = event.latLng;
+           // Definir posição baseada no polígono
           infoWindow.setPosition(polygon.getPath().getAt(0));
           infoWindow.open(map);
           
@@ -353,24 +582,24 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
               <span>Bairros sem dados</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-emerald-500 border border-white"></div>
+             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
               <span>Sem chuva (0mm)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-emerald-600 border border-white"></div>
-              <span>Chuva fraca (&lt;1,25mm)</span>
+             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
+             <span>Chuva fraca (0,2-5,0mm/h)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-amber-500 border border-white"></div>
-              <span>Chuva moderada (1,25-6,25mm)</span>
+             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
+             <span>Chuva moderada (5,1-25,0mm/h)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-orange-500 border border-white"></div>
-              <span>Chuva forte (6,25-12,25mm)</span>
+             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
+             <span>Chuva forte (25,1-50,0mm/h)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-red-600 border border-white"></div>
-              <span>Chuva muito forte ({'>'}12,25mm)</span>
+             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
+             <span>Chuva muito forte ({'>'}50,0mm/h)</span>
             </div>
           </div>
           <div className="text-xs text-gray-500 space-y-1">
@@ -420,24 +649,24 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
             <span>Bairros sem dados</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 border border-white"></div>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
             <span>Sem chuva (0mm)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-emerald-600 border border-white"></div>
-            <span>Chuva fraca (&lt;1,25mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
+            <span>Chuva fraca (0,2-5,0mm/h)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-amber-500 border border-white"></div>
-            <span>Chuva moderada (1,25-6,25mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
+            <span>Chuva moderada (5,1-25,0mm/h)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-orange-500 border border-white"></div>
-            <span>Chuva forte (6,25-12,25mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
+            <span>Chuva forte (25,1-50,0mm/h)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-600 border border-white"></div>
-            <span>Chuva muito forte (&gt;12,25mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
+            <span>Chuva muito forte ({'>'}50,0mm/h)</span>
           </div>
         </div>
         <div className="text-xs text-gray-500 space-y-1">
