@@ -181,7 +181,6 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
          'praia do jardim guanabara': ['Ilha do governador', 'galeão'],
          'praia do jardim carioca': ['Ilha do governador', 'galeão'],
          'praia da ribeira': ['Ilha do governador', 'galeão'],
-         'praia da bandeira': ['Ilha do governador', 'galeão'],
          'bancários': ['Ilha do governador', 'galeão'],
          'bancarios': ['Ilha do governador', 'galeão'],
          'praia dos bancários': ['Ilha do governador', 'galeão'],
