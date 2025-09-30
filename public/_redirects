@@ -1,8 +1,15 @@
 # Netlify redirects file
 # This file helps with CORS issues and API proxying
 
-# Proxy para API de chuvas da Prefeitura do Rio (se necessário)
-/api/json/chuvas https://websempre.rio.rj.gov.br/json/chuvas 200
+# Proxy para API de chuvas da Prefeitura do Rio
+/api/json/chuvas https://websempre.rio.rj.gov.br/json/chuvas 200!
+
+# Headers para resolver CORS
+/api/* 
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
+  /api/:splat 200
 
 # Fallback para SPA
 /* /index.html 200

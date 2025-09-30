@@ -1,7 +1,7 @@
 import { RainStation } from '../types/rain';
 
-// URL da API da Prefeitura do Rio de Janeiro
-const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
+// URL da API da Prefeitura do Rio de Janeiro (via proxy para resolver CORS)
+const RIO_RAIN_API_URL = '/api/json/chuvas';
 
 // Interface para a resposta da API
 interface RioRainApiResponse {

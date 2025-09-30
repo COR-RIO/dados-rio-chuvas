@@ -22,6 +22,14 @@
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
 
+# Redirects para proxy da API
+[[redirects]]
+  from = "/api/json/chuvas"
+  to = "https://websempre.rio.rj.gov.br/json/chuvas"
+  status = 200
+  force = true
+
+# Fallback para SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"
