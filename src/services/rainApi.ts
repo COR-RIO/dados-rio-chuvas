@@ -1,7 +1,7 @@
 import { RainStation } from '../types/rain';
 
-// URL da API dinâmica da Prefeitura do Rio de Janeiro (via proxy)
-const RIO_RAIN_API_URL = '/api/json/chuvas';
+// URL da API da Prefeitura do Rio de Janeiro
+const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
 
 // Interface para a resposta da API
 interface RioRainApiResponse {
@@ -32,6 +32,7 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
     
     const response = await fetch(RIO_RAIN_API_URL, {
       method: 'GET',
+      mode: 'cors',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -89,52 +90,6 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
   } catch (error) {
     console.error('Erro ao buscar dados de chuva da API da Prefeitura:', error);
     
-    // Tenta fallback direto se o proxy falhar
-    if (RIO_RAIN_API_URL.startsWith('/api')) {
-      console.log('Tentando acesso direto à API...');
-      try {
-        const directResponse = await fetch('https://websempre.rio.rj.gov.br/json/chuvas', {
-          method: 'GET',
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-          },
-          cache: 'no-cache'
-        });
-
-        if (directResponse.ok) {
-          const directData: RioRainApiResponse = await directResponse.json();
-          if (directData.objects && Array.isArray(directData.objects)) {
-            const stations: RainStation[] = directData.objects
-              .filter(station => station.kind === 'pluviometric')
-              .map((station, index) => ({
-                id: `rio-${station.name.toLowerCase().replace(/\s+/g, '-')}-${index}`,
-                name: station.name,
-                location: station.location,
-                read_at: station.read_at,
-                is_new: station.is_new,
-                data: {
-                  m05: station.data.m05 || 0,
-                  m15: station.data.m15 || 0,
-                  h01: station.data.h01 || 0,
-                  h02: station.data.h02 || 0,
-                  h03: station.data.h03 || 0,
-                  h04: station.data.h04 || 0,
-                  h24: station.data.h24 || 0,
-                  h96: station.data.h96 || 0,
-                  mes: station.data.mes || 0
-                }
-              }));
-            
-            console.log(`Fallback direto: ${stations.length} estações carregadas`);
-            return stations;
-          }
-        }
-      } catch (fallbackError) {
-        console.error('Fallback direto também falhou:', fallbackError);
-      }
-    }
-    
     // Em caso de erro, retorna array vazio para evitar quebrar a aplicação
     return [];
   }
@@ -143,19 +98,7 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
 // Função para verificar se a API está disponível
 export const checkApiAvailability = async (): Promise<boolean> => {
   try {
-    // Primeiro tenta o proxy
-    let response = await fetch(RIO_RAIN_API_URL, {
-      method: 'GET',
-      cache: 'no-cache'
-    });
-    
-    if (response.ok) {
-      return true;
-    }
-    
-    // Se o proxy falhar, tenta acesso direto
-    console.log('Proxy falhou, tentando acesso direto à API...');
-    response = await fetch('https://websempre.rio.rj.gov.br/json/chuvas', {
+    const response = await fetch(RIO_RAIN_API_URL, {
       method: 'GET',
       mode: 'cors',
       headers: {
@@ -166,7 +109,7 @@ export const checkApiAvailability = async (): Promise<boolean> => {
     
     return response.ok;
   } catch (error) {
-    console.warn('API da Prefeitura do Rio não disponível (proxy e direto):', error);
+    console.warn('API da Prefeitura do Rio não disponível:', error);
     return false;
   }
 };
