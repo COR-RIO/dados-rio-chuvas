@@ -5,6 +5,7 @@ import { getRainLevel } from '../utils/rainLevel';
 import { useBairrosData } from '../hooks/useCitiesData';
 import { findBairroByName, getBairroCenter, getCentroBairro, isValidCoordinate } from '../services/citiesApi';
 import { LoadingSpinner } from './LoadingSpinner';
+import { getBairroColor } from '../utils/bairroMapping';
 
 interface RioMapProps {
   stations: RainStation[];
@@ -13,55 +14,6 @@ interface RioMapProps {
 export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
   const { bairrosData, loading, error } = useBairrosData();
 
-  // Função para obter a cor do bairro baseada nas estações próximas
-  const getBairroColor = (bairroName: string) => {
-    // Mapeamento mais abrangente de estações para bairros do Rio
-    const stationToBairroMap: { [key: string]: string[] } = {
-      'copacabana': ['copacabana'],
-      'ipanema': ['ipanema'],
-      'leblon': ['leblon'],
-      'botafogo': ['botafogo'],
-      'flamengo': ['flamengo'],
-      'laranjeiras': ['laranjeiras'],
-      'centro': ['centro', 'lapa', 'santa teresa'],
-      'tijuca': ['tijuca', 'maracanã', 'vila isabel', 'tijuca/muda'],
-      'grajaú': ['grajaú'],
-      'alto da boa vista': ['alto da boa vista'],
-      'barra': ['barra', 'recreio', 'recreio dos bandeirantes'],
-      'jacarepaguá': ['jacarepaguá'],
-      'campo grande': ['campo grande'],
-      'bangu': ['bangu'],
-      'santa cruz': ['santa cruz'],
-      'sepetiba': ['sepetiba'],
-      'ilha do governador': ['ilha do governador', 'galeão'],
-      'penha': ['penha'],
-      'madureira': ['madureira'],
-      'irajá': ['irajá'],
-      'são cristóvão': ['são cristóvão'],
-      'grande méier': ['grande méier'],
-      'anchieta': ['anchieta'],
-      'grota funda': ['grota funda'],
-      'av. brasil/mendanha': ['av. brasil/mendanha'],
-      'piedade': ['piedade'],
-      'vidigal': ['vidigal'],
-      'rocinha': ['rocinha'],
-      'urca': ['urca']
-    };
-
-    const bairroKey = bairroName.toLowerCase();
-    const possibleStations = stationToBairroMap[bairroKey] || [];
-    
-    const station = stations.find(station => 
-      possibleStations.some(stationName => 
-        station.name.toLowerCase().includes(stationName.toLowerCase())
-      )
-    );
-    
-    if (!station) return '#F8FAFC'; // Cinza muito claro para bairros sem dados
-    
-    const rainLevel = getRainLevel(station.data.h01);
-    return rainLevel.color;
-  };
 
   // Função para obter posição da estação no mapa
   const getStationPosition = (stationName: string): [number, number] => {
@@ -175,7 +127,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
               geographies.map((geo: any) => {
                 const bairroName = geo.properties.nome;
                 const isCentro = centroBairro && geo.properties.nome === centroBairro.properties.nome;
-                const color = getBairroColor(bairroName);
+                const color = getBairroColor(bairroName, stations);
                 
                 return (
                   <Geography
@@ -219,7 +171,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
 
           {/* Marcadores das estações */}
           {stations.map((station) => {
-            const rainLevel = getRainLevel(station.data.h01);
+            const rainLevel = getRainLevel(station.data.h24);
             const [lng, lat] = getStationPosition(station.name);
             
             // Validação das coordenadas antes de renderizar
@@ -248,7 +200,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
                       filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
                     }}
                   >
-                    <title>{`${station.name} - ${station.data.h01.toFixed(1)}mm (última hora)`}</title>
+                    <title>{`${station.name} - ${station.data.h24.toFixed(1)}mm (últimas 24h)`}</title>
                   </circle>
                   {/* Ponto central */}
                   <circle
@@ -270,26 +222,30 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
             <span>Bairros sem dados</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-green-500 border border-white"></div>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
             <span>Sem chuva (0mm)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-yellow-500 border border-white"></div>
-            <span>Chuva fraca (0.1-2.5mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
+            <span>Chuva fraca (0,2-5,0mm/h)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-orange-500 border border-white"></div>
-            <span>Chuva moderada (2.6-10mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
+            <span>Chuva moderada (5,1-25,0mm/h)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-500 border border-white"></div>
-            <span>Chuva forte (&gt;10mm)</span>
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
+            <span>Chuva forte (25,1-50,0mm/h)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
+            <span>Chuva muito forte ({'>'}50,0mm/h)</span>
           </div>
         </div>
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Passe o mouse sobre os bairros para ver detalhes</p>
           <p>• Círculos representam estações meteorológicas com dados em tempo real</p>
-        <p>• Cores baseadas na intensidade de chuva da última hora</p>
+        <p>• Cores baseadas na intensidade de chuva das últimas 24 horas</p>
           <p>• Dados geográficos da Prefeitura do Rio de Janeiro</p>
         </div>
       </div>
