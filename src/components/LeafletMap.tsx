@@ -175,10 +175,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro - Visão Ampliada</h3>
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
+      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gray-50 border-b border-gray-200">
+        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800 leading-tight">
+          Mapa dos Bairros do Rio de Janeiro - Visão Ampliada
+        </h3>
+      </div>
       
-      <div className="relative w-full h-[600px] bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden shadow-inner">
+      <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] xl:h-[700px] bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
         <MapContainer
           center={[-22.875, -43.418]} // Realengo, Rio de Janeiro
           zoom={10.5}
@@ -193,7 +197,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
-                <BairroPolygons bairrosData={bairrosData} />
+          <BairroPolygons bairrosData={bairrosData} />
           <StationMarkers stations={stations} />
         </MapContainer>
       </div>
