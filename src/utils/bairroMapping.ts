@@ -117,38 +117,80 @@ export const normalizeString = (str: string): string => {
  */
 export const findStationForBairro = (bairroName: string, stations: RainStation[]): RainStation | null => {
   const bairroKey = bairroName.toLowerCase();
+  
+  // Primeiro, tentar busca direta por nome do bairro nas estações
+  let station = stations.find(station => {
+    const stationName = station.name.toLowerCase();
+    
+    // Busca direta
+    if (stationName.includes(bairroKey) || bairroKey.includes(stationName)) {
+      return true;
+    }
+    
+    // Busca normalizada
+    const stationNormalized = normalizeString(stationName);
+    const bairroNormalized = normalizeString(bairroKey);
+    
+    if (stationNormalized.includes(bairroNormalized) || bairroNormalized.includes(stationNormalized)) {
+      return true;
+    }
+    
+    // Busca por palavras-chave
+    const stationWords = stationNormalized.split(/[\s\/\-_]+/);
+    const bairroWords = bairroNormalized.split(/[\s\/\-_]+/);
+    
+    return stationWords.some(word => 
+      bairroWords.some(bairroWord => 
+        word.includes(bairroWord) || bairroWord.includes(word)
+      )
+    );
+  });
+  
+  if (station) {
+    return station;
+  }
+  
+  // Se não encontrou, usar o mapeamento manual como fallback
   const possibleStations = stationToBairroMap[bairroKey] || [];
   
-  // Busca principal com múltiplas estratégias
-  let station = stations.find(station => 
-    possibleStations.some(searchStationName => {
-      const stationNameLower = station.name.toLowerCase();
-      const searchNameLower = searchStationName.toLowerCase();
-      
-      // Normalizar acentos e caracteres especiais
-      const stationNormalized = normalizeString(stationNameLower);
-      const searchNormalized = normalizeString(searchNameLower);
-      
-      // Busca exata
-      if (stationNormalized === searchNormalized) return true;
-      
-      // Busca por inclusão
-      if (stationNormalized.includes(searchNormalized)) return true;
-      if (searchNormalized.includes(stationNormalized)) return true;
-      
-      // Busca por palavras-chave (para casos como "Jacarepaguá/Tanque" -> "jacarepaguá")
-      const stationWords = stationNormalized.split(/[\s\/\-_]+/);
-      const searchWords = searchNormalized.split(/[\s\/\-_]+/);
-      
-      return stationWords.some(word => 
-        searchWords.some(searchWord => 
-          word.includes(searchWord) || searchWord.includes(word)
-        )
-      );
-    })
-  );
+  if (possibleStations.length > 0) {
+    station = stations.find(station => 
+      possibleStations.some(searchStationName => {
+        const stationNameLower = station.name.toLowerCase();
+        const searchNameLower = searchStationName.toLowerCase();
+        
+        const stationNormalized = normalizeString(stationNameLower);
+        const searchNormalized = normalizeString(searchNameLower);
+        
+        if (stationNormalized === searchNormalized) return true;
+        if (stationNormalized.includes(searchNormalized)) return true;
+        if (searchNormalized.includes(stationNormalized)) return true;
+        
+        const stationWords = stationNormalized.split(/[\s\/\-_]+/);
+        const searchWords = searchNormalized.split(/[\s\/\-_]+/);
+        
+        return stationWords.some(word => 
+          searchWords.some(searchWord => 
+            word.includes(searchWord) || searchWord.includes(word)
+          )
+        );
+      })
+    );
+  }
   
-  // Se não encontrou, tentar busca mais agressiva para Ilha do Governador e São Cristóvão
+  if (station) {
+    return station;
+  }
+  
+  // Busca agressiva para casos especiais
+  if (bairroKey.includes('alto da boa vista')) {
+    station = stations.find(s => {
+      const stationName = s.name.toLowerCase();
+      return stationName.includes('alto') && stationName.includes('boa') && stationName.includes('vista');
+    });
+  }
+  
+  // Busca específica para Ilha do Governador e todos os seus bairros
   if (!station && (bairroKey.includes('ilha') || bairroKey.includes('governador') || 
       bairroKey.includes('galeão') || bairroKey.includes('galeao') ||
       bairroKey.includes('tauá') || bairroKey.includes('taua') ||
@@ -167,7 +209,6 @@ export const findStationForBairro = (bairroName: string, stations: RainStation[]
     });
   }
   
-  // Busca agressiva para São Cristóvão
   if (!station && (bairroKey.includes('são cristóvão') || bairroKey.includes('sao cristovao') ||
       bairroKey.includes('cristóvão') || bairroKey.includes('cristovao') ||
       bairroKey.includes('cristovão') || bairroKey.includes('cristóvao'))) {
@@ -187,9 +228,38 @@ export const getBairroColor = (bairroName: string, stations: RainStation[]): str
   const station = findStationForBairro(bairroName, stations);
   
   if (!station) {
+    // Debug específico para Alto da Boa Vista
+    if (bairroName.toLowerCase().includes('alto da boa vista')) {
+      console.log(`❌ getBairroColor - Alto da Boa Vista: Nenhuma estação encontrada`);
+    }
+    // Debug específico para Ilha do Governador
+    if (bairroName.toLowerCase().includes('ilha') || bairroName.toLowerCase().includes('governador') || 
+        bairroName.toLowerCase().includes('praia da bandeira') || bairroName.toLowerCase().includes('bandeira')) {
+      console.log(`❌ getBairroColor - ${bairroName}: Nenhuma estação encontrada`);
+    }
     return '#F8FAFC'; // Cinza muito claro para bairros sem dados
   }
   
-  const rainLevel = getRainLevel(station.data.h24);
+  const rainLevel = getRainLevel(station.data.h01);
+  
+  // Debug específico para Alto da Boa Vista
+  if (bairroName.toLowerCase().includes('alto da boa vista')) {
+    console.log(`✅ getBairroColor - Alto da Boa Vista:`);
+    console.log(`   Estação encontrada: ${station.name}`);
+    console.log(`   Dados h01: ${station.data.h01}mm`);
+    console.log(`   Nível de chuva: ${rainLevel.name}`);
+    console.log(`   Cor retornada: ${rainLevel.color}`);
+  }
+  
+  // Debug específico para Ilha do Governador
+  if (bairroName.toLowerCase().includes('ilha') || bairroName.toLowerCase().includes('governador') || 
+      bairroName.toLowerCase().includes('praia da bandeira') || bairroName.toLowerCase().includes('bandeira')) {
+    console.log(`✅ getBairroColor - ${bairroName}:`);
+    console.log(`   Estação encontrada: ${station.name}`);
+    console.log(`   Dados h01: ${station.data.h01}mm`);
+    console.log(`   Nível de chuva: ${rainLevel.name}`);
+    console.log(`   Cor retornada: ${rainLevel.color}`);
+  }
+  
   return rainLevel.color;
 };

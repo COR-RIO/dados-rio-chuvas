@@ -171,7 +171,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
 
           {/* Marcadores das estações */}
           {stations.map((station) => {
-            const rainLevel = getRainLevel(station.data.h24);
+            const rainLevel = getRainLevel(station.data.h01);
             const [lng, lat] = getStationPosition(station.name);
             
             // Validação das coordenadas antes de renderizar
@@ -200,7 +200,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
                       filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
                     }}
                   >
-                    <title>{`${station.name} - ${station.data.h24.toFixed(1)}mm (últimas 24h)`}</title>
+                    <title>{`${station.name} - ${station.data.h01.toFixed(1)}mm (última hora)`}</title>
                   </circle>
                   {/* Ponto central */}
                   <circle
@@ -245,7 +245,7 @@ export const RioMap: React.FC<RioMapProps> = ({ stations }) => {
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Passe o mouse sobre os bairros para ver detalhes</p>
           <p>• Círculos representam estações meteorológicas com dados em tempo real</p>
-        <p>• Cores baseadas na intensidade de chuva das últimas 24 horas</p>
+        <p>• Cores baseadas na intensidade de chuva da última hora</p>
           <p>• Dados geográficos da Prefeitura do Rio de Janeiro</p>
         </div>
       </div>

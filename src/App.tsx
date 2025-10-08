@@ -3,7 +3,7 @@ import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useRainData } from './hooks/useRainData';
 import { RainStationCard } from './components/RainStationCard';
 import { RainLegend } from './components/RainLegend';
-import { GoogleMap } from './components/GoogleMap';
+import { LeafletMap } from './components/LeafletMap';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
@@ -70,7 +70,7 @@ function App() {
                 <LoadingSpinner />
               </div>
             ) : (
-              <GoogleMap stations={stations} />
+              <LeafletMap stations={stations} />
             )}
           </div>
 

@@ -23,6 +23,15 @@ export const RainLegend: React.FC = () => {
           </div>
         ))}
       </div>
+      
+      <div className="mt-4 pt-3 border-t border-gray-200">
+        <p className="text-xs text-gray-500">
+          ⏰ <strong>Baseado em:</strong> Dados de chuva da última hora (h01)
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          📍 <strong>Cores:</strong> Apenas nas bolinhas das estações
+        </p>
+      </div>
     </div>
   );
 };

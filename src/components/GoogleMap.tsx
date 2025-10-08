@@ -138,6 +138,13 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
        
       const color = getBairroColor(bairroName, stations);
       
+      // Debug específico para Alto da Boa Vista
+      if (bairroName.toLowerCase().includes('alto da boa vista')) {
+        console.log(`🔍 GoogleMap - Alto da Boa Vista:`);
+        console.log(`   Bairro: ${bairroName}`);
+        console.log(`   Cor aplicada: ${color}`);
+      }
+      
       // Converter coordenadas para o formato do Google Maps
       const paths: google.maps.LatLng[] = [];
       
@@ -193,12 +200,12 @@ const MapComponent: React.FC<{ stations: RainStation[]; bairrosData: any }> = ({
 
     // Criar marcadores das estações
     stations.forEach((station) => {
-      const rainLevel = getRainLevel(station.data.h24);
+      const rainLevel = getRainLevel(station.data.h01);
       
       const marker = new google.maps.Marker({
         position: { lat: station.location[0], lng: station.location[1] },
         map: map,
-        title: `${station.name} - ${station.data.h24.toFixed(1)}mm (24h)`,
+        title: `${station.name} - ${station.data.h01.toFixed(1)}mm (última hora)`,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 8,
@@ -421,7 +428,7 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Clique nos bairros para ver detalhes</p>
           <p>• Círculos representam estações meteorológicas com dados em tempo real</p>
-          <p>• Cores baseadas na intensidade de chuva das últimas 24 horas</p>
+          <p>• Cores baseadas na intensidade de chuva da última hora</p>
           <p>• Dados geográficos da Prefeitura do Rio de Janeiro</p>
           <p>• Mapa: Google Maps</p>
         </div>
