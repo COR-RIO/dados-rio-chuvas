@@ -176,12 +176,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
+      <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro - Visão Ampliada</h3>
       
       <div className="relative w-full h-[600px] bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl overflow-hidden shadow-inner">
         <MapContainer
-          center={[-22.9000, -43.1833]} // Centro do Rio de Janeiro
-          zoom={11}
+          center={[-22.875, -43.418]} // Realengo, Rio de Janeiro
+          zoom={10.5}
           style={{ height: '100%', width: '100%' }}
           zoomControl={true}
           scrollWheelZoom={true}

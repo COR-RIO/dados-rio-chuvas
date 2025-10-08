@@ -1,4 +1,4 @@
-import React from 'react';
+// React import removido - não necessário com React 17+
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useRainData } from './hooks/useRainData';
 import { RainStationCard } from './components/RainStationCard';
@@ -7,7 +7,7 @@ import { LeafletMap } from './components/LeafletMap';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
-  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData();
+  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData(300000); // 5 minutos
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-yellow-50">
@@ -38,6 +38,10 @@ function App() {
                   <span className={apiAvailable ? 'text-green-600' : 'text-red-600'}>
                     {apiAvailable ? 'API Online' : 'API Offline'}
                   </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                  <span className="text-blue-600 text-xs">Auto-atualização ativa</span>
                 </div>
               </div>
             </div>
