@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { RainStation } from '../types/rain';
 import { useBairrosData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
-// Removido: getBairroColor - não usado mais
 import { getRainLevel } from '../utils/rainLevel';
+import { HexRainLayer } from './HexRainLayer';
+import { InfluenceLegend } from './InfluenceLegend';
+import { MapLayers, HexagonLayerToggle, FocusCityButton, FitCityOnLoad, MAP_TYPES, type MapTypeId } from './MapControls';
 import 'leaflet/dist/leaflet.css';
 
 // Fix para ícones do Leaflet
@@ -47,11 +49,11 @@ const BairroPolygons: React.FC<{ bairrosData: any }> = ({ bairrosData }) => {
             key={`bairro-${index}`}
             positions={leafletCoordinates}
             pathOptions={{
-              color: '#9CA3AF', // Cinza médio para bordas
+              color: '#9CA3AF',
               weight: 1,
-              opacity: 0.6,
-              fillColor: '#F3F4F6', // Cinza claro neutro
-              fillOpacity: 0.2,
+              opacity: 0.5,
+              fillColor: '#F3F4F6',
+              fillOpacity: 0.12,
             }}
           >
             <Popup>
@@ -137,6 +139,9 @@ const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => 
 // Componente principal
 export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
   const { bairrosData, loading, error } = useBairrosData();
+  const [mapType, setMapType] = useState<MapTypeId>('rua');
+  const [showHexagons, setShowHexagons] = useState(true);
+  const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
 
   if (loading) {
     return (
@@ -178,14 +183,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
     <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
       <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gray-50 border-b border-gray-200">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800 leading-tight">
-          Mapa dos Bairros do Rio de Janeiro - Visão Ampliada
+          Área de influência das chuvas (hexágonos) • Bairros do Rio
         </h3>
       </div>
       
       <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] xl:h-[700px] bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
+        <InfluenceLegend />
+        <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
+          <MapLayers value={mapType} onChange={setMapType} />
+          <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+        </div>
         <MapContainer
-          center={[-22.875, -43.418]} // Realengo, Rio de Janeiro
-          zoom={10.5}
+          center={[-22.9068, -43.1729]}
+          zoom={10}
           style={{ height: '100%', width: '100%' }}
           zoomControl={true}
           scrollWheelZoom={true}
@@ -193,11 +203,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
           dragging={true}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            key={mapType}
+            attribution={mapTypeConfig.attribution}
+            url={mapTypeConfig.url}
           />
-          
+          <FitCityOnLoad bairrosData={bairrosData} />
+          <FocusCityButton bairrosData={bairrosData} />
           <BairroPolygons bairrosData={bairrosData} />
+          {showHexagons && <HexRainLayer stations={stations} resolution={9} bairrosData={bairrosData} />}
           <StationMarkers stations={stations} />
         </MapContainer>
       </div>
@@ -231,9 +244,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
         </div>
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Clique nos bairros para ver detalhes</p>
-          <p>• <strong>Bolinhas coloridas:</strong> Estações meteorológicas (dados da última hora)</p>
-          <p>• Dados geográficos da Prefeitura do Rio de Janeiro</p>
-          <p>• Mapa: Leaflet + OpenStreetMap</p>
+          <p>• <strong>Hexágonos:</strong> Área de influência por intensidade (0 a 4+) com base na estação mais próxima</p>
+          <p>• <strong>Bolinhas:</strong> Estações pluviométricas (dados da última hora)</p>
+          <p>• Dados: Prefeitura do Rio de Janeiro • AlertaRio</p>
+          <p>• Use o seletor <strong>Tipo de mapa</strong> (canto superior direito) para alternar entre Rua, Satélite, Escuro e Terreno</p>
+          <p>• Use <strong>Hexágonos: Sim/Não</strong> para mostrar ou ocultar a camada de área de influência no mapa</p>
+          <p>• Botão <strong>Ver cidade inteira</strong> ajusta a vista para todo o município do Rio</p>
         </div>
       </div>
     </div>
