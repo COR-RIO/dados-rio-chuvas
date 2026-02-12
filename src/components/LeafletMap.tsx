@@ -37,6 +37,11 @@ interface LeafletMapProps {
   historicalMode: boolean;
   historicalDate: string;
   onHistoricalDateChange: (date: string) => void;
+  /** Filtro horário (dia_original): início e fim no formato HH:mm */
+  historicalTimeFrom?: string;
+  historicalTimeTo?: string;
+  onHistoricalTimeFromChange?: (time: string) => void;
+  onHistoricalTimeToChange?: (time: string) => void;
   historicalTimeline: string[];
   selectedHistoricalTimestamp: string | null;
   onHistoricalTimestampChange: (timestamp: string) => void;
@@ -209,6 +214,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   historicalMode,
   historicalDate,
   onHistoricalDateChange,
+  historicalTimeFrom = '00:00',
+  historicalTimeTo = '23:59',
+  onHistoricalTimeFromChange,
+  onHistoricalTimeToChange,
   historicalTimeline,
   selectedHistoricalTimestamp,
   onHistoricalTimestampChange,
@@ -257,6 +266,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           enabled={historicalMode}
           dateValue={historicalDate}
           onDateChange={onHistoricalDateChange}
+          timeFrom={historicalTimeFrom}
+          timeTo={historicalTimeTo}
+          onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
+          onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
           timeline={historicalTimeline}
           selectedTimestamp={selectedHistoricalTimestamp}
           onTimestampChange={onHistoricalTimestampChange}

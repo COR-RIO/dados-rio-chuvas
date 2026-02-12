@@ -15,13 +15,101 @@ function getHistoricalRainApiBase(): string {
 
 const DEFAULT_HISTORICAL_LIMIT = 10000;
 
+/** Normaliza nome da estação para bater com o mapa (igual ao backend). */
+function normalizeStationKey(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** Mapa nome normalizado -> [lat, lng] (fallback quando a API não envia location). */
+const STATION_COORDS_BY_NAME: Record<string, [number, number]> = {
+  vidigal: [-22.9925, -43.233056],
+  urca: [-22.955833, -43.166667],
+  rocinha: [-22.985833, -43.245],
+  tijuca: [-22.931944, -43.221667],
+  'santa teresa': [-22.931667, -43.196389],
+  copacabana: [-22.986389, -43.189444],
+  grajau: [-22.922222, -43.2675],
+  'ilha do governador': [-22.818056, -43.210278],
+  penha: [-22.844444, -43.275278],
+  madureira: [-22.873333, -43.338889],
+  iraja: [-22.826944, -43.336944],
+  bangu: [-22.880278, -43.465833],
+  piedade: [-22.893056, -43.307222],
+  'jacarepagua tanque': [-22.9125, -43.364722],
+  saude: [-22.898056, -43.194444],
+  'jardim botanico': [-22.972778, -43.223889],
+  'barra barrinha': [-23.008486, -43.299653],
+  'jacarepagua cidade de deus': [-22.945556, -43.362778],
+  'barra riocentro': [-22.977205, -43.391548],
+  guaratiba: [-23.050278, -43.594722],
+  'est grajau jacarepagua': [-22.925556, -43.315833],
+  'santa cruz': [-22.909444, -43.684444],
+  'grande meier': [-22.890556, -43.278056],
+  anchieta: [-22.826944, -43.403333],
+  'grota funda': [-23.014444, -43.519444],
+  'campo grande': [-22.903611, -43.561944],
+  sepetiba: [-22.968889, -43.711667],
+  'alto da boa vista': [-22.965833, -43.278333],
+  'av brasil mendanha': [-22.856944, -43.541111],
+  'recreio dos bandeirantes': [-23.01, -43.440556],
+  laranjeiras: [-22.940556, -43.1875],
+  'sao cristovao': [-22.896667, -43.221667],
+  'tijuca muda': [-22.932778, -43.243333],
+};
+
+/** Preenche location/latitude/longitude no cliente quando a API não envia (por nome da estação). */
+function enrichRecordsWithLocation(rows: HistoricalRainRecord[]): HistoricalRainRecord[] {
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const hasLocation =
+      (Array.isArray(row.location) && row.location.length >= 2) ||
+      (row.latitude != null && row.longitude != null);
+    if (hasLocation) return row;
+
+    const name = (row.station_name ?? row.name ?? row.estacao) as string | undefined;
+    if (!name || typeof name !== 'string') return row;
+
+    const coords = STATION_COORDS_BY_NAME[normalizeStationKey(name)];
+    if (!coords) return row;
+
+    const [lat, lng] = coords;
+    return {
+      ...row,
+      location: coords,
+      latitude: lat,
+      longitude: lng,
+    };
+  });
+}
+
 /**
  * Monta query string a partir dos parâmetros.
  */
+/**
+ * Garante que um valor de horário tenha segundos (HH:mm -> HH:mm:00, HH:mm:ss mantém).
+ */
+function timeWithSeconds(t: string): string {
+  if (!t || typeof t !== 'string') return '00:00:00';
+  const trimmed = t.trim();
+  const parts = trimmed.split(':');
+  if (parts.length === 1) return `${parts[0].padStart(2, '0')}:00:00`;
+  if (parts.length === 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
+  return trimmed;
+}
+
 function toQueryString(params: HistoricalRainParams): string {
   const search = new URLSearchParams();
-  if (params.dateFrom) search.set('dateFrom', params.dateFrom);
-  if (params.dateTo) search.set('dateTo', params.dateTo);
+  let dateFrom = params.dateFrom;
+  let dateTo = params.dateTo;
+  if (params.timeFrom && dateFrom) dateFrom = `${dateFrom} ${timeWithSeconds(params.timeFrom)}`;
+  if (params.timeTo && dateTo) dateTo = `${dateTo} ${timeWithSeconds(params.timeTo)}`;
+  if (dateFrom) search.set('dateFrom', dateFrom);
+  if (dateTo) search.set('dateTo', dateTo);
   if (params.limit != null) search.set('limit', String(params.limit));
   if (params.sort) search.set('sort', params.sort);
   if (params.stationId) search.set('stationId', params.stationId);
@@ -90,7 +178,53 @@ function pickNumber(record: HistoricalRainRecord, keys: string[], fallback = 0):
   return fallback;
 }
 
+/**
+ * Parse do dia_original no formato Nimbus (string do BD): "YYYY-MM-DD HH:mm:ss.SSS ±HHMM"
+ * O offset indica o fuso do horário (ex: -0300 = UTC-3).
+ */
+function parseDiaOriginalNimbus(str: string): string | null {
+  if (typeof str !== 'string' || !str.trim()) return null;
+  const trimmed = str.trim();
+  const match = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?(?:\s*([+-])(\d{2})(\d{2})?)?$/
+  );
+  if (!match) return null;
+  const [, y, m, d, hh, mm, ss, sign, oh, om] = match;
+  const year = parseInt(y!, 10);
+  const month = parseInt(m!, 10) - 1;
+  const day = parseInt(d!, 10);
+  const hour = parseInt(hh!, 10);
+  const minute = parseInt(mm!, 10);
+  const second = parseInt(ss!, 10);
+  const offsetHours =
+    sign != null && oh != null
+      ? sign === '-'
+        ? -(parseInt(oh, 10) + (parseInt(om || '0', 10) || 0) / 60)
+        : parseInt(oh, 10) + (parseInt(om || '0', 10) || 0) / 60
+      : 0;
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    !Number.isFinite(second)
+  )
+    return null;
+  const localAsUtc = Date.UTC(year, month, day, hour, minute, second, 0);
+  const utcMs = localAsUtc - offsetHours * 60 * 60 * 1000;
+  const date = new Date(utcMs);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 function toIsoTimestamp(record: HistoricalRainRecord): string {
+  const diaOriginal = record.dia_original;
+  if (typeof diaOriginal === 'string') {
+    const parsed = parseDiaOriginalNimbus(diaOriginal);
+    if (parsed) return parsed;
+  }
+
   const raw = record.read_at || record.timestamp || record.dia || record.datetime || record.date_time;
   if (typeof raw === 'string') {
     const parsed = new Date(raw);
@@ -210,7 +344,8 @@ export async function fetchHistoricalRainStationsTimeline(
   params: HistoricalRainParams = {},
   selectedTimestamp?: string | null
 ): Promise<HistoricalStationsTimelineResult> {
-  const rows = await fetchHistoricalRain({ limit: DEFAULT_HISTORICAL_LIMIT, sort: 'asc', ...params });
+  const rawRows = await fetchHistoricalRain({ limit: DEFAULT_HISTORICAL_LIMIT, sort: 'asc', ...params });
+  const rows = enrichRecordsWithLocation(rawRows);
   const byTimestamp = new Map<string, Map<string, RainStation>>();
 
   rows.forEach((record, index) => {
@@ -231,6 +366,16 @@ export async function fetchHistoricalRainStationsTimeline(
   );
 
   if (timeline.length === 0) {
+    if (rows.length > 0) {
+      console.warn(
+        '[GCP histórico] API retornou',
+        rows.length,
+        'linhas mas nenhuma com localização válida (latitude/longitude ou nome de estação que bata com pluviometros.json). Primeira linha (chaves):',
+        Object.keys(rows[0] || {})
+      );
+    } else {
+      console.log('[GCP histórico] API retornou 0 linhas para o período.', params);
+    }
     return { timeline: [], selectedTimestamp: null, stations: [] };
   }
 
@@ -253,7 +398,8 @@ export async function fetchHistoricalRainStationsTimeline(
 export async function fetchLatestRainStationsFromGcp(
   params: HistoricalRainParams = {}
 ): Promise<RainStation[]> {
-  const rows = await fetchHistoricalRain({ limit: DEFAULT_HISTORICAL_LIMIT, sort: 'desc', ...params });
+  const rawRows = await fetchHistoricalRain({ limit: DEFAULT_HISTORICAL_LIMIT, sort: 'desc', ...params });
+  const rows = enrichRecordsWithLocation(rawRows);
   const latestByStation = new Map<string, RainStation>();
 
   rows.forEach((record, index) => {

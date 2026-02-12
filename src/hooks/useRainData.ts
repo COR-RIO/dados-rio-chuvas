@@ -9,6 +9,10 @@ export interface UseRainDataOptions {
   useMock?: boolean;
   mode?: RainDataMode;
   historicalDate?: string;
+  /** Filtro horário início (HH:mm) – combinado com historicalDate na query ao GCP */
+  historicalTimeFrom?: string;
+  /** Filtro horário fim (HH:mm) – combinado com historicalDate na query ao GCP */
+  historicalTimeTo?: string;
   historicalTimestamp?: string | null;
   refreshInterval?: number;
 }
@@ -27,6 +31,8 @@ export const useRainData = (
     useMock = false,
     mode = 'auto',
     historicalDate,
+    historicalTimeFrom,
+    historicalTimeTo,
     historicalTimestamp = null,
     refreshInterval = 300000,
   } = options;
@@ -78,7 +84,13 @@ export const useRainData = (
       if (mode === 'historical') {
         const targetDate = historicalDate || new Date().toISOString().slice(0, 10);
         const timelineData = await fetchHistoricalRainStationsTimeline(
-          { dateFrom: targetDate, dateTo: targetDate, limit: 10000 },
+          {
+            dateFrom: targetDate,
+            dateTo: targetDate,
+            timeFrom: historicalTimeFrom,
+            timeTo: historicalTimeTo,
+            limit: 10000,
+          },
           historicalTimestamp
         );
 
@@ -123,7 +135,7 @@ export const useRainData = (
       setRefreshing(false);
       inFlightRef.current = false;
     }
-  }, [useMock, mode, historicalDate, historicalTimestamp]);
+  }, [useMock, mode, historicalDate, historicalTimeFrom, historicalTimeTo, historicalTimestamp]);
 
   const refresh = useCallback(() => {
     loadData();

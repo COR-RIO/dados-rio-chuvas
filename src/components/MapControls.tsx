@@ -144,6 +144,11 @@ interface HistoricalTimelineControlProps {
   enabled: boolean;
   dateValue: string;
   onDateChange: (date: string) => void;
+  /** Filtro de horário (baseado em dia_original do BD Nimbus). Formato HH:mm */
+  timeFrom?: string;
+  timeTo?: string;
+  onTimeFromChange?: (time: string) => void;
+  onTimeToChange?: (time: string) => void;
   timeline: string[];
   selectedTimestamp: string | null;
   onTimestampChange: (timestamp: string) => void;
@@ -167,6 +172,10 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   enabled,
   dateValue,
   onDateChange,
+  timeFrom = '00:00',
+  timeTo = '23:59',
+  onTimeFromChange,
+  onTimeToChange,
   timeline,
   selectedTimestamp,
   onTimestampChange,
@@ -189,6 +198,29 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         disabled={!enabled}
         className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
       />
+
+      {enabled && onTimeFromChange && onTimeToChange && (
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-0.5">Horário (de)</label>
+            <input
+              type="time"
+              value={timeFrom}
+              onChange={(e) => onTimeFromChange(e.target.value)}
+              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-0.5">Horário (até)</label>
+            <input
+              type="time"
+              value={timeTo}
+              onChange={(e) => onTimeToChange(e.target.value)}
+              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700"
+            />
+          </div>
+        </div>
+      )}
 
       {!enabled && (
         <div className="mt-2 text-[10px] text-gray-500">

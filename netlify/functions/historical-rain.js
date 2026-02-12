@@ -38,9 +38,46 @@ function normalizeStationKey(value) {
     .trim();
 }
 
+/** Fallback: coordenadas por nome normalizado (quando data/pluviometros.json não existe no deploy). */
+const FALLBACK_STATION_COORDS = new Map([
+  ['vidigal', [-22.9925, -43.233056]],
+  ['urca', [-22.955833, -43.166667]],
+  ['rocinha', [-22.985833, -43.245]],
+  ['tijuca', [-22.931944, -43.221667]],
+  ['santa teresa', [-22.931667, -43.196389]],
+  ['copacabana', [-22.986389, -43.189444]],
+  ['grajau', [-22.922222, -43.2675]],
+  ['ilha do governador', [-22.818056, -43.210278]],
+  ['penha', [-22.844444, -43.275278]],
+  ['madureira', [-22.873333, -43.338889]],
+  ['iraja', [-22.826944, -43.336944]],
+  ['bangu', [-22.880278, -43.465833]],
+  ['piedade', [-22.893056, -43.307222]],
+  ['jacarepagua tanque', [-22.9125, -43.364722]],
+  ['saude', [-22.898056, -43.194444]],
+  ['jardim botanico', [-22.972778, -43.223889]],
+  ['barra barrinha', [-23.008486, -43.299653]],
+  ['jacarepagua cidade de deus', [-22.945556, -43.362778]],
+  ['barra riocentro', [-22.977205, -43.391548]],
+  ['guaratiba', [-23.050278, -43.594722]],
+  ['est grajau jacarepagua', [-22.925556, -43.315833]],
+  ['santa cruz', [-22.909444, -43.684444]],
+  ['grande meier', [-22.890556, -43.278056]],
+  ['anchieta', [-22.826944, -43.403333]],
+  ['grota funda', [-23.014444, -43.519444]],
+  ['campo grande', [-22.903611, -43.561944]],
+  ['sepetiba', [-22.968889, -43.711667]],
+  ['alto da boa vista', [-22.965833, -43.278333]],
+  ['av brasil mendanha', [-22.856944, -43.541111]],
+  ['recreio dos bandeirantes', [-23.01, -43.440556]],
+  ['laranjeiras', [-22.940556, -43.1875]],
+  ['sao cristovao', [-22.896667, -43.221667]],
+  ['tijuca muda', [-22.932778, -43.243333]],
+]);
+
 function getStationCoordsMap() {
   if (stationCoordsCache) return stationCoordsCache;
-  const map = new Map();
+  const map = new Map(FALLBACK_STATION_COORDS);
   const dataPath = [
     path.resolve(process.cwd(), 'data', 'pluviometros.json'),
     path.join(__dirname, '..', '..', 'data', 'pluviometros.json'),
@@ -181,17 +218,15 @@ function buildQuery(params) {
   const dateCol = process.env.BIGQUERY_DATE_COLUMN || 'dia';
   const stationIdCol = process.env.BIGQUERY_STATION_ID_COLUMN || 'estacao_id';
   const stationNameCol = process.env.BIGQUERY_STATION_NAME_COLUMN || 'estacao';
+  // Colunas: dia, dia_original, utc_offset, m05, m15, h01, h24, estacao, estacao_id
   const selectColumns = (process.env.BIGQUERY_SELECT_COLUMNS || [
     '`' + dateCol + '` AS dia',
     'dia_original',
     'utc_offset',
     'm05',
-    'm10',
     'm15',
     'h01',
-    'h04',
     'h24',
-    'h96',
     'estacao',
     'estacao_id',
   ].join(', ')).trim();

@@ -10,6 +10,8 @@ function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
   const [dataMode, setDataMode] = useState<RainDataMode>('auto');
   const [historicalDate, setHistoricalDate] = useState(new Date().toISOString().slice(0, 10));
+  const [historicalTimeFrom, setHistoricalTimeFrom] = useState('00:00');
+  const [historicalTimeTo, setHistoricalTimeTo] = useState('23:59');
   const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
   const [mapType, setMapType] = useState<MapTypeId>('rua');
   const {
@@ -28,6 +30,8 @@ function App() {
     useMock: useMockDemo,
     mode: dataMode,
     historicalDate,
+    historicalTimeFrom,
+    historicalTimeTo,
     historicalTimestamp,
     refreshInterval: 300000,
   });
@@ -82,6 +86,10 @@ function App() {
             setHistoricalDate(date);
             setHistoricalTimestamp(null);
           }}
+          historicalTimeFrom={historicalTimeFrom}
+          historicalTimeTo={historicalTimeTo}
+          onHistoricalTimeFromChange={setHistoricalTimeFrom}
+          onHistoricalTimeToChange={setHistoricalTimeTo}
           historicalTimeline={historicalTimeline}
           selectedHistoricalTimestamp={historicalTimestamp ?? activeHistoricalTimestamp}
           onHistoricalTimestampChange={setHistoricalTimestamp}

@@ -47,6 +47,9 @@ export interface HistoricalRainRecord {
 export interface HistoricalRainParams {
   dateFrom?: string;
   dateTo?: string;
+  /** Filtro de horário (formato "HH:mm" ou "HH:mm:ss") – combinado com a data em dateFrom/dateTo */
+  timeFrom?: string;
+  timeTo?: string;
   limit?: number;
   sort?: 'asc' | 'desc';
   stationId?: string;
