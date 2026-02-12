@@ -150,3 +150,42 @@ export const getBairrosStats = (bairroData: BairroCollection) => {
     regioes: regioes.sort()
   };
 };
+
+// --- Zonas Pluviométricas (GeoJSON do KML) ---
+
+export interface ZonaPluvFeature {
+  type: 'Feature';
+  properties: {
+    objectid: number;
+    name: string;
+    endereço?: string;
+    est?: string;
+    cod: number;
+    Shape__Area?: number;
+    Shape__Length?: number;
+  };
+  geometry: {
+    type: 'Polygon' | 'MultiPolygon';
+    coordinates: number[][][] | number[][][][];
+  };
+}
+
+export interface ZonasPluvCollection {
+  type: 'FeatureCollection';
+  features: ZonaPluvFeature[];
+}
+
+// Carregado de data/ via Vite (?url copia para dist e devolve a URL)
+import zonasPluvGeojsonUrl from '../../data/zonas-pluviometricas.geojson?url';
+
+export const fetchZonasPluvData = async (): Promise<ZonasPluvCollection> => {
+  const response = await fetch(zonasPluvGeojsonUrl);
+  if (!response.ok) {
+    throw new Error(`Erro ao carregar zonas pluviométricas: ${response.status}`);
+  }
+  const data: ZonasPluvCollection = await response.json();
+  if (!data.features?.length) {
+    throw new Error('Nenhuma zona pluviométrica encontrada');
+  }
+  return data;
+};

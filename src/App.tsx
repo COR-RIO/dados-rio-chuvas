@@ -1,5 +1,5 @@
 // React import removido - não necessário com React 17+
-import { RefreshCw, AlertCircle, Info } from 'lucide-react';
+import { RefreshCw, AlertCircle, Info, Beaker } from 'lucide-react';
 import { useState } from 'react';
 import { useRainData } from './hooks/useRainData';
 import { RainStationCard } from './components/RainStationCard';
@@ -9,7 +9,11 @@ import { InfoModal } from './components/InfoModal';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 function App() {
-  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData(300000); // 5 minutos
+  const [useMockDemo, setUseMockDemo] = useState(false);
+  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData({
+    useMock: useMockDemo,
+    refreshInterval: 300000,
+  });
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
   return (
@@ -42,21 +46,45 @@ function App() {
                     <span className="font-medium text-gray-700">{totalStations}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${apiAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className={`font-medium ${apiAvailable ? 'text-green-600' : 'text-red-600'}`}>
-                    {apiAvailable ? 'API Online' : 'API Offline'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></div>
-                  <span className="font-medium text-blue-600">Auto-atualização ativa</span>
-                </div>
+                {!useMockDemo && (
+                  <>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${apiAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className={`font-medium ${apiAvailable ? 'text-green-600' : 'text-red-600'}`}>
+                        {apiAvailable ? 'API Online' : 'API Offline'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></div>
+                      <span className="font-medium text-blue-600">Auto-atualização ativa</span>
+                    </div>
+                  </>
+                )}
+                {useMockDemo && (
+                  <div className="flex items-center gap-1 sm:gap-2 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                    <span className="font-medium">Modo demonstração</span>
+                    <span className="text-xs">(dados de exemplo para validar mapa de influência)</span>
+                  </div>
+                )}
               </div>
             </div>
             
             {/* Action Buttons */}
             <div className="lg:ml-6 flex-shrink-0 flex gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setUseMockDemo((v) => !v)}
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2 lg:py-3 rounded-lg sm:rounded-xl font-medium transition-colors shadow-sm text-sm sm:text-base ${
+                  useMockDemo
+                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo (mock) para validar hexágonos e estações'}
+              >
+                <Beaker className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">{useMockDemo ? 'Dados em tempo real' : 'Dados de exemplo'}</span>
+                <span className="sm:hidden">{useMockDemo ? 'Tempo real' : 'Exemplo'}</span>
+              </button>
               <button
                 onClick={() => setIsInfoModalOpen(true)}
                 className="flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-3 sm:px-4 py-2 sm:py-2 lg:py-3 rounded-lg sm:rounded-xl font-medium hover:bg-gray-200 transition-colors shadow-sm hover:shadow-md text-sm sm:text-base"
@@ -81,7 +109,7 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
-        {error && (
+        {error && !useMockDemo && (
           <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <p className="text-amber-800 font-medium">{error}</p>

@@ -113,54 +113,66 @@ const BAIRROS_BOUNDS_PROPS: L.FitBoundsOptions = { padding: [24, 24], maxZoom: 1
 function boundsFromBairros(bairrosData: { features: Array<{ geometry: { type?: string; coordinates: number[][] | number[][][] | number[][][][] } }> }): L.LatLngBounds | null {
   if (!bairrosData?.features?.length) return null;
   const points: [number, number][] = [];
-  bairrosData.features.forEach((f) => {
+  const features = Array.isArray(bairrosData.features) ? bairrosData.features : [];
+  for (const f of features) {
     const coords = f.geometry?.coordinates;
-    if (!coords?.length) return;
+    if (!coords || !Array.isArray(coords) || coords.length === 0) continue;
     // Polygon: coordinates[0] = anel (array de [lng, lat])
     // MultiPolygon: coordinates[0][0] = anel do primeiro polígono
     const first = coords[0];
-    const ring: number[][] = Array.isArray(first?.[0]) && typeof (first[0] as number[])[0] === 'number'
-      ? (first as number[][])   // Polygon: first já é o anel
-      : (first?.[0] as number[][]); // MultiPolygon: first[0] é o anel
-    if (!ring?.length) return;
-    ring.forEach((pt) => {
+    if (first == null) continue;
+    let ring: number[][] | undefined;
+    if (Array.isArray(first) && first.length > 0) {
+      const firstEl = first[0];
+      if (Array.isArray(firstEl) && typeof firstEl[0] === 'number') {
+        ring = first as number[][]; // Polygon: first já é o anel
+      } else if (Array.isArray(firstEl) && Array.isArray(firstEl[0])) {
+        ring = first[0] as number[][]; // MultiPolygon: first[0] é o anel
+      }
+    }
+    if (!ring || !Array.isArray(ring) || ring.length === 0) continue;
+    for (const pt of ring) {
       if (Array.isArray(pt) && pt.length >= 2 && typeof pt[0] === 'number' && typeof pt[1] === 'number') {
         points.push([pt[1], pt[0]]); // [lat, lng] para Leaflet
       }
-    });
-  });
+    }
+  }
   return points.length > 0 ? L.latLngBounds(points) : null;
 }
 
+/** Dados GeoJSON compatíveis para cálculo de bounds (bairros ou zonas pluviométricas). */
+export type BoundsGeoJson = { features: Array<{ geometry: { coordinates: number[][] | number[][][] | number[][][][] } }> } | null;
+
 interface FitCityOnLoadProps {
-  bairrosData: { features: Array<{ geometry: { coordinates: number[][][][] } }> } | null;
+  /** Bairros ou zonas pluviométricas para encaixar a vista (preferir zonas quando disponível). */
+  boundsData: BoundsGeoJson;
 }
 
 /** Ajusta a vista do mapa para a cidade do Rio ao carregar (uma vez). */
-export const FitCityOnLoad: React.FC<FitCityOnLoadProps> = ({ bairrosData }) => {
+export const FitCityOnLoad: React.FC<FitCityOnLoadProps> = ({ boundsData }) => {
   const map = useMap();
   const done = useRef(false);
   useEffect(() => {
-    if (done.current || !bairrosData) return;
-    const bounds = boundsFromBairros(bairrosData);
+    if (done.current || !boundsData) return;
+    const bounds = boundsFromBairros(boundsData);
     if (bounds) {
       map.fitBounds(bounds, BAIRROS_BOUNDS_PROPS);
       done.current = true;
     }
-  }, [map, bairrosData]);
+  }, [map, boundsData]);
   return null;
 };
 
 interface FocusCityButtonProps {
-  bairrosData: { features: Array<{ geometry: { coordinates: number[][][][] } }> } | null;
+  boundsData: BoundsGeoJson;
 }
 
-export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ bairrosData }) => {
+export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) => {
   const map = useMap();
 
   const handleFocus = () => {
-    if (!bairrosData) return;
-    const bounds = boundsFromBairros(bairrosData);
+    if (!boundsData) return;
+    const bounds = boundsFromBairros(boundsData);
     if (bounds) map.fitBounds(bounds, BAIRROS_BOUNDS_PROPS);
   };
 

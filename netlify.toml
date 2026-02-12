@@ -29,6 +29,13 @@
   status = 200
   force = true
 
+# Dados históricos de chuvas (BigQuery via Netlify Function)
+[[redirects]]
+  from = "/api/historical-rain"
+  to = "/.netlify/functions/historical-rain"
+  status = 200
+  force = true
+
 # Fallback para SPA
 [[redirects]]
   from = "/*"

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { RainStation } from '../types/rain';
-import { useBairrosData } from '../hooks/useCitiesData';
+import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
@@ -73,6 +73,50 @@ const BairroPolygons: React.FC<{ bairrosData: any }> = ({ bairrosData }) => {
   );
 };
 
+// Polígonos das zonas pluviométricas (do KML/GeoJSON)
+const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').ZonasPluvCollection }> = ({ zonasData }) => {
+  const polygons: { key: string; positions: [number, number][][]; name: string; est?: string }[] = [];
+  zonasData.features.forEach((feature, fi) => {
+    const name = feature.properties.name;
+    const est = feature.properties.est;
+    if (feature.geometry.type === 'Polygon') {
+      const ring = feature.geometry.coordinates[0] ?? [];
+      const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
+      polygons.push({ key: `zona-${fi}-0`, positions, name, est });
+    } else if (feature.geometry.type === 'MultiPolygon') {
+      feature.geometry.coordinates.forEach((poly, pi) => {
+        const ring = poly[0] ?? [];
+        const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
+        polygons.push({ key: `zona-${fi}-${pi}`, positions, name, est });
+      });
+    }
+  });
+  return (
+    <>
+      {polygons.map(({ key, positions, name, est }) => (
+        <Polygon
+          key={key}
+          positions={positions}
+          pathOptions={{
+            color: '#0ea5e9',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: '#0ea5e9',
+            fillOpacity: 0.08,
+          }}
+        >
+          <Popup>
+            <div style={{ padding: '8px', fontFamily: 'Arial, sans-serif' }}>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#333' }}>{name}</h3>
+              {est && <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>Estação: {est}</p>}
+            </div>
+          </Popup>
+        </Polygon>
+      ))}
+    </>
+  );
+};
+
 // Componente para criar marcadores das estações
 const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => {
   return (
@@ -139,11 +183,14 @@ const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => 
 // Componente principal
 export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
   const { bairrosData, loading, error } = useBairrosData();
+  const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [mapType, setMapType] = useState<MapTypeId>('rua');
   const [showHexagons, setShowHexagons] = useState(true);
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
+  const loadingAny = loading || loadingZonas;
+  const boundsData = zonasData ?? bairrosData;
 
-  if (loading) {
+  if (loadingAny) {
     return (
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
@@ -168,10 +215,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
     );
   }
 
-  if (!bairrosData) {
+  if (!bairrosData && !zonasData) {
     return (
       <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa – Zonas Pluviométricas e Bairros</h3>
         <div className="h-96 flex items-center justify-center">
           <p className="text-gray-500">Nenhum dado geográfico disponível</p>
         </div>
@@ -183,7 +230,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
     <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
       <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gray-50 border-b border-gray-200">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800 leading-tight">
-          Área de influência das chuvas (hexágonos) • Bairros do Rio
+          Zonas pluviométricas e área de influência (hexágonos) • Rio de Janeiro
         </h3>
       </div>
       
@@ -207,10 +254,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
             attribution={mapTypeConfig.attribution}
             url={mapTypeConfig.url}
           />
-          <FitCityOnLoad bairrosData={bairrosData} />
-          <FocusCityButton bairrosData={bairrosData} />
-          <BairroPolygons bairrosData={bairrosData} />
-          {showHexagons && <HexRainLayer stations={stations} resolution={9} bairrosData={bairrosData} />}
+          <FitCityOnLoad boundsData={boundsData} />
+          <FocusCityButton boundsData={boundsData} />
+          {zonasData && <ZonasPolygons zonasData={zonasData} />}
+          {bairrosData && <BairroPolygons bairrosData={bairrosData} />}
+          {showHexagons && <HexRainLayer stations={stations} resolution={9} bairrosData={bairrosData ?? undefined} />}
           <StationMarkers stations={stations} />
         </MapContainer>
       </div>
@@ -243,6 +291,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
           </div>
         </div>
         <div className="text-xs text-gray-500 space-y-1">
+          <p>• Contornos em azul: zonas pluviométricas oficiais (clique para ver região e estação)</p>
           <p>• Clique nos bairros para ver detalhes</p>
           <p>• <strong>Hexágonos:</strong> Área de influência por intensidade (0 a 4+) com base na estação mais próxima</p>
           <p>• <strong>Bolinhas:</strong> Estações pluviométricas (dados da última hora)</p>

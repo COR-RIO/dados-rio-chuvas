@@ -25,3 +25,32 @@ export interface RainLevel {
   color: string;
   bgColor: string;
 }
+
+/** Registro genérico de dado histórico vindo do BigQuery (ajuste conforme o schema da sua tabela) */
+export interface HistoricalRainRecord {
+  timestamp?: string;
+  read_at?: string;
+  station_id?: string;
+  station_name?: string;
+  name?: string;
+  location?: string | unknown;
+  /** Precipitação em mm (última hora, 24h, etc. – nomes podem variar no BD) */
+  h01?: number;
+  h24?: number;
+  precipitation_mm?: number;
+  [key: string]: unknown;
+}
+
+export interface HistoricalRainParams {
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  stationId?: string;
+  station?: string;
+}
+
+export interface HistoricalRainResponse {
+  success: boolean;
+  data?: HistoricalRainRecord[];
+  error?: string;
+}
