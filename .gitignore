@@ -28,3 +28,4 @@ dist-ssr
 credentials/
 **/credentials.json
 **/service-account*.json
+credentials/netlify-env-value.txt

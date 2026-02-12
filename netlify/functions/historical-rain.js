@@ -41,9 +41,12 @@ function normalizeStationKey(value) {
 function getStationCoordsMap() {
   if (stationCoordsCache) return stationCoordsCache;
   const map = new Map();
-  const dataPath = path.resolve(process.cwd(), 'data', 'pluviometros.json');
+  const dataPath = [
+    path.resolve(process.cwd(), 'data', 'pluviometros.json'),
+    path.join(__dirname, '..', '..', 'data', 'pluviometros.json'),
+  ].find((p) => fs.existsSync(p));
 
-  if (fs.existsSync(dataPath)) {
+  if (dataPath) {
     try {
       const raw = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
       const list = Array.isArray(raw?.pluviometros) ? raw.pluviometros : [];
@@ -86,17 +89,50 @@ function enrichRowsWithLocation(rows) {
   });
 }
 
+function parseCredentialsJson(value) {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {
+    // Às vezes a variável é salva com aspas extras ao redor (ex.: valor "{\"type\":...}")
+    const unquoted = trimmed.replace(/^["']([\s\S]*)["']$/, '$1').replace(/\\"/g, '"');
+    try {
+      return JSON.parse(unquoted);
+    } catch (__) {
+      return null;
+    }
+  }
+}
+
 function getBigQueryClient() {
   const jsonCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   const projectId = process.env.GCP_PROJECT_ID;
 
   if (jsonCreds) {
-    const credentials = JSON.parse(jsonCreds);
+    const credentials = parseCredentialsJson(jsonCreds);
+    if (!credentials) {
+      throw new Error(
+        'GOOGLE_APPLICATION_CREDENTIALS_JSON está definida mas o JSON é inválido. ' +
+          'Gere o valor com: node scripts/prepare-netlify-credentials.js e cole o conteúdo de credentials/netlify-env-value.txt na variável (sem aspas em volta).'
+      );
+    }
+    if (!credentials.client_email || !credentials.private_key) {
+      throw new Error(
+        'GOOGLE_APPLICATION_CREDENTIALS_JSON está definida mas o JSON não contém client_email ou private_key. ' +
+          'Use o arquivo JSON completo da service account do GCP (credentials.json).'
+      );
+    }
+    const privateKey =
+      typeof credentials.private_key === 'string'
+        ? credentials.private_key.replace(/\\n/g, '\n')
+        : credentials.private_key;
     return new BigQuery({
       projectId: projectId || credentials.project_id,
       credentials: {
         client_email: credentials.client_email,
-        private_key: credentials.private_key,
+        private_key: privateKey,
       },
     });
   }
@@ -109,17 +145,23 @@ function getBigQueryClient() {
     });
   }
 
-  // Fallback local: usa credentials/credentials.json automaticamente
-  const defaultKeyPath = path.resolve(process.cwd(), 'credentials', 'credentials.json');
-  if (fs.existsSync(defaultKeyPath)) {
-    return new BigQuery({
-      projectId: projectId,
-      keyFilename: defaultKeyPath,
-    });
+  // Fallback local: tenta cwd e depois pasta do projeto (relativo a este arquivo)
+  const tryPaths = [
+    path.resolve(process.cwd(), 'credentials', 'credentials.json'),
+    path.join(__dirname, '..', '..', 'credentials', 'credentials.json'),
+  ];
+  for (const p of tryPaths) {
+    if (fs.existsSync(p)) {
+      return new BigQuery({
+        projectId: projectId,
+        keyFilename: p,
+      });
+    }
   }
 
   throw new Error(
-    'Defina GOOGLE_APPLICATION_CREDENTIALS_JSON ou GOOGLE_APPLICATION_CREDENTIALS no ambiente (ou crie credentials/credentials.json localmente)'
+    'Defina GOOGLE_APPLICATION_CREDENTIALS_JSON ou GOOGLE_APPLICATION_CREDENTIALS no ambiente (ou crie credentials/credentials.json localmente). ' +
+      'Netlify: Site settings → Environment variables → adicione GOOGLE_APPLICATION_CREDENTIALS_JSON com o JSON em uma linha (veja GCP_SETUP.md) e faça um novo deploy.'
   );
 }
 
@@ -139,22 +181,20 @@ function buildQuery(params) {
   const dateCol = process.env.BIGQUERY_DATE_COLUMN || 'dia';
   const stationIdCol = process.env.BIGQUERY_STATION_ID_COLUMN || 'estacao_id';
   const stationNameCol = process.env.BIGQUERY_STATION_NAME_COLUMN || 'estacao';
-  const selectColumns =
-    process.env.BIGQUERY_SELECT_COLUMNS ||
-    `
-      \`${dateCol}\` AS dia,
-      dia_original,
-      utc_offset,
-      m05,
-      m10,
-      m15,
-      h01,
-      h04,
-      h24,
-      h96,
-      estacao,
-      estacao_id
-    `;
+  const selectColumns = (process.env.BIGQUERY_SELECT_COLUMNS || [
+    '`' + dateCol + '` AS dia',
+    'dia_original',
+    'utc_offset',
+    'm05',
+    'm10',
+    'm15',
+    'h01',
+    'h04',
+    'h24',
+    'h96',
+    'estacao',
+    'estacao_id',
+  ].join(', ')).trim();
 
   const safe = (s) => String(s).replace(/'/g, "''");
   const isDateOnly = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());

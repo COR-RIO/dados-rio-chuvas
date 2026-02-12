@@ -5,7 +5,14 @@ import type {
   RainStation,
 } from '../types/rain';
 
-const HISTORICAL_RAIN_API = '/api/historical-rain';
+/** No Netlify usamos o caminho direto da function para evitar redirect que devolve index.html. */
+function getHistoricalRainApiBase(): string {
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('netlify.app')) {
+    return '/.netlify/functions/historical-rain';
+  }
+  return '/api/historical-rain';
+}
+
 const DEFAULT_HISTORICAL_LIMIT = 10000;
 
 /**
@@ -30,16 +37,27 @@ function toQueryString(params: HistoricalRainParams): string {
 export async function fetchHistoricalRain(
   params: HistoricalRainParams = {}
 ): Promise<HistoricalRainRecord[]> {
-  const url = `${HISTORICAL_RAIN_API}${toQueryString(params)}`;
+  const base = getHistoricalRainApiBase();
+  const url = `${base}${toQueryString(params)}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
     cache: 'no-cache',
   });
 
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (!isJson) {
+    const text = await res.text().then((t) => t.slice(0, 200)).catch(() => '');
+    throw new Error(
+      `GCP retornou resposta não-JSON (${res.status}). Configure a função no Netlify e variáveis GOOGLE_APPLICATION_CREDENTIALS_JSON. ${text ? `Resposta: ${text}` : ''}`
+    );
+  }
+
   const body: HistoricalRainResponse = await res.json().catch(() => ({
     success: false,
-    error: 'Resposta inválida',
+    error: 'Resposta inválida (JSON quebrado)',
   }));
 
   if (!res.ok) {
@@ -254,7 +272,7 @@ export async function fetchLatestRainStationsFromGcp(
  */
 export async function checkHistoricalRainApiAvailable(): Promise<boolean> {
   try {
-    const res = await fetch(`${HISTORICAL_RAIN_API}?limit=1`, {
+    const res = await fetch(`${getHistoricalRainApiBase()}?limit=1`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

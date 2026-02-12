@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { RainStation } from '../types/rain';
 import { fetchRainData } from '../services/rainApi';
-import {
-  fetchLatestRainStationsFromGcp,
-  fetchHistoricalRainStationsTimeline,
-} from '../services/gcpHistoricalRainApi';
+import { fetchHistoricalRainStationsTimeline } from '../services/gcpHistoricalRainApi';
 import { MOCK_RAIN_STATIONS } from '../data/mockRainStations';
 
 export interface UseRainDataOptions {
@@ -101,45 +98,26 @@ export const useRainData = (
         return;
       }
 
-      let data = await fetchRainData();
-      let source: RainDataSource = 'api';
+      const data = await fetchRainData();
 
       if (data.length === 0) {
-        try {
-          const gcpData = await fetchLatestRainStationsFromGcp({ limit: 5000 });
-          if (gcpData.length > 0) {
-            data = gcpData;
-            source = 'gcp';
-            setHistoricalAvailable(true);
-          }
-        } catch (gcpError) {
-          console.warn('Falha no fallback de dados históricos (GCP):', gcpError);
-          setHistoricalAvailable(false);
-        }
-      } else {
         setHistoricalAvailable(false);
-      }
-
-      if (data.length === 0) {
-        throw new Error('Nenhuma estação meteorológica encontrada (API e GCP indisponíveis)');
+        throw new Error('Nenhuma estação encontrada. Ative "Histórico" para usar dados do GCP.');
       }
 
       setStations(data);
       setTotalStations(data.length);
       setLastUpdate(getLatestReadAt(data) ?? new Date());
-      setApiAvailable(source === 'api');
-      setDataSource(source);
+      setApiAvailable(true);
+      setDataSource('api');
       setHistoricalTimeline([]);
       setActiveHistoricalTimestamp(null);
       hasLoadedRef.current = true;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar dados';
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados';
       setError(errorMessage);
       setApiAvailable(false);
-
-      if (!hasLoadedRef.current) {
-        setStations([]);
-      }
+      if (!hasLoadedRef.current) setStations([]);
     } finally {
       setLoading(false);
       setRefreshing(false);

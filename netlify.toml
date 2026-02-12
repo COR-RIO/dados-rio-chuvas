@@ -5,6 +5,9 @@
 [build.environment]
   NODE_VERSION = "18"
 
+[functions]
+  directory = "netlify/functions"
+
 # Headers para resolver problemas de CORS
 [[headers]]
   for = "/*"

@@ -27,16 +27,46 @@ No painel da Netlify: **Site settings → Environment variables**:
 
 \* Ou use `GOOGLE_APPLICATION_CREDENTIALS` com o caminho do arquivo (apenas em ambiente onde o arquivo existe, ex.: build local).
 
-### Como gerar `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+**Importante:** No site [chovendo-agora.netlify.app](https://chovendo-agora.netlify.app), o modo Histórico (GCP) só funciona se `GOOGLE_APPLICATION_CREDENTIALS_JSON` (e opcionalmente as outras) estiverem configuradas em **Site settings → Environment variables**. Se aparecer erro 500 ou "Defina GOOGLE_APPLICATION_CREDENTIALS_JSON", configure essa variável e faça um novo deploy.
 
-No terminal (a partir da pasta do projeto):
+**Local:** Se você rodar **`npx netlify dev`**, a função usa automaticamente o arquivo `credentials/credentials.json` da pasta do projeto (não precisa variável de ambiente). Se rodar só **`npm run dev`**, as chamadas vão para o site no Netlify; aí as credenciais precisam estar no painel do Netlify.
+
+**GCP:** Não é necessário “apontar” o site no Google Cloud. O service account do `credentials.json` já tem permissão no projeto; basta o Netlify (ou o ambiente que roda a função) ter acesso a esse JSON.
+
+### Como gerar e colar `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+
+**Recomendado (evita erro de formatação):** use o script que gera o valor exato para colar:
 
 ```bash
-# Linux/macOS (minifica o JSON em uma linha)
-cat credentials/credentials.json | jq -c . 
+node scripts/prepare-netlify-credentials.js
 ```
 
-Ou abra `credentials/credentials.json`, remova quebras de linha e coloque todo o conteúdo em uma única linha; depois cole o valor na variável no Netlify.
+Isso cria o arquivo `credentials/netlify-env-value.txt` (não é commitado). Depois:
+
+1. Abra `credentials/netlify-env-value.txt`.
+2. Selecione **tudo** (Ctrl+A) e copie (Ctrl+C).
+3. No Netlify: **Site settings → Environment variables** → crie ou edite `GOOGLE_APPLICATION_CREDENTIALS_JSON`.
+4. Cole **apenas** o conteúdo (não adicione aspas nem espaços em volta).
+5. Salve e faça um **novo deploy** (Build & deploy → Trigger deploy).
+
+**Alternativa no terminal (Linux/macOS):**
+
+```bash
+cat credentials/credentials.json | jq -c .
+```
+
+Copie a saída e cole no valor da variável no Netlify.
+
+**Erros comuns:**
+
+- **Não** coloque o valor entre aspas extras no painel do Netlify (ex.: `"{...}"`). O valor deve ser só o JSON.
+- **Não** edite manualmente o JSON (remover/quebrar linhas à mão pode invalidar o JSON). Use o script acima.
+- Se mudar a variável, é necessário **novo deploy** para a function usar o novo valor.
+
+**Se o erro "Defina GOOGLE_APPLICATION_CREDENTIALS_JSON..." continuar:**
+
+1. **Testando no site Netlify:** confira em **Site settings → Environment variables** se a variável `GOOGLE_APPLICATION_CREDENTIALS_JSON` existe, está no escopo **Production** (ou no que você usa) e se você fez **Trigger deploy** depois de salvar.
+2. **Testando localmente com `npm run dev`:** o front chama a API no Netlify; as credenciais precisam estar no painel do Netlify. Para usar o arquivo local, rode **`npx netlify dev`** em vez de `npm run dev` — aí a function roda na sua máquina e usa `credentials/credentials.json`.
 
 ### Desenvolvimento local
 
