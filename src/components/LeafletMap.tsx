@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
 import { InfluenceLegend } from './InfluenceLegend';
-import { MapLayers, HexagonLayerToggle, FocusCityButton, FitCityOnLoad, MAP_TYPES, type MapTypeId } from './MapControls';
+import { RainDataTable } from './RainDataTable';
+import {
+  MapLayers,
+  HexagonLayerToggle,
+  FocusCityButton,
+  FitCityOnLoad,
+  MAP_TYPES,
+  type MapTypeId,
+} from './MapControls';
 import 'leaflet/dist/leaflet.css';
 
 // Fix para ícones do Leaflet
@@ -20,6 +29,8 @@ L.Icon.Default.mergeOptions({
 
 interface LeafletMapProps {
   stations: RainStation[];
+  mapType: MapTypeId;
+  onMapTypeChange: (mapType: MapTypeId) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -80,11 +91,11 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
     const name = feature.properties.name;
     const est = feature.properties.est;
     if (feature.geometry.type === 'Polygon') {
-      const ring = feature.geometry.coordinates[0] ?? [];
+      const ring = (feature.geometry.coordinates as number[][][])[0] ?? [];
       const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
       polygons.push({ key: `zona-${fi}-0`, positions, name, est });
     } else if (feature.geometry.type === 'MultiPolygon') {
-      feature.geometry.coordinates.forEach((poly, pi) => {
+      (feature.geometry.coordinates as number[][][][]).forEach((poly, pi) => {
         const ring = poly[0] ?? [];
         const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
         polygons.push({ key: `zona-${fi}-${pi}`, positions, name, est });
@@ -181,35 +192,29 @@ const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => 
 };
 
 // Componente principal
-export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
+export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMapTypeChange }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
-  const [mapType, setMapType] = useState<MapTypeId>('rua');
   const [showHexagons, setShowHexagons] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true);
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
 
   if (loadingAny) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
-        <div className="h-96 flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+        <LoadingSpinner />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa dos Bairros do Rio de Janeiro</h3>
-        <div className="h-96 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-600 font-medium mb-2">Erro ao carregar mapa</p>
-            <p className="text-gray-500 text-sm">{error}</p>
-          </div>
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+        <div className="text-center bg-white/90 rounded-xl border border-red-100 px-6 py-4 shadow-sm">
+          <p className="text-red-600 font-medium mb-2">Erro ao carregar mapa</p>
+          <p className="text-gray-500 text-sm">{error}</p>
         </div>
       </div>
     );
@@ -217,90 +222,68 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations }) => {
 
   if (!bairrosData && !zonasData) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Mapa – Zonas Pluviométricas e Bairros</h3>
-        <div className="h-96 flex items-center justify-center">
-          <p className="text-gray-500">Nenhum dado geográfico disponível</p>
-        </div>
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+        <p className="text-gray-500">Nenhum dado geográfico disponível</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
-      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800 leading-tight">
-          Zonas pluviométricas e área de influência (hexágonos) • Rio de Janeiro
-        </h3>
+    <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
+      <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2">
+        <MapLayers value={mapType} onChange={onMapTypeChange} />
+        <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} />
       </div>
-      
-      <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] xl:h-[700px] bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
-        <InfluenceLegend />
-        <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
-          <MapLayers value={mapType} onChange={setMapType} />
-          <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+
+      <button
+        type="button"
+        onClick={() => setShowSidebar((v) => !v)}
+        className="absolute top-28 right-3 z-[1300] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+        title={showSidebar ? 'Ocultar tabela' : 'Mostrar tabela'}
+      >
+        {showSidebar ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        {showSidebar ? 'Ocultar dados' : 'Mostrar dados'}
+      </button>
+
+      <div
+        className={`absolute top-40 right-3 bottom-3 z-[1250] w-[min(500px,calc(100vw-24px))] transition-transform duration-300 ${
+          showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
+        }`}
+      >
+        <div className="h-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+          <RainDataTable stations={stations} embedded />
         </div>
-        <MapContainer
-          center={[-22.9068, -43.1729]}
-          zoom={10}
-          style={{ height: '100%', width: '100%' }}
-          zoomControl={true}
-          scrollWheelZoom={true}
-          doubleClickZoom={true}
-          dragging={true}
-        >
-          <TileLayer
-            key={mapType}
-            attribution={mapTypeConfig.attribution}
-            url={mapTypeConfig.url}
+      </div>
+
+      <MapContainer
+        center={[-22.9068, -43.1729]}
+        zoom={10}
+        style={{ height: '100%', width: '100%' }}
+        zoomControl={true}
+        scrollWheelZoom={true}
+        doubleClickZoom={true}
+        dragging={true}
+      >
+        <TileLayer
+          key={mapType}
+          attribution={mapTypeConfig.attribution}
+          url={mapTypeConfig.url}
+        />
+        <FitCityOnLoad boundsData={boundsData} />
+        <FocusCityButton boundsData={boundsData} />
+        {zonasData && <ZonasPolygons zonasData={zonasData} />}
+        {bairrosData && <BairroPolygons bairrosData={bairrosData} />}
+        {showHexagons && (
+          <HexRainLayer
+            stations={stations}
+            resolution={8}
+            mapType={mapType}
+            bairrosData={bairrosData ?? undefined}
           />
-          <FitCityOnLoad boundsData={boundsData} />
-          <FocusCityButton boundsData={boundsData} />
-          {zonasData && <ZonasPolygons zonasData={zonasData} />}
-          {bairrosData && <BairroPolygons bairrosData={bairrosData} />}
-          {showHexagons && <HexRainLayer stations={stations} resolution={9} bairrosData={bairrosData ?? undefined} />}
-          <StationMarkers stations={stations} />
-        </MapContainer>
-      </div>
-      
-      <div className="mt-4 space-y-2">
-        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"></div>
-            <span>Bairros sem dados</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
-            <span>Sem chuva (0mm)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
-            <span>Chuva fraca (0,2-5,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
-            <span>Chuva moderada (5,1-25,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
-            <span>Chuva forte (25,1-50,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
-            <span>Chuva muito forte ({'>'}50,0mm/h)</span>
-          </div>
-        </div>
-        <div className="text-xs text-gray-500 space-y-1">
-          <p>• Contornos em azul: zonas pluviométricas oficiais (clique para ver região e estação)</p>
-          <p>• Clique nos bairros para ver detalhes</p>
-          <p>• <strong>Hexágonos:</strong> Área de influência por intensidade (0 a 4+) com base na estação mais próxima</p>
-          <p>• <strong>Bolinhas:</strong> Estações pluviométricas (dados da última hora)</p>
-          <p>• Dados: Prefeitura do Rio de Janeiro • AlertaRio</p>
-          <p>• Use o seletor <strong>Tipo de mapa</strong> (canto superior direito) para alternar entre Rua, Satélite, Escuro e Terreno</p>
-          <p>• Use <strong>Hexágonos: Sim/Não</strong> para mostrar ou ocultar a camada de área de influência no mapa</p>
-          <p>• Botão <strong>Ver cidade inteira</strong> ajusta a vista para todo o município do Rio</p>
-        </div>
-      </div>
+        )}
+        <StationMarkers stations={stations} />
+      </MapContainer>
     </div>
   );
 };

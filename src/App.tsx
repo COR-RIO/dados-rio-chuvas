@@ -1,174 +1,176 @@
-// React import removido - não necessário com React 17+
-import { RefreshCw, AlertCircle, Info, Beaker } from 'lucide-react';
+import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import { useRainData } from './hooks/useRainData';
-import { RainStationCard } from './components/RainStationCard';
 import { LeafletMap } from './components/LeafletMap';
-import { RainDataTable } from './components/RainDataTable';
+import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
-import { LoadingSpinner } from './components/LoadingSpinner';
+import type { MapTypeId } from './components/MapControls';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
-  const { stations, loading, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData({
+  const [mapType, setMapType] = useState<MapTypeId>('rua');
+  const { stations, loading, refreshing, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData({
     useMock: useMockDemo,
     refreshInterval: 300000,
   });
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [showMapLegend, setShowMapLegend] = useState(true);
+  const isDarkMap = mapType === 'escuro';
+  const isSatelliteMap = mapType === 'satelite';
+  const isHighContrastMap = isDarkMap || isSatelliteMap;
+
+  const headerPanelClass = isDarkMap
+    ? 'bg-slate-900/88 border-slate-500'
+    : isSatelliteMap
+      ? 'bg-black/62 border-white/35'
+      : 'bg-white/92 border-gray-200';
+  const headerTitleClass = isHighContrastMap ? 'text-white' : 'text-gray-900';
+  const headerMetaClass = isHighContrastMap ? 'text-gray-200' : 'text-gray-600';
+  const headerButtonNeutralClass = isHighContrastMap
+    ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30'
+    : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+  const headerButtonMockClass = useMockDemo
+    ? 'bg-amber-500 text-white hover:bg-amber-600'
+    : (isHighContrastMap ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+  const headerOnlineClass = isHighContrastMap ? 'text-emerald-300' : 'text-green-700';
+  const headerOfflineClass = isHighContrastMap ? 'text-red-300' : 'text-red-700';
+  const headerAlertClass = isHighContrastMap
+    ? 'border-amber-400/70 bg-amber-900/78 text-amber-100'
+    : 'border-amber-200 bg-amber-50/95 text-amber-800';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-yellow-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 lg:py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-4xl font-black text-yellow-500 mb-1 sm:mb-2 leading-tight">
-                Onde está chovendo agora?
-              </h1>
-              <p className="text-gray-600 font-medium mb-2 sm:mb-3 text-xs sm:text-sm lg:text-base leading-relaxed">
-                Monitoramento de chuvas em tempo real no Rio de Janeiro
-              </p>
-              
-              {/* Status Information */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3 lg:gap-6 text-xs lg:text-sm">
-                {lastUpdate && (
-                  <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                    <span className="text-gray-500 flex-shrink-0">Última atualização:</span>
-                    <span className="font-medium text-gray-700 truncate">
-                      {lastUpdate.toLocaleString('pt-BR')}
+    <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
+      <div className="relative h-screen w-full overflow-hidden">
+        <LeafletMap stations={stations} mapType={mapType} onMapTypeChange={setMapType} />
+
+        <div className="absolute top-3 left-3 right-3 z-[2000] pointer-events-none">
+          <div className={`pointer-events-auto mx-auto max-w-6xl rounded-2xl border backdrop-blur shadow-lg px-3 py-2 sm:px-4 sm:py-3 ${headerPanelClass}`}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${headerTitleClass}`}>Onde está chovendo agora?</h1>
+                <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-xs ${headerMetaClass}`}>
+                  {lastUpdate && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
+                  <span>Estações: {totalStations}</span>
+                  {!useMockDemo && (
+                    <span className={apiAvailable ? headerOnlineClass : headerOfflineClass}>
+                      {apiAvailable ? 'API online' : 'API offline'}
                     </span>
-                  </div>
-                )}
-                {totalStations > 0 && (
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <span className="text-gray-500 flex-shrink-0">Estações ativas:</span>
-                    <span className="font-medium text-gray-700">{totalStations}</span>
-                  </div>
-                )}
-                {!useMockDemo && (
-                  <>
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${apiAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className={`font-medium ${apiAvailable ? 'text-green-600' : 'text-red-600'}`}>
-                        {apiAvailable ? 'API Online' : 'API Offline'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></div>
-                      <span className="font-medium text-blue-600">Auto-atualização ativa</span>
-                    </div>
-                  </>
-                )}
-                {useMockDemo && (
-                  <div className="flex items-center gap-1 sm:gap-2 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
-                    <span className="font-medium">Modo demonstração</span>
-                    <span className="text-xs">(dados de exemplo para validar mapa de influência)</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="lg:ml-6 flex-shrink-0 flex gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setUseMockDemo((v) => !v)}
-                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2 lg:py-3 rounded-lg sm:rounded-xl font-medium transition-colors shadow-sm text-sm sm:text-base ${
-                  useMockDemo
-                    ? 'bg-amber-500 text-white hover:bg-amber-600'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo (mock) para validar hexágonos e estações'}
-              >
-                <Beaker className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">{useMockDemo ? 'Dados em tempo real' : 'Dados de exemplo'}</span>
-                <span className="sm:hidden">{useMockDemo ? 'Tempo real' : 'Exemplo'}</span>
-              </button>
-              <button
-                onClick={() => setIsInfoModalOpen(true)}
-                className="flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-3 sm:px-4 py-2 sm:py-2 lg:py-3 rounded-lg sm:rounded-xl font-medium hover:bg-gray-200 transition-colors shadow-sm hover:shadow-md text-sm sm:text-base"
-              >
-                <Info className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Informações</span>
-                <span className="sm:hidden">Info</span>
-              </button>
-              <button
-                onClick={refresh}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 bg-yellow-500 text-white px-3 sm:px-4 lg:px-6 py-2 sm:py-2 lg:py-3 rounded-lg sm:rounded-xl font-medium hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm sm:text-base"
-              >
-                <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Atualizar</span>
-                <span className="sm:hidden">Atualizar</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
-        {error && !useMockDemo && (
-          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <p className="text-amber-800 font-medium">{error}</p>
-          </div>
-        )}
-
-        {/* Layout Principal: Mapa à esquerda, Dados à direita */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-          {/* Mapa - Ocupa 2/3 da largura em telas grandes */}
-          <div className="md:col-span-2 xl:col-span-2 order-1">
-            {loading ? (
-              <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 h-[400px] sm:h-[500px] lg:h-[600px] flex items-center justify-center">
-                <LoadingSpinner />
-              </div>
-            ) : (
-              <LeafletMap stations={stations} />
-            )}
-          </div>
-
-          {/* Coluna de Dados - Ocupa 1/3 da largura em telas grandes */}
-          <div className="md:col-span-2 xl:col-span-1 order-2">
-            <div className="xl:sticky xl:top-8">
-              {/* Tabela de Dados Pluviométricos */}
-              {loading ? (
-                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 h-72 sm:h-80 lg:h-96 flex items-center justify-center">
-                  <LoadingSpinner />
+                  )}
+                  {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
                 </div>
-              ) : (
-                <RainDataTable stations={stations} />
-              )}
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setUseMockDemo((v) => !v)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonMockClass}`}
+                  title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
+                >
+                  <Beaker className="w-4 h-4" />
+                  {useMockDemo ? 'Tempo real' : 'Exemplo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsInfoModalOpen(true)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonNeutralClass}`}
+                >
+                  <Info className="w-4 h-4" />
+                  Info
+                </button>
+                <button
+                  type="button"
+                  onClick={refresh}
+                  disabled={loading || refreshing}
+                  className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+                  Atualizar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Seção de Cards Detalhados - Abaixo do layout principal */}
-        <div className="mt-8 sm:mt-12">
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Detalhes das Estações</h2>
-          {loading ? (
-            <div className="flex justify-center py-6 sm:py-8">
-              <LoadingSpinner />
+          {error && !useMockDemo && (
+            <div className={`pointer-events-auto mx-auto max-w-6xl mt-2 rounded-xl border backdrop-blur px-3 py-2 text-xs sm:text-sm flex items-center gap-2 ${headerAlertClass}`}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{error}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm sm:text-base font-bold text-gray-800">Legenda e explicações do mapa</h2>
+            <button
+              type="button"
+              onClick={() => setShowMapLegend((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {showMapLegend ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showMapLegend ? 'Ocultar legenda' : 'Mostrar legenda'}
+            </button>
+          </div>
+
+          {showMapLegend && (
+            <div className="mt-3 sm:mt-4 space-y-3">
+              <div className="flex flex-wrap gap-3 sm:gap-4 text-xs text-gray-700">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#1FCC70' }} />
+                  <span>Sem chuva (0mm)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#61BBFF' }} />
+                  <span>Chuva fraca (0,2-5,0mm/h)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#EAF000' }} />
+                  <span>Chuva moderada (5,1-25,0mm/h)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#FEA600' }} />
+                  <span>Chuva forte (25,1-50,0mm/h)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#EE0000' }} />
+                  <span>Chuva muito forte (&gt;50,0mm/h)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-600">
+                <p>• <strong>Hexágonos:</strong> área de influência por intensidade de chuva usando a estação mais próxima.</p>
+                <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
+                <p>• <strong>Contornos azuis:</strong> zonas pluviométricas oficiais do Rio.</p>
+                <p>• <strong>Hexágonos Sim/Não:</strong> mostra ou oculta a camada de influência.</p>
+                <p>• <strong>Ver cidade inteira:</strong> ajusta o enquadramento para todo o município.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-6 sm:py-8">
+          <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">Cards de dados pluviométricos</h2>
+            <span className="text-xs sm:text-sm text-gray-500">{stations.length} estações</span>
+          </div>
+
+          {stations.length === 0 && loading ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
+              Carregando estações...
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
               {stations.map((station) => (
                 <RainStationCard key={station.id} station={station} />
               ))}
             </div>
           )}
         </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-100 mt-12 sm:mt-16">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-          <div className="text-center text-gray-500 text-xs sm:text-sm">
-            <p>Sistema de Monitoramento de Chuvas • Dados da Prefeitura do Rio de Janeiro</p>
-          </div>
-        </div>
-      </footer>
+      </section>
 
       {/* Info Modal */}
       <InfoModal 

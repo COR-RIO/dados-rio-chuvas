@@ -12,8 +12,8 @@ const RIO_BBOX_LNG_LAT: number[][] = [
   [-43.8, -23.05],
 ];
 
-/** Resolução H3: 9 = hexágonos menores, preenche melhor todo o município */
-const DEFAULT_RES = 9;
+/** Resolução H3: 8 = hexágonos um pouco maiores (menos custo de renderização) */
+const DEFAULT_RES = 8;
 
 /** Feature genérica: pode vir como Polygon ou MultiPolygon da API */
 type GeoFeature = {

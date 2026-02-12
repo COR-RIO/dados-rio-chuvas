@@ -5,12 +5,13 @@ import { getRainLevel } from '../utils/rainLevel';
 
 interface RainDataTableProps {
   stations: RainStation[];
+  embedded?: boolean;
 }
 
-type SortField = 'name' | 'h01' | 'h24';
+type SortField = 'name' | 'm05' | 'm15' | 'h01' | 'h24';
 type SortDirection = 'asc' | 'desc';
 
-export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
+export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded = false }) => {
   const [sortField, setSortField] = useState<SortField>('h01');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -31,6 +32,14 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
       case 'name':
         aValue = a.name.toLowerCase();
         bValue = b.name.toLowerCase();
+        break;
+      case 'm05':
+        aValue = a.data.m05;
+        bValue = b.data.m05;
+        break;
+      case 'm15':
+        aValue = a.data.m15;
+        bValue = b.data.m15;
         break;
       case 'h01':
         aValue = a.data.h01;
@@ -60,26 +69,30 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
   });
 
   const getSortIcon = (field: SortField) => {
+    const sizeClass = embedded ? 'w-3 h-3' : 'w-4 h-4';
     if (sortField !== field) {
-      return <ChevronUp className="w-4 h-4 text-gray-400" />;
+      return <ChevronUp className={`${sizeClass} text-gray-400`} />;
     }
     return sortDirection === 'asc' 
-      ? <ChevronUp className="w-4 h-4 text-blue-600" />
-      : <ChevronDown className="w-4 h-4 text-blue-600" />;
+      ? <ChevronUp className={`${sizeClass} text-blue-600`} />
+      : <ChevronDown className={`${sizeClass} text-blue-600`} />;
   };
 
   return (
-    <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
-      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gray-50 border-b border-gray-200">
+    <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
+      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">Dados Pluviométricos</h3>
       </div>
       
       {/* Mobile View - Cards */}
       <div className="block sm:hidden">
-        <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
+        <div className="divide-y divide-gray-200">
           {sortedStations.map((station) => {
             const rainLevel = getRainLevel(station.data.h01);
-            const isHighRainfall = station.data.h01 > 0;
+            const isHighRainfall =
+              station.data.m05 > 0 ||
+              station.data.m15 > 0 ||
+              station.data.h01 > 0;
             
             return (
               <div 
@@ -98,7 +111,19 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
                       {station.name}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs font-semibold">
+                  <div className="grid grid-cols-4 gap-2 text-xs font-semibold">
+                    <div className="text-right">
+                      <div className="text-gray-500">5m</div>
+                      <div className={station.data.m05 > 0 ? 'text-blue-700' : 'text-gray-500'}>
+                        {station.data.m05.toFixed(1)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-500">15m</div>
+                      <div className={station.data.m15 > 0 ? 'text-blue-700' : 'text-gray-500'}>
+                        {station.data.m15.toFixed(1)}
+                      </div>
+                    </div>
                     <div className="text-right">
                       <div className="text-gray-500">1h</div>
                       <div className={station.data.h01 > 0 ? 'text-blue-700' : 'text-gray-500'}>
@@ -120,33 +145,60 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
       </div>
       
       {/* Desktop View - Table */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full min-w-[300px]">
+      <div className={`hidden sm:block ${embedded ? '' : 'overflow-x-auto'}`}>
+        <table className={`w-full ${embedded ? 'table-fixed' : 'min-w-[520px]'}`}>
+          {embedded && (
+            <colgroup>
+              <col style={{ width: '44%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+            </colgroup>
+          )}
           <thead className="bg-gray-50">
             <tr>
               <th 
-                className="px-3 lg:px-4 py-2 lg:py-3 text-left text-xs lg:text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                className={`${embedded ? 'px-2 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-left font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors`}
                 onClick={() => handleSort('name')}
               >
-                <div className="flex items-center gap-1 lg:gap-2">
+                <div className={`flex items-center ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
                   Estação
                   {getSortIcon('name')}
                 </div>
               </th>
               <th 
-                className="px-3 lg:px-4 py-2 lg:py-3 text-right text-xs lg:text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                className={`${embedded ? 'px-1.5 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('m05')}
+              >
+                <div className={`flex items-center justify-end ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
+                  {getSortIcon('m05')}
+                  {embedded ? '5m' : '5min'}
+                </div>
+              </th>
+              <th 
+                className={`${embedded ? 'px-1.5 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('m15')}
+              >
+                <div className={`flex items-center justify-end ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
+                  {getSortIcon('m15')}
+                  {embedded ? '15m' : '15min'}
+                </div>
+              </th>
+              <th 
+                className={`${embedded ? 'px-1.5 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors`}
                 onClick={() => handleSort('h01')}
               >
-                <div className="flex items-center justify-end gap-1 lg:gap-2">
+                <div className={`flex items-center justify-end ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
                   {getSortIcon('h01')}
                   1h
                 </div>
               </th>
               <th 
-                className="px-3 lg:px-4 py-2 lg:py-3 text-right text-xs lg:text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                className={`${embedded ? 'px-1.5 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors`}
                 onClick={() => handleSort('h24')}
               >
-                <div className="flex items-center justify-end gap-1 lg:gap-2">
+                <div className={`flex items-center justify-end ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
                   {getSortIcon('h24')}
                   24h
                 </div>
@@ -156,7 +208,10 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
           <tbody className="divide-y divide-gray-200">
             {sortedStations.map((station) => {
               const rainLevel = getRainLevel(station.data.h01);
-              const isHighRainfall = station.data.h01 > 0;
+              const isHighRainfall =
+                station.data.m05 > 0 ||
+                station.data.m15 > 0 ||
+                station.data.h01 > 0;
               
               return (
                 <tr 
@@ -165,26 +220,40 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
                     isHighRainfall ? 'bg-blue-50' : ''
                   }`}
                 >
-                  <td className="px-3 lg:px-4 py-2 lg:py-3">
-                    <div className="flex items-center gap-2 lg:gap-3">
+                  <td className={`${embedded ? 'px-2 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'}`}>
+                    <div className={`flex items-center ${embedded ? 'gap-1.5' : 'gap-2 lg:gap-3'}`}>
                       <div 
-                        className="w-2.5 lg:w-3 h-2.5 lg:h-3 rounded-full border border-white shadow-sm flex-shrink-0"
+                        className={`${embedded ? 'w-2.5 h-2.5' : 'w-2.5 lg:w-3 h-2.5 lg:h-3'} rounded-full border border-white shadow-sm flex-shrink-0`}
                         style={{ backgroundColor: rainLevel.color }}
                       ></div>
-                      <span className="text-xs lg:text-sm font-medium text-gray-900 truncate">
+                      <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-medium text-gray-900 truncate`}>
                         {station.name}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 lg:px-4 py-2 lg:py-3 text-right">
-                    <span className={`text-xs lg:text-sm font-semibold ${
+                  <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right`}>
+                    <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
+                      station.data.m05 > 0 ? 'text-blue-700' : 'text-gray-500'
+                    }`}>
+                      {station.data.m05.toFixed(1)}
+                    </span>
+                  </td>
+                  <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right`}>
+                    <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
+                      station.data.m15 > 0 ? 'text-blue-700' : 'text-gray-500'
+                    }`}>
+                      {station.data.m15.toFixed(1)}
+                    </span>
+                  </td>
+                  <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right`}>
+                    <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
                       station.data.h01 > 0 ? 'text-blue-700' : 'text-gray-500'
                     }`}>
                       {station.data.h01.toFixed(1)}
                     </span>
                   </td>
-                  <td className="px-3 lg:px-4 py-2 lg:py-3 text-right">
-                    <span className={`text-xs lg:text-sm font-semibold ${
+                  <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right`}>
+                    <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
                       station.data.h24 > 0 ? 'text-blue-700' : 'text-gray-500'
                     }`}>
                       {station.data.h24.toFixed(1)}
@@ -197,7 +266,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations }) => {
         </table>
       </div>
       
-      <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-3 bg-gray-50 border-t border-gray-200">
+      <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-3 border-t border-gray-200 bg-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs text-gray-500">
           <span>Total: {stations.length} estações</span>
           <span>Dados em milímetros (mm)</span>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { RainStation } from '../types/rain';
-import { fetchRainData, checkApiAvailability, getLastUpdateInfo } from '../services/rainApi';
+import { fetchRainData } from '../services/rainApi';
 import { MOCK_RAIN_STATIONS } from '../data/mockRainStations';
 
 export interface UseRainDataOptions {
@@ -20,31 +20,38 @@ export const useRainData = (
 
   const [stations, setStations] = useState<RainStation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean>(true);
   const [totalStations, setTotalStations] = useState<number>(0);
+  const inFlightRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+
+  const getLatestReadAt = (data: RainStation[]): Date | null => {
+    if (!data.length) return null;
+    const maxTs = Math.max(...data.map((s) => new Date(s.read_at).getTime()));
+    return Number.isFinite(maxTs) ? new Date(maxTs) : null;
+  };
 
   const loadData = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
-      setLoading(true);
+      if (!hasLoadedRef.current) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       setError(null);
 
       if (useMock) {
         setStations(MOCK_RAIN_STATIONS);
         setTotalStations(MOCK_RAIN_STATIONS.length);
-        setLastUpdate(new Date());
+        setLastUpdate(getLatestReadAt(MOCK_RAIN_STATIONS) ?? new Date());
         setApiAvailable(false);
-        console.log(`Modo demonstração: ${MOCK_RAIN_STATIONS.length} estações mock`);
-        setLoading(false);
+        hasLoadedRef.current = true;
         return;
-      }
-
-      const isAvailable = await checkApiAvailability();
-      setApiAvailable(isAvailable);
-
-      if (!isAvailable) {
-        throw new Error('API da Prefeitura do Rio de Janeiro não está disponível no momento');
       }
 
       const data = await fetchRainData();
@@ -55,23 +62,23 @@ export const useRainData = (
 
       setStations(data);
       setTotalStations(data.length);
-
-      const updateInfo = await getLastUpdateInfo();
-      setLastUpdate(updateInfo.lastUpdate || new Date());
-
-      console.log(`Dados atualizados: ${data.length} estações meteorológicas`);
+      setLastUpdate(getLatestReadAt(data) ?? new Date());
+      setApiAvailable(true);
+      hasLoadedRef.current = true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar dados';
       setError(errorMessage);
-      console.error('Erro ao carregar dados de chuva:', err);
+      setApiAvailable(false);
 
-      if (stations.length === 0) {
+      if (!hasLoadedRef.current) {
         setStations([]);
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      inFlightRef.current = false;
     }
-  }, [useMock, stations.length]);
+  }, [useMock]);
 
   const refresh = useCallback(() => {
     loadData();
@@ -87,6 +94,7 @@ export const useRainData = (
   return {
     stations,
     loading,
+    refreshing,
     error,
     lastUpdate,
     apiAvailable,

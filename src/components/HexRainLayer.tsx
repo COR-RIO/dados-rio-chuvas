@@ -2,12 +2,14 @@ import React, { useMemo } from 'react';
 import { Polygon } from 'react-leaflet';
 import { RainStation } from '../types/rain';
 import { buildHexRainGrid } from '../utils/hexGrid';
-import { INFLUENCE_LEVELS } from '../types/alertaRio';
 import type { BairroCollection } from '../services/citiesApi';
+import type { MapTypeId } from './MapControls';
+import { getHexOverlayTuning, getInfluenceColor } from '../utils/influenceTheme';
 
 interface HexRainLayerProps {
   stations: RainStation[];
   resolution?: number;
+  mapType?: MapTypeId;
   /** Polígonos dos bairros do RJ: hexágonos só dentro dessa região */
   bairrosData?: BairroCollection | null;
 }
@@ -16,6 +18,7 @@ interface HexRainLayerProps {
 export const HexRainLayer: React.FC<HexRainLayerProps> = ({
   stations,
   resolution = 9,
+  mapType = 'rua',
   bairrosData = null,
 }) => {
   const hexCells = useMemo(() => {
@@ -25,20 +28,21 @@ export const HexRainLayer: React.FC<HexRainLayerProps> = ({
 
   if (!hexCells.length) return null;
 
+  const hexStyle = getHexOverlayTuning(mapType, resolution);
+
   return (
     <>
       {hexCells.map((cell, i) => {
-        const levelConfig = INFLUENCE_LEVELS[cell.level];
         return (
           <Polygon
             key={`hex-${i}`}
             positions={cell.positions}
             pathOptions={{
-              color: '#fff',
-              weight: 1,
-              opacity: 0.9,
-              fillColor: levelConfig.color,
-              fillOpacity: 0.75,
+              color: hexStyle.strokeColor,
+              weight: hexStyle.weight,
+              opacity: hexStyle.strokeOpacity,
+              fillColor: getInfluenceColor(cell.level, mapType),
+              fillOpacity: hexStyle.fillOpacity,
             }}
           />
         );
