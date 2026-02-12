@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon } from 'lucide-react';
+import { Map, Layers, Hexagon, Clock3 } from 'lucide-react';
 
 export type MapTypeId = 'rua' | 'satelite' | 'escuro' | 'terreno';
 
@@ -108,6 +108,38 @@ export const HexagonLayerToggle: React.FC<HexagonLayerToggleProps> = ({ value, o
   );
 };
 
+interface TimeWindowControlProps {
+  value: number;
+  onChange: (minutes: number) => void;
+}
+
+/** Filtro temporal do mapa (5 a 60 minutos) para bolinhas e hexágonos. */
+export const TimeWindowControl: React.FC<TimeWindowControlProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <Clock3 className="w-3.5 h-3.5" />
+        Janela de tempo
+      </div>
+      <input
+        type="range"
+        min={5}
+        max={60}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-yellow-500 cursor-pointer"
+      />
+      <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
+        <span>5m</span>
+        <span className="font-semibold text-gray-700">{value}m</span>
+        <span>60m</span>
+      </div>
+      <div className="mt-1 text-[10px] text-gray-500">Base oficial: 5min, 15min e 1h (AlertaRio)</div>
+    </div>
+  );
+};
+
 const BAIRROS_BOUNDS_PROPS: L.FitBoundsOptions = { padding: [24, 24], maxZoom: 12 };
 
 function boundsFromBairros(bairrosData: { features: Array<{ geometry: { type?: string; coordinates: number[][] | number[][][] | number[][][][] } }> }): L.LatLngBounds | null {
@@ -180,7 +212,7 @@ export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) 
     <button
       type="button"
       onClick={handleFocus}
-      className="absolute bottom-3 left-3 z-[1000] flex items-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1400] flex items-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
       title="Ajustar vista para a cidade do Rio inteira"
     >
       <Map className="w-4 h-4" />

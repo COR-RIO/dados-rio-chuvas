@@ -9,9 +9,11 @@ import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
 import { InfluenceLegend } from './InfluenceLegend';
 import { RainDataTable } from './RainDataTable';
+import { getStationAccumulatedMm, getStationEquivalentIntensityMmh, isMeasuredWindow, normalizeWindowMinutes } from '../utils/rainWindow';
 import {
   MapLayers,
   HexagonLayerToggle,
+  TimeWindowControl,
   FocusCityButton,
   FitCityOnLoad,
   MAP_TYPES,
@@ -34,7 +36,7 @@ interface LeafletMapProps {
 }
 
 // Componente para criar polígonos dos bairros
-const BairroPolygons: React.FC<{ bairrosData: any }> = ({ bairrosData }) => {
+const BairroPolygons: React.FC<{ bairrosData: any; showHexagons: boolean }> = ({ bairrosData, showHexagons }) => {
   return (
     <>
       {bairrosData.features.map((feature: any, index: number) => {
@@ -60,11 +62,11 @@ const BairroPolygons: React.FC<{ bairrosData: any }> = ({ bairrosData }) => {
             key={`bairro-${index}`}
             positions={leafletCoordinates}
             pathOptions={{
-              color: '#9CA3AF',
-              weight: 1,
-              opacity: 0.5,
+              color: showHexagons ? '#475569' : '#9CA3AF',
+              weight: showHexagons ? 1.2 : 1,
+              opacity: showHexagons ? 0.85 : 0.5,
               fillColor: '#F3F4F6',
-              fillOpacity: 0.12,
+              fillOpacity: showHexagons ? 0 : 0.12,
             }}
           >
             <Popup>
@@ -85,7 +87,7 @@ const BairroPolygons: React.FC<{ bairrosData: any }> = ({ bairrosData }) => {
 };
 
 // Polígonos das zonas pluviométricas (do KML/GeoJSON)
-const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').ZonasPluvCollection }> = ({ zonasData }) => {
+const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').ZonasPluvCollection; showHexagons: boolean }> = ({ zonasData, showHexagons }) => {
   const polygons: { key: string; positions: [number, number][][]; name: string; est?: string }[] = [];
   zonasData.features.forEach((feature, fi) => {
     const name = feature.properties.name;
@@ -110,10 +112,10 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
           positions={positions}
           pathOptions={{
             color: '#0ea5e9',
-            weight: 2,
-            opacity: 0.8,
+            weight: showHexagons ? 2.2 : 2,
+            opacity: showHexagons ? 1 : 0.8,
             fillColor: '#0ea5e9',
-            fillOpacity: 0.08,
+            fillOpacity: showHexagons ? 0 : 0.08,
           }}
         >
           <Popup>
@@ -129,11 +131,15 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
 };
 
 // Componente para criar marcadores das estações
-const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => {
+const StationMarkers: React.FC<{ stations: RainStation[]; timeWindowMinutes: number }> = ({ stations, timeWindowMinutes }) => {
+  const normalizedWindow = normalizeWindowMinutes(timeWindowMinutes);
+  const measuredWindow = isMeasuredWindow(normalizedWindow);
   return (
     <>
       {stations.map((station) => {
-        const rainLevel = getRainLevel(station.data.h01);
+        const equivalentMmh = getStationEquivalentIntensityMmh(station, normalizedWindow);
+        const windowAccumulated = getStationAccumulatedMm(station, normalizedWindow);
+        const rainLevel = getRainLevel(equivalentMmh);
         
         // Criar ícone personalizado para a estação
         const stationIcon = L.divIcon({
@@ -174,11 +180,16 @@ const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => 
                   <span style={{ fontSize: '14px', color: '#666' }}>{rainLevel.name}</span>
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Última hora:</strong> {station.data.h01.toFixed(1)}mm
+                  <strong>Janela {normalizedWindow}min:</strong> {windowAccumulated.toFixed(1)}mm
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Últimas 24h:</strong> {station.data.h24.toFixed(1)}mm
+                  <strong>Intensidade eq.:</strong> {equivalentMmh.toFixed(1)}mm/h
                 </p>
+                {!measuredWindow && (
+                  <p style={{ margin: '4px 0', fontSize: '12px', color: '#B45309' }}>
+                    * Valor estimado por interpolação (15min ↔ 1h)
+                  </p>
+                )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Última atualização:</strong> {new Date(station.read_at).toLocaleTimeString('pt-BR')}
                 </p>
@@ -196,6 +207,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMap
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showHexagons, setShowHexagons] = useState(true);
+  const [timeWindowMinutes, setTimeWindowMinutes] = useState(15);
   const [showSidebar, setShowSidebar] = useState(true);
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
@@ -233,7 +245,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMap
       <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2">
         <MapLayers value={mapType} onChange={onMapTypeChange} />
         <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
-        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} />
+        <TimeWindowControl value={timeWindowMinutes} onChange={setTimeWindowMinutes} />
+        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} timeWindowMinutes={timeWindowMinutes} />
       </div>
 
       <button
@@ -272,17 +285,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMap
         />
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
-        {zonasData && <ZonasPolygons zonasData={zonasData} />}
-        {bairrosData && <BairroPolygons bairrosData={bairrosData} />}
         {showHexagons && (
           <HexRainLayer
             stations={stations}
             resolution={8}
             mapType={mapType}
+            timeWindowMinutes={timeWindowMinutes}
             bairrosData={bairrosData ?? undefined}
           />
         )}
-        <StationMarkers stations={stations} />
+        {zonasData && <ZonasPolygons zonasData={zonasData} showHexagons={showHexagons} />}
+        {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
+        <StationMarkers stations={stations} timeWindowMinutes={timeWindowMinutes} />
       </MapContainer>
     </div>
   );

@@ -271,6 +271,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
           <span>Total: {stations.length} estações</span>
           <span>Dados em milímetros (mm)</span>
         </div>
+        <div className="mt-1 text-[10px] text-gray-500">Fonte: Alerta Rio</div>
       </div>
     </div>
   );

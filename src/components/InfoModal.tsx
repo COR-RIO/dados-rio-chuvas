@@ -198,7 +198,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, apiAvaila
                 <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
                 <div>
                   <p className="font-medium text-gray-800">Fonte dos dados</p>
-                  <p className="text-gray-600">Dados fornecidos pela Prefeitura do Rio de Janeiro através da API websempre.rio.rj.gov.br</p>
+                  <p className="text-gray-600">Dados fornecidos pela Prefeitura do Rio de Janeiro através da API websempre.rio.rj.gov.br e do Alerta Rio</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -226,7 +226,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, apiAvaila
                 <div className="w-2 h-2 rounded-full bg-gray-500 mt-2 flex-shrink-0"></div>
                 <div>
                   <p className="font-medium text-gray-800">Dados geográficos</p>
-                  <p className="text-gray-600">Mapa interativo com dados geográficos da Prefeitura do Rio de Janeiro</p>
+                  <p className="text-gray-600">Mapa interativo com dados geográficos da Prefeitura do Rio de Janeiro e camadas do Alerta Rio</p>
                 </div>
               </div>
             </div>

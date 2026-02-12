@@ -51,6 +51,7 @@ function App() {
                 <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-xs ${headerMetaClass}`}>
                   {lastUpdate && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
                   <span>Estações: {totalStations}</span>
+                  <span>Fonte: Alerta Rio</span>
                   {!useMockDemo && (
                     <span className={apiAvailable ? headerOnlineClass : headerOfflineClass}>
                       {apiAvailable ? 'API online' : 'API offline'}
@@ -139,12 +140,27 @@ function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-600">
-                <p>• <strong>Hexágonos:</strong> área de influência por intensidade de chuva usando a estação mais próxima.</p>
-                <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
-                <p>• <strong>Contornos azuis:</strong> zonas pluviométricas oficiais do Rio.</p>
-                <p>• <strong>Hexágonos Sim/Não:</strong> mostra ou oculta a camada de influência.</p>
-                <p>• <strong>Ver cidade inteira:</strong> ajusta o enquadramento para todo o município.</p>
+              <div className="space-y-3 text-xs text-gray-600">
+                <div className="space-y-1">
+                  <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
+                  <p>• <strong>Contornos azuis:</strong> zonas pluviométricas oficiais do Rio.</p>
+                  <p>• <strong>Hexágonos Sim/Não:</strong> mostra ou oculta a camada de influência.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a intensidade estimada da estação mais próxima para a janela selecionada.</p>
+                  <p>• <strong>Janela de tempo (5–60min):</strong> aplica filtro temporal nas bolinhas e nos hexágonos.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Critério oficial (15min):</strong> fraca &lt;1,25 | moderada 1,25–6,25 | forte 6,25–12,5 | muito forte &gt;12,5 mm/15min.</p>
+                  <p>• <strong>Critério oficial (1h):</strong> fraca &lt;5,0 | moderada 5,0–25,0 | forte 25,1–50,0 | muito forte &gt;50,0 mm/h.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Ver cidade inteira:</strong> ajusta o enquadramento para todo o município.</p>
+                  <p>• <strong>Fonte:</strong> Alerta Rio (Termos Meteorológicos e Probabilidades de Escorregamento).</p>
+                </div>
               </div>
             </div>
           )}
