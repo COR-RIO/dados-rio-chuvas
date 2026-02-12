@@ -1,6 +1,6 @@
 import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
-import { useRainData } from './hooks/useRainData';
+import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
@@ -8,13 +8,32 @@ import type { MapTypeId } from './components/MapControls';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
+  const [dataMode, setDataMode] = useState<RainDataMode>('auto');
+  const [historicalDate, setHistoricalDate] = useState(new Date().toISOString().slice(0, 10));
+  const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
   const [mapType, setMapType] = useState<MapTypeId>('rua');
-  const { stations, loading, refreshing, error, lastUpdate, apiAvailable, totalStations, refresh } = useRainData({
+  const {
+    stations,
+    loading,
+    refreshing,
+    error,
+    lastUpdate,
+    apiAvailable,
+    dataSource,
+    historicalTimeline,
+    activeHistoricalTimestamp,
+    totalStations,
+    refresh,
+  } = useRainData({
     useMock: useMockDemo,
+    mode: dataMode,
+    historicalDate,
+    historicalTimestamp,
     refreshInterval: 300000,
   });
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [showMapLegend, setShowMapLegend] = useState(true);
+  const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
   const isDarkMap = mapType === 'escuro';
   const isSatelliteMap = mapType === 'satelite';
   const isHighContrastMap = isDarkMap || isSatelliteMap;
@@ -32,29 +51,70 @@ function App() {
   const headerButtonMockClass = useMockDemo
     ? 'bg-amber-500 text-white hover:bg-amber-600'
     : (isHighContrastMap ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+  const headerButtonHistoricalClass = isHistoricalMode
+    ? 'bg-blue-600 text-white hover:bg-blue-700'
+    : (isHighContrastMap ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
   const headerOnlineClass = isHighContrastMap ? 'text-emerald-300' : 'text-green-700';
   const headerOfflineClass = isHighContrastMap ? 'text-red-300' : 'text-red-700';
+  const headerFallbackClass = isHighContrastMap ? 'text-amber-300' : 'text-amber-700';
   const headerAlertClass = isHighContrastMap
     ? 'border-amber-400/70 bg-amber-900/78 text-amber-100'
     : 'border-amber-200 bg-amber-50/95 text-amber-800';
+  const sourceLabel = useMockDemo
+    ? 'Demonstração'
+    : isHistoricalMode
+      ? 'COR (histórico filtrado no GCP)'
+    : dataSource === 'gcp'
+      ? 'COR (histórico no GCP)'
+      : 'Alerta Rio (API em tempo real)';
+  const titleLabel = isHistoricalMode ? 'Como estava a chuva no horário selecionado?' : 'Onde está chovendo agora?';
 
   return (
     <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
       <div className="relative h-screen w-full overflow-hidden">
-        <LeafletMap stations={stations} mapType={mapType} onMapTypeChange={setMapType} />
+        <LeafletMap
+          stations={stations}
+          mapType={mapType}
+          onMapTypeChange={setMapType}
+          historicalMode={isHistoricalMode}
+          historicalDate={historicalDate}
+          onHistoricalDateChange={(date) => {
+            setHistoricalDate(date);
+            setHistoricalTimestamp(null);
+          }}
+          historicalTimeline={historicalTimeline}
+          selectedHistoricalTimestamp={historicalTimestamp ?? activeHistoricalTimestamp}
+          onHistoricalTimestampChange={setHistoricalTimestamp}
+        />
 
         <div className="absolute top-3 left-3 right-3 z-[2000] pointer-events-none">
           <div className={`pointer-events-auto mx-auto max-w-6xl rounded-2xl border backdrop-blur shadow-lg px-3 py-2 sm:px-4 sm:py-3 ${headerPanelClass}`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
-                <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${headerTitleClass}`}>Onde está chovendo agora?</h1>
+                <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${headerTitleClass}`}>{titleLabel}</h1>
                 <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-xs ${headerMetaClass}`}>
                   {lastUpdate && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
                   <span>Estações: {totalStations}</span>
-                  <span>Fonte: Alerta Rio</span>
+                  <span>Fonte: {sourceLabel}</span>
                   {!useMockDemo && (
-                    <span className={apiAvailable ? headerOnlineClass : headerOfflineClass}>
-                      {apiAvailable ? 'API online' : 'API offline'}
+                    <span
+                      className={
+                        isHistoricalMode
+                          ? headerFallbackClass
+                          : apiAvailable
+                            ? headerOnlineClass
+                            : dataSource === 'gcp'
+                              ? headerFallbackClass
+                              : headerOfflineClass
+                      }
+                    >
+                      {isHistoricalMode
+                        ? 'Modo histórico (GCP)'
+                        : apiAvailable
+                          ? 'API online'
+                          : dataSource === 'gcp'
+                            ? 'API offline (fallback GCP)'
+                            : 'API offline'}
                     </span>
                   )}
                   {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
@@ -70,6 +130,17 @@ function App() {
                 >
                   <Beaker className="w-4 h-4" />
                   {useMockDemo ? 'Tempo real' : 'Exemplo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDataMode((m) => (m === 'historical' ? 'auto' : 'historical'));
+                    setHistoricalTimestamp(null);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonHistoricalClass}`}
+                  title={isHistoricalMode ? 'Voltar para tempo real/fallback automático' : 'Ativar filtro temporal histórico (GCP)'}
+                >
+                  {isHistoricalMode ? 'Tempo real' : 'Histórico'}
                 </button>
                 <button
                   type="button"
@@ -148,8 +219,8 @@ function App() {
                 </div>
 
                 <div className="space-y-1">
-                  <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a intensidade estimada da estação mais próxima para a janela selecionada.</p>
-                  <p>• <strong>Janela de tempo (5–60min):</strong> aplica filtro temporal nas bolinhas e nos hexágonos.</p>
+                  <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a influência de chuva da estação mais próxima com base em 15min.</p>
+                  <p>• <strong>Modo Histórico (GCP):</strong> escolha data e horário no controle lateral para navegar no timeline.</p>
                 </div>
 
                 <div className="space-y-1">
@@ -188,11 +259,21 @@ function App() {
         </div>
       </section>
 
+      <footer className="border-t border-slate-800 bg-slate-950 text-slate-200">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-5 text-xs sm:px-4 sm:py-6 sm:text-sm lg:px-6">
+          <p className="font-semibold text-slate-100">COR - Centro de Operações e Resiliência | Prefeitura do Rio de Janeiro</p>
+          <p className="text-slate-300">
+            Fonte institucional do projeto. Dados de chuva em tempo real via Alerta Rio e histórico via BigQuery (GCP).
+          </p>
+        </div>
+      </footer>
+
       {/* Info Modal */}
       <InfoModal 
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}
         apiAvailable={apiAvailable}
+        dataSource={dataSource}
         totalStations={totalStations}
         stations={stations}
       />

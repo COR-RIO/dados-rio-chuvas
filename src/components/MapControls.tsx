@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Clock3 } from 'lucide-react';
+import { Map, Layers, Hexagon, Clock3, CalendarDays } from 'lucide-react';
 
 export type MapTypeId = 'rua' | 'satelite' | 'escuro' | 'terreno';
 
@@ -136,6 +136,91 @@ export const TimeWindowControl: React.FC<TimeWindowControlProps> = ({ value, onC
         <span>60m</span>
       </div>
       <div className="mt-1 text-[10px] text-gray-500">Base oficial: 5min, 15min e 1h (AlertaRio)</div>
+    </div>
+  );
+};
+
+interface HistoricalTimelineControlProps {
+  enabled: boolean;
+  dateValue: string;
+  onDateChange: (date: string) => void;
+  timeline: string[];
+  selectedTimestamp: string | null;
+  onTimestampChange: (timestamp: string) => void;
+}
+
+function formatTimelineLabel(isoTs: string): string {
+  const parsed = new Date(isoTs);
+  if (Number.isNaN(parsed.getTime())) return isoTs;
+  return parsed.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Controle de histórico: seleciona data e horário (timeline) quando o modo histórico está ativo.
+ */
+export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps> = ({
+  enabled,
+  dateValue,
+  onDateChange,
+  timeline,
+  selectedTimestamp,
+  onTimestampChange,
+}) => {
+  const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
+  const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
+  const currentTs = timeline[safeIndex] ?? null;
+
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <CalendarDays className="w-3.5 h-3.5" />
+        Histórico (GCP)
+      </div>
+
+      <input
+        type="date"
+        value={dateValue}
+        onChange={(e) => onDateChange(e.target.value)}
+        disabled={!enabled}
+        className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+      />
+
+      {!enabled && (
+        <div className="mt-2 text-[10px] text-gray-500">
+          Ative o modo "Histórico" no topo para usar este filtro.
+        </div>
+      )}
+
+      {enabled && timeline.length > 0 && (
+        <>
+          <input
+            type="range"
+            min={0}
+            max={timeline.length - 1}
+            step={1}
+            value={safeIndex}
+            onChange={(e) => onTimestampChange(timeline[Number(e.target.value)])}
+            className="mt-2 w-full accent-blue-600 cursor-pointer"
+          />
+          <div className="mt-1 text-[10px] text-gray-700 font-semibold">
+            {currentTs ? formatTimelineLabel(currentTs) : 'Sem horário'}
+          </div>
+          <div className="text-[10px] text-gray-500">
+            {timeline.length} horários disponíveis no dia selecionado
+          </div>
+        </>
+      )}
+
+      {enabled && timeline.length === 0 && (
+        <div className="mt-2 text-[10px] text-gray-500">
+          Sem horários para esta data.
+        </div>
+      )}
     </div>
   );
 };

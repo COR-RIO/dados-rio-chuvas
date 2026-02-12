@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { RainStation } from '../types/rain';
 import { fetchRainData } from '../services/rainApi';
+import {
+  fetchLatestRainStationsFromGcp,
+  fetchHistoricalRainStationsTimeline,
+} from '../services/gcpHistoricalRainApi';
 import { MOCK_RAIN_STATIONS } from '../data/mockRainStations';
 
 export interface UseRainDataOptions {
   /** Usar dados de exemplo (mock) para validar mapa de influência antes do GCP */
   useMock?: boolean;
+  mode?: RainDataMode;
+  historicalDate?: string;
+  historicalTimestamp?: string | null;
   refreshInterval?: number;
 }
+
+export type RainDataSource = 'api' | 'gcp' | 'mock';
+export type RainDataMode = 'auto' | 'historical';
 
 export const useRainData = (
   refreshIntervalOrOptions: number | UseRainDataOptions = 300000
@@ -16,7 +26,13 @@ export const useRainData = (
     typeof refreshIntervalOrOptions === 'object'
       ? refreshIntervalOrOptions
       : { refreshInterval: refreshIntervalOrOptions };
-  const { useMock = false, refreshInterval = 300000 } = options;
+  const {
+    useMock = false,
+    mode = 'auto',
+    historicalDate,
+    historicalTimestamp = null,
+    refreshInterval = 300000,
+  } = options;
 
   const [stations, setStations] = useState<RainStation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +40,10 @@ export const useRainData = (
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean>(true);
+  const [historicalAvailable, setHistoricalAvailable] = useState<boolean>(false);
+  const [dataSource, setDataSource] = useState<RainDataSource>('api');
+  const [historicalTimeline, setHistoricalTimeline] = useState<string[]>([]);
+  const [activeHistoricalTimestamp, setActiveHistoricalTimestamp] = useState<string | null>(null);
   const [totalStations, setTotalStations] = useState<number>(0);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -50,20 +70,67 @@ export const useRainData = (
         setTotalStations(MOCK_RAIN_STATIONS.length);
         setLastUpdate(getLatestReadAt(MOCK_RAIN_STATIONS) ?? new Date());
         setApiAvailable(false);
+        setHistoricalAvailable(false);
+        setDataSource('mock');
+        setHistoricalTimeline([]);
+        setActiveHistoricalTimestamp(null);
         hasLoadedRef.current = true;
         return;
       }
 
-      const data = await fetchRainData();
+      if (mode === 'historical') {
+        const targetDate = historicalDate || new Date().toISOString().slice(0, 10);
+        const timelineData = await fetchHistoricalRainStationsTimeline(
+          { dateFrom: targetDate, dateTo: targetDate, limit: 10000 },
+          historicalTimestamp
+        );
+
+        if (!timelineData.stations.length) {
+          throw new Error(`Sem dados históricos para ${targetDate}`);
+        }
+
+        setStations(timelineData.stations);
+        setTotalStations(timelineData.stations.length);
+        setLastUpdate(getLatestReadAt(timelineData.stations) ?? new Date());
+        setApiAvailable(false);
+        setHistoricalAvailable(true);
+        setDataSource('gcp');
+        setHistoricalTimeline(timelineData.timeline);
+        setActiveHistoricalTimestamp(timelineData.selectedTimestamp);
+        hasLoadedRef.current = true;
+        return;
+      }
+
+      let data = await fetchRainData();
+      let source: RainDataSource = 'api';
 
       if (data.length === 0) {
-        throw new Error('Nenhuma estação meteorológica encontrada');
+        try {
+          const gcpData = await fetchLatestRainStationsFromGcp({ limit: 5000 });
+          if (gcpData.length > 0) {
+            data = gcpData;
+            source = 'gcp';
+            setHistoricalAvailable(true);
+          }
+        } catch (gcpError) {
+          console.warn('Falha no fallback de dados históricos (GCP):', gcpError);
+          setHistoricalAvailable(false);
+        }
+      } else {
+        setHistoricalAvailable(false);
+      }
+
+      if (data.length === 0) {
+        throw new Error('Nenhuma estação meteorológica encontrada (API e GCP indisponíveis)');
       }
 
       setStations(data);
       setTotalStations(data.length);
       setLastUpdate(getLatestReadAt(data) ?? new Date());
-      setApiAvailable(true);
+      setApiAvailable(source === 'api');
+      setDataSource(source);
+      setHistoricalTimeline([]);
+      setActiveHistoricalTimestamp(null);
       hasLoadedRef.current = true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar dados';
@@ -78,7 +145,7 @@ export const useRainData = (
       setRefreshing(false);
       inFlightRef.current = false;
     }
-  }, [useMock]);
+  }, [useMock, mode, historicalDate, historicalTimestamp]);
 
   const refresh = useCallback(() => {
     loadData();
@@ -86,10 +153,10 @@ export const useRainData = (
 
   useEffect(() => {
     loadData();
-    if (useMock) return;
+    if (useMock || mode === 'historical') return;
     const interval = setInterval(loadData, refreshInterval);
     return () => clearInterval(interval);
-  }, [loadData, refreshInterval, useMock]);
+  }, [loadData, refreshInterval, useMock, mode]);
 
   return {
     stations,
@@ -98,6 +165,10 @@ export const useRainData = (
     error,
     lastUpdate,
     apiAvailable,
+    historicalAvailable,
+    dataSource,
+    historicalTimeline,
+    activeHistoricalTimestamp,
     totalStations,
     refresh
   };

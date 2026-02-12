@@ -6,12 +6,27 @@ interface InfoModalProps {
   isOpen: boolean;
   onClose: () => void;
   apiAvailable: boolean;
+  dataSource: 'api' | 'gcp' | 'mock';
   totalStations: number;
   stations: RainStation[];
 }
 
-export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, apiAvailable, totalStations, stations }) => {
+export const InfoModal: React.FC<InfoModalProps> = ({
+  isOpen,
+  onClose,
+  apiAvailable,
+  dataSource,
+  totalStations,
+  stations,
+}) => {
   if (!isOpen) return null;
+
+  const sourceDescription =
+    dataSource === 'gcp'
+      ? 'Leituras históricas no BigQuery (GCP) via Netlify Function'
+      : dataSource === 'mock'
+        ? 'Dados simulados para demonstração'
+        : 'API websempre.rio.rj.gov.br / Alerta Rio (tempo real)';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
@@ -198,7 +213,9 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, apiAvaila
                 <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
                 <div>
                   <p className="font-medium text-gray-800">Fonte dos dados</p>
-                  <p className="text-gray-600">Dados fornecidos pela Prefeitura do Rio de Janeiro através da API websempre.rio.rj.gov.br e do Alerta Rio</p>
+                  <p className="text-gray-600">
+                    Dados fornecidos pela Prefeitura do Rio de Janeiro (COR/Alerta Rio). Fonte atual: {sourceDescription}.
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -237,7 +254,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose, apiAvaila
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${apiAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
                   <span className="text-sm font-medium text-gray-800">
-                    Status da API: {apiAvailable ? 'Conectado' : 'Desconectado'}
+                    Status da API: {apiAvailable ? 'Conectado' : dataSource === 'gcp' ? 'Indisponível (dados GCP ativos)' : 'Desconectado'}
                   </span>
                 </div>
                 {totalStations > 0 && (

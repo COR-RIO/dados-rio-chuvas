@@ -17,11 +17,13 @@ No painel da Netlify: **Site settings → Environment variables**:
 |----------|-------------|-----------|
 | `GOOGLE_APPLICATION_CREDENTIALS_JSON` | Sim* | Conteúdo do `credentials.json` em **uma única linha** (JSON minificado). |
 | `GCP_PROJECT_ID` | Não | Projeto GCP (ex: `alertadb-cor`). Se omitido, usa o `project_id` do JSON. |
-| `BIGQUERY_DATASET` | Não | Nome do dataset no BigQuery (default: `chuvas`). |
-| `BIGQUERY_TABLE` | Não | Nome da tabela (default: `historico_leituras`). |
-| `BIGQUERY_DATE_COLUMN` | Não | Nome da coluna de data/hora (default: `timestamp`). |
-| `BIGQUERY_STATION_ID_COLUMN` | Não | Nome da coluna de ID da estação (default: `station_id`). |
-| `BIGQUERY_STATION_NAME_COLUMN` | Não | Nome da coluna de nome da estação (default: `station_name`). |
+| `BIGQUERY_DATASET` | Não | Nome do dataset no BigQuery (default no projeto: `alertadb_cor_raw`). |
+| `BIGQUERY_TABLE` | Não | Nome da tabela (default no projeto: `pluviometricos`). |
+| `BIGQUERY_LOCATION` | Não | Localização do dataset (default no projeto: `us-west1`). |
+| `BIGQUERY_DATE_COLUMN` | Não | Nome da coluna de data/hora (default no projeto: `dia`). |
+| `BIGQUERY_STATION_ID_COLUMN` | Não | Nome da coluna de ID da estação (default no projeto: `estacao_id`). |
+| `BIGQUERY_STATION_NAME_COLUMN` | Não | Nome da coluna de nome da estação (default no projeto: `estacao`). |
+| `BIGQUERY_SELECT_COLUMNS` | Não | Lista de colunas usadas no `SELECT DISTINCT` da função histórica. |
 
 \* Ou use `GOOGLE_APPLICATION_CREDENTIALS` com o caminho do arquivo (apenas em ambiente onde o arquivo existe, ex.: build local).
 
@@ -44,8 +46,12 @@ Crie um arquivo `.env` (não commitado) na raiz do projeto:
 # Caminho para o arquivo de credenciais (mais simples localmente)
 GOOGLE_APPLICATION_CREDENTIALS=./credentials/credentials.json
 GCP_PROJECT_ID=alertadb-cor
-BIGQUERY_DATASET=chuvas
-BIGQUERY_TABLE=historico_leituras
+BIGQUERY_DATASET=alertadb_cor_raw
+BIGQUERY_TABLE=pluviometricos
+BIGQUERY_LOCATION=us-west1
+BIGQUERY_DATE_COLUMN=dia
+BIGQUERY_STATION_ID_COLUMN=estacao_id
+BIGQUERY_STATION_NAME_COLUMN=estacao
 ```
 
 Para testar a function localmente:
@@ -71,6 +77,17 @@ const dados = await fetchHistoricalRain({
   dateTo: '2025-02-01',
   limit: 500,
   stationId: 'alguma-estacao',
+});
+```
+
+Também é possível consultar intervalo com hora/minuto:
+
+```ts
+const dados = await fetchHistoricalRain({
+  dateFrom: '2009-02-15 22:00:00.000',
+  dateTo: '2009-02-18 02:00:00.000',
+  sort: 'asc',
+  limit: 1000,
 });
 ```
 

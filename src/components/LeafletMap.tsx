@@ -9,17 +9,18 @@ import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
 import { InfluenceLegend } from './InfluenceLegend';
 import { RainDataTable } from './RainDataTable';
-import { getStationAccumulatedMm, getStationEquivalentIntensityMmh, isMeasuredWindow, normalizeWindowMinutes } from '../utils/rainWindow';
 import {
   MapLayers,
   HexagonLayerToggle,
-  TimeWindowControl,
+  HistoricalTimelineControl,
   FocusCityButton,
   FitCityOnLoad,
   MAP_TYPES,
   type MapTypeId,
 } from './MapControls';
 import 'leaflet/dist/leaflet.css';
+
+const HEX_INFLUENCE_WINDOW_MINUTES = 15;
 
 // Fix para ícones do Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -33,6 +34,12 @@ interface LeafletMapProps {
   stations: RainStation[];
   mapType: MapTypeId;
   onMapTypeChange: (mapType: MapTypeId) => void;
+  historicalMode: boolean;
+  historicalDate: string;
+  onHistoricalDateChange: (date: string) => void;
+  historicalTimeline: string[];
+  selectedHistoricalTimestamp: string | null;
+  onHistoricalTimestampChange: (timestamp: string) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -131,15 +138,12 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
 };
 
 // Componente para criar marcadores das estações
-const StationMarkers: React.FC<{ stations: RainStation[]; timeWindowMinutes: number }> = ({ stations, timeWindowMinutes }) => {
-  const normalizedWindow = normalizeWindowMinutes(timeWindowMinutes);
-  const measuredWindow = isMeasuredWindow(normalizedWindow);
+const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => {
   return (
     <>
       {stations.map((station) => {
-        const equivalentMmh = getStationEquivalentIntensityMmh(station, normalizedWindow);
-        const windowAccumulated = getStationAccumulatedMm(station, normalizedWindow);
-        const rainLevel = getRainLevel(equivalentMmh);
+        const oneHourRain = Math.max(0, station.data.h01 ?? 0);
+        const rainLevel = getRainLevel(oneHourRain);
         
         // Criar ícone personalizado para a estação
         const stationIcon = L.divIcon({
@@ -180,16 +184,11 @@ const StationMarkers: React.FC<{ stations: RainStation[]; timeWindowMinutes: num
                   <span style={{ fontSize: '14px', color: '#666' }}>{rainLevel.name}</span>
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Janela {normalizedWindow}min:</strong> {windowAccumulated.toFixed(1)}mm
+                  <strong>Chuva 1h (bolinha):</strong> {oneHourRain.toFixed(1)}mm/h
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Intensidade eq.:</strong> {equivalentMmh.toFixed(1)}mm/h
+                  <strong>Acumulado 15min (influência):</strong> {Math.max(0, station.data.m15 ?? 0).toFixed(1)}mm
                 </p>
-                {!measuredWindow && (
-                  <p style={{ margin: '4px 0', fontSize: '12px', color: '#B45309' }}>
-                    * Valor estimado por interpolação (15min ↔ 1h)
-                  </p>
-                )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Última atualização:</strong> {new Date(station.read_at).toLocaleTimeString('pt-BR')}
                 </p>
@@ -203,11 +202,20 @@ const StationMarkers: React.FC<{ stations: RainStation[]; timeWindowMinutes: num
 };
 
 // Componente principal
-export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMapTypeChange }) => {
+export const LeafletMap: React.FC<LeafletMapProps> = ({
+  stations,
+  mapType,
+  onMapTypeChange,
+  historicalMode,
+  historicalDate,
+  onHistoricalDateChange,
+  historicalTimeline,
+  selectedHistoricalTimestamp,
+  onHistoricalTimestampChange,
+}) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showHexagons, setShowHexagons] = useState(true);
-  const [timeWindowMinutes, setTimeWindowMinutes] = useState(15);
   const [showSidebar, setShowSidebar] = useState(true);
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
@@ -245,8 +253,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMap
       <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2">
         <MapLayers value={mapType} onChange={onMapTypeChange} />
         <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
-        <TimeWindowControl value={timeWindowMinutes} onChange={setTimeWindowMinutes} />
-        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} timeWindowMinutes={timeWindowMinutes} />
+        <HistoricalTimelineControl
+          enabled={historicalMode}
+          dateValue={historicalDate}
+          onDateChange={onHistoricalDateChange}
+          timeline={historicalTimeline}
+          selectedTimestamp={selectedHistoricalTimestamp}
+          onTimestampChange={onHistoricalTimestampChange}
+        />
+        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} />
       </div>
 
       <button
@@ -290,13 +305,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({ stations, mapType, onMap
             stations={stations}
             resolution={8}
             mapType={mapType}
-            timeWindowMinutes={timeWindowMinutes}
+            timeWindowMinutes={HEX_INFLUENCE_WINDOW_MINUTES}
             bairrosData={bairrosData ?? undefined}
           />
         )}
         {zonasData && <ZonasPolygons zonasData={zonasData} showHexagons={showHexagons} />}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
-        <StationMarkers stations={stations} timeWindowMinutes={timeWindowMinutes} />
+        <StationMarkers stations={stations} />
       </MapContainer>
     </div>
   );

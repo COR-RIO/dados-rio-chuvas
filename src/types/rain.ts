@@ -30,8 +30,11 @@ export interface RainLevel {
 export interface HistoricalRainRecord {
   timestamp?: string;
   read_at?: string;
+  dia?: string | { value?: string };
   station_id?: string;
   station_name?: string;
+  estacao_id?: string | number;
+  estacao?: string;
   name?: string;
   location?: string | unknown;
   /** Precipitação em mm (última hora, 24h, etc. – nomes podem variar no BD) */
@@ -45,6 +48,7 @@ export interface HistoricalRainParams {
   dateFrom?: string;
   dateTo?: string;
   limit?: number;
+  sort?: 'asc' | 'desc';
   stationId?: string;
   station?: string;
 }

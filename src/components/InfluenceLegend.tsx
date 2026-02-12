@@ -1,22 +1,17 @@
 import React from 'react';
 import type { MapTypeId } from './MapControls';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
-import { isMeasuredWindow, normalizeWindowMinutes } from '../utils/rainWindow';
 
 interface InfluenceLegendProps {
   showHexagons: boolean;
   mapType: MapTypeId;
-  timeWindowMinutes: number;
 }
 
 /** Legenda do mapa (hexágonos + estações) com contexto dinâmico. */
 export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
   showHexagons,
   mapType,
-  timeWindowMinutes,
 }) => {
-  const normalizedWindow = normalizeWindowMinutes(timeWindowMinutes);
-  const measuredWindow = isMeasuredWindow(normalizedWindow);
   const legendItems = getInfluenceLegendItems(mapType);
   return (
     <div
@@ -36,11 +31,8 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
             </div>
           ))}
           <div className="text-[10px] text-gray-500 mt-0.5">
-            Hexágonos por intensidade (janela {normalizedWindow}min)
+            Hexágonos por influência com critério fixo de 15min (m15)
           </div>
-          {!measuredWindow && (
-            <div className="text-[10px] text-amber-600">* Janela intermediária estimada por interpolação</div>
-          )}
         </div>
       ) : (
         <div className="text-[11px] text-gray-500">Camada de hexágonos oculta.</div>
@@ -49,7 +41,7 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
       <div className="mt-2 pt-2 border-t border-gray-200">
         <div className="flex items-center gap-2">
           <div className="w-3.5 h-3.5 rounded-full border border-white shadow-sm bg-emerald-500" />
-          <span className="text-[11px] text-gray-700">Bolinhas: estações pluviométricas</span>
+          <span className="text-[11px] text-gray-700">Bolinhas: chuva de 1h (h01)</span>
         </div>
         <div className="text-[10px] text-gray-500 mt-1">Fonte: Alerta Rio</div>
       </div>
