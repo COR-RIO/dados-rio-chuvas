@@ -44,9 +44,11 @@ export type InfluenceLevelValue = 0 | 1 | 2 | 3 | 4;
  *   0: [0, 0,2) mm/h  |  1: [0,2, 5]  |  2: (5, 25]  |  3: (25, 50]  |  4: >50
  */
 export function rainfallToInfluenceLevel(mmh: number): InfluenceLevelValue {
-  if (mmh < 0.2) return 0;
-  if (mmh <= 5) return 1;
-  if (mmh <= 25) return 2;
-  if (mmh <= 50) return 3;
+  const n = Number(mmh);
+  if (n !== n || n < 0) return 0; // NaN ou negativo → sem chuva
+  if (n < 0.2) return 0;
+  if (n <= 5) return 1;
+  if (n <= 25) return 2;
+  if (n <= 50) return 3;
   return 4;
 }

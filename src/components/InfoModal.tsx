@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Info, MapPin } from 'lucide-react';
 import { RainStation } from '../types/rain';
+import { rainLevels } from '../utils/rainLevel';
 
 interface InfoModalProps {
   isOpen: boolean;
@@ -115,41 +116,15 @@ export const InfoModal: React.FC<InfoModalProps> = ({
                     <p className="text-xs text-gray-500">Áreas sem estações meteorológicas</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#1FCC70'}}></div>
+                {rainLevels.map((level, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{ backgroundColor: level.color }}></div>
                   <div>
-                    <span className="text-sm font-medium text-gray-800">Sem chuva</span>
-                    <p className="text-xs text-gray-500">0mm/h - Condições secas</p>
+                    <span className="text-sm font-medium text-gray-800 capitalize">{level.name}</span>
+                    <p className="text-xs text-gray-500">{level.description}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#61BBFF'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva fraca</span>
-                    <p className="text-xs text-gray-500">0,2-5,0mm/h - Chuva leve</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#EAF000'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva moderada</span>
-                    <p className="text-xs text-gray-500">5,1-25,0mm/h - Chuva moderada</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#FEA600'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva forte</span>
-                    <p className="text-xs text-gray-500">25,1-50,0mm/h - Chuva intensa</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#EE0000'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva muito forte</span>
-                    <p className="text-xs text-gray-500">Acima de 50,0mm/h - Chuva extrema</p>
-                  </div>
-                </div>
+              ))}
               </div>
             </div>
             
@@ -163,41 +138,15 @@ export const InfoModal: React.FC<InfoModalProps> = ({
                     <p className="text-xs text-gray-500">Áreas sem estações meteorológicas</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#1FCC70'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Sem chuva</span>
-                    <p className="text-xs text-gray-500">0mm/h - Condições secas</p>
+                {rainLevels.map((level, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{ backgroundColor: level.color }}></div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-800 capitalize">{level.name}</span>
+                      <p className="text-xs text-gray-500">{level.description}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#61BBFF'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva fraca</span>
-                    <p className="text-xs text-gray-500">0,2-5,0mm/h - Chuva leve</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#EAF000'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva moderada</span>
-                    <p className="text-xs text-gray-500">5,1-25,0mm/h - Chuva moderada</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#FEA600'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva forte</span>
-                    <p className="text-xs text-gray-500">25,1-50,0mm/h - Chuva intensa</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{backgroundColor: '#EE0000'}}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Chuva muito forte</span>
-                    <p className="text-xs text-gray-500">Acima de 50,0mm/h - Chuva extrema</p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>

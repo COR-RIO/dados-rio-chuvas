@@ -23,9 +23,9 @@ export function isMeasuredWindow(minutes: number): boolean {
  */
 export function getStationEquivalentIntensityMmh(station: RainStation, minutes: number): number {
   const m = normalizeWindowMinutes(minutes);
-  const m05 = Math.max(0, station.data.m05 ?? 0);
-  const m15 = Math.max(0, station.data.m15 ?? 0);
-  const h01 = Math.max(0, station.data.h01 ?? 0);
+  const m05 = Math.max(0, Number(station.data.m05) || 0);
+  const m15 = Math.max(0, Number(station.data.m15) || 0);
+  const h01 = Math.max(0, Number(station.data.h01) || 0);
 
   const i5 = m05 * 12; // mm/5min -> mm/h
   const i15 = m15 * 4; // mm/15min -> mm/h

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Wrapper, Status } from '@googlemaps/react-wrapper';
 import { RainStation } from '../types/rain';
-import { getRainLevel } from '../utils/rainLevel';
+import { getRainLevel, rainLevels } from '../utils/rainLevel';
 import { useBairrosData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getBairroColor } from '../utils/bairroMapping';
@@ -337,26 +337,12 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
               <div className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"></div>
               <span>Bairros sem dados</span>
             </div>
-            <div className="flex items-center gap-1">
-             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
-              <span>Sem chuva (0mm)</span>
+            {rainLevels.map((level, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: level.color }}></div>
+              <span className="capitalize">{level.name} ({level.description})</span>
             </div>
-            <div className="flex items-center gap-1">
-             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
-             <span>Chuva fraca (0,2-5,0mm/h)</span>
-            </div>
-            <div className="flex items-center gap-1">
-             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
-             <span>Chuva moderada (5,1-25,0mm/h)</span>
-            </div>
-            <div className="flex items-center gap-1">
-             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
-             <span>Chuva forte (25,1-50,0mm/h)</span>
-            </div>
-            <div className="flex items-center gap-1">
-             <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
-             <span>Chuva muito forte ({'>'}50,0mm/h)</span>
-            </div>
+          ))}
           </div>
           <div className="text-xs text-gray-500 space-y-1">
             <p>• Configure a chave da API do Google Maps para ver o mapa interativo</p>
@@ -404,26 +390,12 @@ export const GoogleMap: React.FC<GoogleMapProps> = ({ stations }) => {
             <div className="w-3 h-3 rounded-full bg-gray-200 border border-gray-300"></div>
             <span>Bairros sem dados</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#1FCC70'}}></div>
-            <span>Sem chuva (0mm)</span>
+          {rainLevels.map((level, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: level.color }}></div>
+            <span className="capitalize">{level.name} ({level.description})</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#61BBFF'}}></div>
-            <span>Chuva fraca (0,2-5,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EAF000'}}></div>
-            <span>Chuva moderada (5,1-25,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#FEA600'}}></div>
-            <span>Chuva forte (25,1-50,0mm/h)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full border border-white" style={{backgroundColor: '#EE0000'}}></div>
-            <span>Chuva muito forte ({'>'}50,0mm/h)</span>
-          </div>
+        ))}
         </div>
         <div className="text-xs text-gray-500 space-y-1">
           <p>• Clique nos bairros para ver detalhes</p>

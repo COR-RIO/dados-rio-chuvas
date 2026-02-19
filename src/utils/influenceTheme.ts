@@ -41,21 +41,24 @@ const PALETTES: Record<MapVisualType, Record<InfluenceLevelValue, string>> = {
   },
 };
 
-export function getInfluenceLegendItems(mapType: MapVisualType): Array<{
+/** Paleta fixa da legenda do mapa. Hexágonos sempre usam esta paleta para não haver falha de cor. */
+const LEGEND_PALETTE: Record<InfluenceLevelValue, string> = PALETTES.rua;
+
+export function getInfluenceLegendItems(_mapType?: MapVisualType): Array<{
   value: InfluenceLevelValue;
   label: string;
   color: string;
 }> {
-  const palette = PALETTES[mapType];
   return (Object.keys(LEVEL_TEXT) as unknown as InfluenceLevelValue[]).map((v) => ({
     value: v,
     label: LEVEL_TEXT[v],
-    color: palette[v],
+    color: LEGEND_PALETTE[v],
   }));
 }
 
-export function getInfluenceColor(level: InfluenceLevelValue, mapType: MapVisualType): string {
-  return PALETTES[mapType][level];
+export function getInfluenceColor(level: InfluenceLevelValue, _mapType?: MapVisualType): string {
+  const l = Math.min(4, Math.max(0, Math.floor(Number(level)))) as InfluenceLevelValue;
+  return LEGEND_PALETTE[l] ?? LEGEND_PALETTE[0];
 }
 
 export function getHexOverlayTuning(
