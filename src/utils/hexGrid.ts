@@ -1,6 +1,6 @@
 import { polygonToCells, cellToBoundary, cellToLatLng, gridDisk } from 'h3-js';
 import type { RainStation } from '../types/rain';
-import { rainfallToInfluenceLevel, type InfluenceLevelValue } from '../types/alertaRio';
+import { rainfallToInfluenceLevel15min, type InfluenceLevelValue } from '../types/alertaRio';
 import type { BairroCollection } from '../services/citiesApi';
 
 /** Bbox aproximada do município do Rio de Janeiro [lng, lat] - usado só se não houver bairros */
@@ -117,9 +117,8 @@ function squaredDistance(lat1: number, lng1: number, lat2: number, lng2: number)
 }
 
 /**
- * Encontra a estação mais próxima e retorna o nível de influência (0-4).
- * Espera-se que stations tenham data.h01 como intensidade em mm/h (para 15 min
- * o HexRainLayer passa m15×4; limites em rainfallToInfluenceLevel batem com a legenda).
+ * Encontra a estação mais próxima e retorna o nível de influência (0-4) para a área de abrangência.
+ * Usa m15 (mm/15min) com critério oficial: 0 | <1,25 | 1,25–6,25 | 6,25–12,5 | >12,5 (Termos Meteorológicos).
  */
 function getLevelForPoint(lat: number, lng: number, stations: RainStation[]): InfluenceLevelValue {
   if (!stations.length) return 0;
@@ -133,7 +132,8 @@ function getLevelForPoint(lat: number, lng: number, stations: RainStation[]): In
       nearest = s;
     }
   }
-  return rainfallToInfluenceLevel(nearest.data.h01);
+  const m15 = nearest.data.m15 ?? 0;
+  return rainfallToInfluenceLevel15min(m15);
 }
 
 export interface HexCell {

@@ -8,10 +8,15 @@ export interface UseRainDataOptions {
   /** Usar dados de exemplo (mock) para validar mapa de influência antes do GCP */
   useMock?: boolean;
   mode?: RainDataMode;
+  /** Data única (usada como De e Até quando não há intervalo) */
   historicalDate?: string;
-  /** Filtro horário início (HH:mm) – combinado com historicalDate na query ao GCP */
+  /** Data início do intervalo (ex.: 09/02/2026). Se não informado, usa historicalDate */
+  historicalDateFrom?: string;
+  /** Data fim do intervalo (ex.: 10/02/2026). Se não informado, usa historicalDate ou historicalDateFrom */
+  historicalDateTo?: string;
+  /** Filtro horário início (HH:mm) – combinado com a data na query ao GCP */
   historicalTimeFrom?: string;
-  /** Filtro horário fim (HH:mm) – combinado com historicalDate na query ao GCP */
+  /** Filtro horário fim (HH:mm) – combinado com a data na query ao GCP */
   historicalTimeTo?: string;
   historicalTimestamp?: string | null;
   refreshInterval?: number;
@@ -31,11 +36,16 @@ export const useRainData = (
     useMock = false,
     mode = 'auto',
     historicalDate,
+    historicalDateFrom,
+    historicalDateTo,
     historicalTimeFrom,
     historicalTimeTo,
     historicalTimestamp = null,
     refreshInterval = 300000,
   } = options;
+
+  const dateFrom = historicalDateFrom ?? historicalDate ?? new Date().toISOString().slice(0, 10);
+  const dateTo = historicalDateTo ?? historicalDate ?? dateFrom;
 
   const [stations, setStations] = useState<RainStation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,11 +92,10 @@ export const useRainData = (
       }
 
       if (mode === 'historical') {
-        const targetDate = historicalDate || new Date().toISOString().slice(0, 10);
         const timelineData = await fetchHistoricalRainStationsTimeline(
           {
-            dateFrom: targetDate,
-            dateTo: targetDate,
+            dateFrom,
+            dateTo,
             timeFrom: historicalTimeFrom,
             timeTo: historicalTimeTo,
             limit: 10000,
@@ -95,7 +104,11 @@ export const useRainData = (
         );
 
         if (!timelineData.stations.length) {
-          throw new Error(`Sem dados históricos para ${targetDate}`);
+          throw new Error(
+            dateFrom === dateTo
+              ? `Sem dados históricos para ${dateFrom}`
+              : `Sem dados históricos para o período ${dateFrom} a ${dateTo}`
+          );
         }
 
         setStations(timelineData.stations);

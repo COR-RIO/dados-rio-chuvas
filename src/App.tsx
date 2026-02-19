@@ -10,7 +10,9 @@ import type { MapTypeId } from './components/MapControls';
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
   const [dataMode, setDataMode] = useState<RainDataMode>('auto');
-  const [historicalDate, setHistoricalDate] = useState(new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const [historicalDate, setHistoricalDate] = useState(today);
+  const [historicalDateTo, setHistoricalDateTo] = useState(today);
   const [historicalTimeFrom, setHistoricalTimeFrom] = useState('00:00');
   const [historicalTimeTo, setHistoricalTimeTo] = useState('23:59');
   const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
@@ -31,6 +33,8 @@ function App() {
     useMock: useMockDemo,
     mode: dataMode,
     historicalDate,
+    historicalDateFrom: historicalDate,
+    historicalDateTo,
     historicalTimeFrom,
     historicalTimeTo,
     historicalTimestamp,
@@ -85,6 +89,12 @@ function App() {
           historicalDate={historicalDate}
           onHistoricalDateChange={(date) => {
             setHistoricalDate(date);
+            if (date > historicalDateTo) setHistoricalDateTo(date);
+            setHistoricalTimestamp(null);
+          }}
+          historicalDateTo={historicalDateTo}
+          onHistoricalDateToChange={(date) => {
+            setHistoricalDateTo(date);
             setHistoricalTimestamp(null);
           }}
           historicalTimeFrom={historicalTimeFrom}
@@ -210,7 +220,7 @@ function App() {
 
                 <div className="space-y-1">
                   <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a influência de chuva da estação mais próxima com base em 15min.</p>
-                  <p>• <strong>Modo Histórico (GCP):</strong> escolha data e horário no controle lateral para navegar no timeline.</p>
+                  <p>• <strong>Modo Histórico (GCP):</strong> use <strong>De</strong> e <strong>Até</strong> para definir o intervalo (ex.: 09/02/2026 até 10/02/2026) e navegue no timeline.</p>
                 </div>
 
                 <div className="space-y-1">

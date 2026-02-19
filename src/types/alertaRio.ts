@@ -27,28 +27,26 @@ export interface AlertaRioCollection {
   features: AlertaRioFeature[];
 }
 
-/** Níveis para mapa de área de influência (0 a 4+) - escala azul como na referência */
+/** Níveis para área de abrangência (hexágonos) – Termos Meteorológicos: 15 min (mm/15min) */
 export const INFLUENCE_LEVELS = [
-  { value: 0, label: '0', color: '#E0F2F7', min: 0, max: 0 },
-  { value: 1, label: '1', color: '#7DD3FC', min: 0.2, max: 5 },
-  { value: 2, label: '2', color: '#0EA5E9', min: 5.1, max: 25 },
-  { value: 3, label: '3', color: '#0369A1', min: 25.1, max: 50 },
-  { value: 4, label: '4+', color: '#0C4A6E', min: 50.1, max: null },
+  { value: 0, label: '0', color: '#eceded', min: 0, max: 0 },
+  { value: 1, label: '1', color: '#42b9eb', min: 0.01, max: 1.24 },
+  { value: 2, label: '2', color: '#2f90be', min: 1.25, max: 6.25 },
+  { value: 3, label: '3', color: '#2a688f', min: 6.25, max: 12.5 },
+  { value: 4, label: '4+', color: '#13335a', min: 12.51, max: null },
 ] as const;
 
 export type InfluenceLevelValue = 0 | 1 | 2 | 3 | 4;
 
 /**
- * Converte intensidade em mm/h para nível de influência 0-4.
- * Para janela de 15 min usa m15×4 (mm/15min → mm/h). Limites alinhados à legenda:
- *   0: [0, 0,2) mm/h  |  1: [0,2, 5]  |  2: (5, 25]  |  3: (25, 50]  |  4: >50
+ * Converte chuva em 15 min (mm/15min) para nível de influência 0-4.
+ * Critério oficial: Sem chuva 0 | Fraca <1,25 | Moderada 1,25–6,25 | Forte 6,25–12,5 | Muito forte >12,5
  */
-export function rainfallToInfluenceLevel(mmh: number): InfluenceLevelValue {
-  const n = Number(mmh);
-  if (n !== n || n < 0) return 0; // NaN ou negativo → sem chuva
-  if (n < 0.2) return 0;
-  if (n <= 5) return 1;
-  if (n <= 25) return 2;
-  if (n <= 50) return 3;
+export function rainfallToInfluenceLevel15min(mm15: number): InfluenceLevelValue {
+  const n = Number(mm15);
+  if (n !== n || n <= 0) return 0;
+  if (n < 1.25) return 1;
+  if (n <= 6.25) return 2;
+  if (n <= 12.5) return 3;
   return 4;
 }

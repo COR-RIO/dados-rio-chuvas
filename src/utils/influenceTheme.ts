@@ -2,47 +2,33 @@ import type { InfluenceLevelValue } from '../types/alertaRio';
 
 export type MapVisualType = 'rua' | 'satelite' | 'escuro' | 'terreno';
 
+/** Legenda dos hexágonos: critério oficial em 15 min (mm/15min) – Termos Meteorológicos */
 const LEVEL_TEXT: Record<InfluenceLevelValue, string> = {
-  0: 'Sem chuva (0,0 mm/h)',
-  1: 'Fraca (0,2-5,0 mm/h)',
-  2: 'Moderada (5,1-25,0 mm/h)',
-  3: 'Forte (25,1-50,0 mm/h)',
-  4: 'Muito forte (>50,0 mm/h)',
+  0: 'Sem chuva (0,0 mm/15min)',
+  1: 'Fraca (<1,25 mm/15min)',
+  2: 'Moderada (1,25–6,25 mm/15min)',
+  3: 'Forte (6,25–12,5 mm/15min)',
+  4: 'Muito forte (>12,5 mm/15min)',
+};
+
+/** Degradê oficial 5 níveis para área de abrangência (15 min) */
+const HEX_LEVEL_COLORS: Record<InfluenceLevelValue, string> = {
+  0: '#eceded',
+  1: '#42b9eb',
+  2: '#2f90be',
+  3: '#2a688f',
+  4: '#13335a',
 };
 
 const PALETTES: Record<MapVisualType, Record<InfluenceLevelValue, string>> = {
-  rua: {
-    0: '#E0F2F7',
-    1: '#7DD3FC',
-    2: '#0EA5E9',
-    3: '#0369A1',
-    4: '#0C4A6E',
-  },
-  satelite: {
-    0: '#EAF8FF',
-    1: '#63D1FF',
-    2: '#1EA7FF',
-    3: '#0078C8',
-    4: '#005B9A',
-  },
-  escuro: {
-    0: '#BFDBFE',
-    1: '#93C5FD',
-    2: '#60A5FA',
-    3: '#3B82F6',
-    4: '#2563EB',
-  },
-  terreno: {
-    0: '#E6F4FB',
-    1: '#8FD9FF',
-    2: '#22AEEB',
-    3: '#0A75B8',
-    4: '#0C4A6E',
-  },
+  rua: HEX_LEVEL_COLORS,
+  satelite: HEX_LEVEL_COLORS,
+  escuro: HEX_LEVEL_COLORS,
+  terreno: HEX_LEVEL_COLORS,
 };
 
-/** Paleta fixa da legenda do mapa. Hexágonos sempre usam esta paleta para não haver falha de cor. */
-const LEGEND_PALETTE: Record<InfluenceLevelValue, string> = PALETTES.rua;
+/** Paleta fixa da legenda do mapa. Hexágonos usam o degradê oficial (15 min). */
+const LEGEND_PALETTE: Record<InfluenceLevelValue, string> = HEX_LEVEL_COLORS;
 
 export function getInfluenceLegendItems(_mapType?: MapVisualType): Array<{
   value: InfluenceLevelValue;

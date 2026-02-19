@@ -218,7 +218,7 @@ function buildQuery(params) {
   const dateCol = process.env.BIGQUERY_DATE_COLUMN || 'dia';
   const stationIdCol = process.env.BIGQUERY_STATION_ID_COLUMN || 'estacao_id';
   const stationNameCol = process.env.BIGQUERY_STATION_NAME_COLUMN || 'estacao';
-  // Colunas: dia, dia_original, utc_offset, m05, m15, h01, h24, estacao, estacao_id
+  // Colunas: dia, dia_original, utc_offset, m05, m15, h01, h24, h96, estacao, estacao_id
   const selectColumns = (process.env.BIGQUERY_SELECT_COLUMNS || [
     '`' + dateCol + '` AS dia',
     'dia_original',
@@ -227,6 +227,7 @@ function buildQuery(params) {
     'm15',
     'h01',
     'h24',
+    'h96',
     'estacao',
     'estacao_id',
   ].join(', ')).trim();

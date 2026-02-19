@@ -37,9 +37,10 @@ export interface HistoricalRainRecord {
   estacao?: string;
   name?: string;
   location?: string | unknown;
-  /** Precipitação em mm (última hora, 24h, etc. – nomes podem variar no BD) */
+  /** Precipitação em mm (última hora, 24h, 96h – nomes podem variar no BD) */
   h01?: number;
   h24?: number;
+  h96?: number;
   precipitation_mm?: number;
   [key: string]: unknown;
 }
@@ -60,4 +61,18 @@ export interface HistoricalRainResponse {
   success: boolean;
   data?: HistoricalRainRecord[];
   error?: string;
+}
+
+/** Um intervalo de datas (ex.: um dia) com acumulado de chuva (mm) e estações no fim do intervalo */
+export interface HistoricalRainInterval {
+  /** Data no formato YYYY-MM-DD */
+  date: string;
+  /** Label para exibição (ex.: "09/02/2026") */
+  dateLabel: string;
+  /** Acumulado no intervalo (soma de m15, mm) – aproximação do total no período */
+  accumulatedMm: number;
+  /** Quantidade de registros no intervalo */
+  recordCount: number;
+  /** Estações no último horário do intervalo (snapshot do fim do dia) */
+  stations: RainStation[];
 }

@@ -36,6 +36,9 @@ interface LeafletMapProps {
   historicalMode: boolean;
   historicalDate: string;
   onHistoricalDateChange: (date: string) => void;
+  /** Data fim do intervalo (ex.: 10/02/2026). Quando igual a historicalDate, é um único dia */
+  historicalDateTo?: string;
+  onHistoricalDateToChange?: (date: string) => void;
   /** Filtro horário (dia_original): início e fim no formato HH:mm */
   historicalTimeFrom?: string;
   historicalTimeTo?: string;
@@ -213,6 +216,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   historicalMode,
   historicalDate,
   onHistoricalDateChange,
+  historicalDateTo,
+  onHistoricalDateToChange,
   historicalTimeFrom = '00:00',
   historicalTimeTo = '23:59',
   onHistoricalTimeFromChange,
@@ -265,6 +270,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           enabled={historicalMode}
           dateValue={historicalDate}
           onDateChange={onHistoricalDateChange}
+          dateToValue={historicalDateTo ?? historicalDate}
+          onDateToChange={onHistoricalDateToChange ?? (() => {})}
           timeFrom={historicalTimeFrom}
           timeTo={historicalTimeTo}
           onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}

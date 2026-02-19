@@ -144,6 +144,9 @@ interface HistoricalTimelineControlProps {
   enabled: boolean;
   dateValue: string;
   onDateChange: (date: string) => void;
+  /** Data fim do intervalo (ex.: 10/02/2026). De + Até = período para buscar dados e acumulado */
+  dateToValue?: string;
+  onDateToChange?: (date: string) => void;
   /** Filtro de horário (baseado em dia_original do BD Nimbus). Formato HH:mm */
   timeFrom?: string;
   timeTo?: string;
@@ -172,6 +175,8 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   enabled,
   dateValue,
   onDateChange,
+  dateToValue,
+  onDateToChange,
   timeFrom = '00:00',
   timeTo = '23:59',
   onTimeFromChange,
@@ -183,6 +188,7 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
   const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
   const currentTs = timeline[safeIndex] ?? null;
+  const hasRange = dateToValue && dateToValue !== dateValue;
 
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -191,13 +197,36 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         Histórico (GCP)
       </div>
 
-      <input
-        type="date"
-        value={dateValue}
-        onChange={(e) => onDateChange(e.target.value)}
-        disabled={!enabled}
-        className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-      />
+      <div className="space-y-1.5">
+        <div>
+          <label className="block text-[10px] text-gray-500 mb-0.5">De</label>
+          <input
+            type="date"
+            value={dateValue}
+            onChange={(e) => onDateChange(e.target.value)}
+            disabled={!enabled}
+            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+          />
+        </div>
+        {onDateToChange && (
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-0.5">Até</label>
+            <input
+              type="date"
+              value={dateToValue ?? dateValue}
+              onChange={(e) => onDateToChange(e.target.value)}
+              disabled={!enabled}
+              min={dateValue}
+              className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+            />
+          </div>
+        )}
+      </div>
+      {hasRange && (
+        <div className="mt-1 text-[10px] text-gray-500">
+          Período: {dateValue} a {dateToValue}
+        </div>
+      )}
 
       {enabled && onTimeFromChange && onTimeToChange && (
         <div className="mt-2 grid grid-cols-2 gap-1.5">

@@ -3,6 +3,7 @@ import type {
   HistoricalRainResponse,
   HistoricalRainRecord,
   RainStation,
+  HistoricalRainInterval,
 } from '../types/rain';
 
 /** No Netlify usamos o caminho direto da function para evitar redirect que devolve index.html. */
@@ -389,6 +390,91 @@ export async function fetchHistoricalRainStationsTimeline(
   );
 
   return { timeline, selectedTimestamp: effectiveTimestamp, stations };
+}
+
+/**
+ * Extrai a data (YYYY-MM-DD) de um registro para agrupar por dia.
+ */
+function toDateKey(record: HistoricalRainRecord): string {
+  const iso = toIsoTimestamp(record);
+  return iso.slice(0, 10);
+}
+
+/**
+ * Busca dados históricos em um intervalo de datas e agrupa por dia com acumulado (soma de m15 no dia).
+ * Útil para ver "09/02/2026 até 10/02/2026" com acumulado por dia.
+ */
+export async function fetchHistoricalRainByIntervals(
+  params: HistoricalRainParams & { dateFrom: string; dateTo: string }
+): Promise<{ intervals: HistoricalRainInterval[] }> {
+  const rawRows = await fetchHistoricalRain({
+    limit: DEFAULT_HISTORICAL_LIMIT,
+    sort: 'asc',
+    ...params,
+  });
+  const rows = enrichRecordsWithLocation(rawRows);
+
+  // Agrupar por dia: para cada dia guardar registros, soma de m15 e última leitura por estação
+  const byDay = new Map<
+    string,
+    {
+      records: HistoricalRainRecord[];
+      sumM15: number;
+      lastByStation: Map<string, { record: HistoricalRainRecord; index: number }>;
+    }
+  >();
+
+  rows.forEach((record, index) => {
+    const dateKey = toDateKey(record);
+    let day = byDay.get(dateKey);
+    if (!day) {
+      day = {
+        records: [],
+        sumM15: 0,
+        lastByStation: new Map(),
+      };
+      byDay.set(dateKey, day);
+    }
+    day.records.push(record);
+    const m15 = pickNumber(record, ['m15', 'rain_15m'], 0);
+    day.sumM15 += m15;
+
+    const station = toRainStation(record, index);
+    if (station) {
+      day.lastByStation.set(station.id, { record, index });
+    }
+  });
+
+  const intervals: HistoricalRainInterval[] = [];
+  const sortedDays = Array.from(byDay.keys()).sort();
+
+  for (const dateKey of sortedDays) {
+    const day = byDay.get(dateKey)!;
+    const stations: RainStation[] = Array.from(day.lastByStation.values())
+      .map(({ record, index }) => toRainStation(record, index))
+      .filter((s): s is RainStation => s != null)
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+    const [y, m, d] = dateKey.split('-');
+    const dateLabel =
+      d && m && y
+        ? new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10)).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })
+        : dateKey;
+
+    intervals.push({
+      date: dateKey,
+      dateLabel,
+      accumulatedMm: Math.round(day.sumM15 * 100) / 100,
+      recordCount: day.records.length,
+      stations,
+    });
+  }
+
+  return { intervals };
 }
 
 /**
