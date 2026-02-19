@@ -3,11 +3,6 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import { getRainLevel } from '../utils/rainLevel';
 
-/** Intensidade em mm/h para janela de 15min (m15 em mm/15min → mm/h). Alinhado à legenda do mapa. */
-function intensity15MinMmh(m15: number): number {
-  return Math.max(0, m15 ?? 0) * 4;
-}
-
 interface RainDataTableProps {
   stations: RainStation[];
   embedded?: boolean;
@@ -93,7 +88,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
       <div className="block sm:hidden">
         <div className="divide-y divide-gray-200">
           {sortedStations.map((station) => {
-            const rainLevel15 = getRainLevel(intensity15MinMmh(station.data.m15));
+            const rainLevel = getRainLevel(station.data.h01);
             const isHighRainfall =
               station.data.m05 > 0 ||
               station.data.m15 > 0 ||
@@ -110,7 +105,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div 
                       className="w-3 h-3 rounded-full border border-white shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: rainLevel15.color }}
+                      style={{ backgroundColor: rainLevel.color }}
                     ></div>
                     <span className="text-xs font-medium text-gray-900 truncate">
                       {station.name}
@@ -212,7 +207,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
           </thead>
           <tbody className="divide-y divide-gray-200">
             {sortedStations.map((station) => {
-              const rainLevel15 = getRainLevel(intensity15MinMmh(station.data.m15));
+              const rainLevel = getRainLevel(station.data.h01);
               const isHighRainfall =
                 station.data.m05 > 0 ||
                 station.data.m15 > 0 ||
@@ -229,7 +224,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                     <div className={`flex items-center ${embedded ? 'gap-1.5' : 'gap-2 lg:gap-3'}`}>
                       <div 
                         className={`${embedded ? 'w-2.5 h-2.5' : 'w-2.5 lg:w-3 h-2.5 lg:h-3'} rounded-full border border-white shadow-sm flex-shrink-0`}
-                        style={{ backgroundColor: rainLevel15.color }}
+                        style={{ backgroundColor: rainLevel.color }}
                       ></div>
                       <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-medium text-gray-900 truncate`}>
                         {station.name}
@@ -244,12 +239,9 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                     </span>
                   </td>
                   <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right`}>
-                    <span
-                      className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
-                        station.data.m15 > 0 ? 'text-blue-700' : 'text-gray-500'
-                      }`}
-                      style={station.data.m15 > 0 ? { backgroundColor: `${rainLevel15.color}30` } : undefined}
-                    >
+                    <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
+                      station.data.m15 > 0 ? 'text-blue-700' : 'text-gray-500'
+                    }`}>
                       {station.data.m15.toFixed(1)}
                     </span>
                   </td>
@@ -279,7 +271,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
           <span>Total: {stations.length} estações</span>
           <span>Dados em milímetros (mm)</span>
         </div>
-        <div className="mt-1 text-[10px] text-gray-500">Fonte: Alerta Rio. Cor ao lado da estação: intensidade em 15min (mm/h), conforme legenda do mapa.</div>
+        <div className="mt-1 text-[10px] text-gray-500">Fonte: Alerta Rio</div>
       </div>
     </div>
   );
