@@ -7,7 +7,6 @@ import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
-import { InfluenceLegend } from './InfluenceLegend';
 import { RainDataTable } from './RainDataTable';
 import {
   MapLayers,
@@ -274,7 +273,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           selectedTimestamp={selectedHistoricalTimestamp}
           onTimestampChange={onHistoricalTimestampChange}
         />
-        <InfluenceLegend showHexagons={showHexagons} mapType={mapType} />
       </div>
 
       <button

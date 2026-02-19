@@ -4,6 +4,7 @@ import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
+import { InfluenceLegend } from './components/InfluenceLegend';
 import type { MapTypeId } from './components/MapControls';
 
 function App() {
@@ -195,31 +196,12 @@ function App() {
           </div>
 
           {showMapLegend && (
-            <div className="mt-3 sm:mt-4 space-y-3">
-              <div className="flex flex-wrap gap-3 sm:gap-4 text-xs text-gray-700">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#1FCC70' }} />
-                  <span>Sem chuva (0mm)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#61BBFF' }} />
-                  <span>Chuva fraca (0,2-5,0mm/h)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#EAF000' }} />
-                  <span>Chuva moderada (5,1-25,0mm/h)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#FEA600' }} />
-                  <span>Chuva forte (25,1-50,0mm/h)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full border border-white" style={{ backgroundColor: '#EE0000' }} />
-                  <span>Chuva muito forte (&gt;50,0mm/h)</span>
-                </div>
+            <div className="mt-3 sm:mt-4 flex flex-wrap gap-4 sm:gap-6 items-start">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3 sm:p-4 shrink-0">
+                <InfluenceLegend showHexagons={true} mapType={mapType} embedded />
               </div>
 
-              <div className="space-y-3 text-xs text-gray-600">
+              <div className="space-y-3 text-xs text-gray-600 min-w-0 flex-1">
                 <div className="space-y-1">
                   <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
                   <p>• <strong>Contornos azuis:</strong> zonas pluviométricas oficiais do Rio.</p>

@@ -38,9 +38,13 @@ export const INFLUENCE_LEVELS = [
 
 export type InfluenceLevelValue = 0 | 1 | 2 | 3 | 4;
 
-/** Converte mm/h (h01) para nível de influência 0-4 */
+/**
+ * Converte intensidade em mm/h para nível de influência 0-4.
+ * Para janela de 15 min usa m15×4 (mm/15min → mm/h). Limites alinhados à legenda:
+ *   0: [0, 0,2) mm/h  |  1: [0,2, 5]  |  2: (5, 25]  |  3: (25, 50]  |  4: >50
+ */
 export function rainfallToInfluenceLevel(mmh: number): InfluenceLevelValue {
-  if (mmh <= 0) return 0;
+  if (mmh < 0.2) return 0;
   if (mmh <= 5) return 1;
   if (mmh <= 25) return 2;
   if (mmh <= 50) return 3;

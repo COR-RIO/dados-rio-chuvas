@@ -116,7 +116,11 @@ function squaredDistance(lat1: number, lng1: number, lat2: number, lng2: number)
   return dlat * dlat + dlng * dlng;
 }
 
-/** Encontra a estação mais próxima e retorna o nível de influência (0-4) baseado em h01 */
+/**
+ * Encontra a estação mais próxima e retorna o nível de influência (0-4).
+ * Espera-se que stations tenham data.h01 como intensidade em mm/h (para 15 min
+ * o HexRainLayer passa m15×4; limites em rainfallToInfluenceLevel batem com a legenda).
+ */
 function getLevelForPoint(lat: number, lng: number, stations: RainStation[]): InfluenceLevelValue {
   if (!stations.length) return 0;
   let nearest = stations[0];
