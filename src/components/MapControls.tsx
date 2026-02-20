@@ -1,7 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Clock3, CalendarDays } from 'lucide-react';
+import { Map, Layers, Hexagon, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
+
+/** Dados exibidos no mapa: só 15min, só 1h, ou ambas as camadas */
+export type MapDataWindow = '15min' | '1h' | 'both';
+
+/** No modo histórico: mostrar snapshot no horário ou acumulado no período */
+export type HistoricalViewMode = 'instant' | 'accumulated';
 
 export type MapTypeId = 'rua' | 'satelite' | 'escuro' | 'terreno';
 
@@ -42,7 +48,7 @@ interface MapLayersProps {
   onChange: (id: MapTypeId) => void;
 }
 
-const controlBoxClass = 'bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 p-2';
+const controlBoxClass = 'bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 p-2 min-w-0 shrink-0';
 
 export const MapLayers: React.FC<MapLayersProps> = ({ value, onChange }) => {
   return (
@@ -108,6 +114,101 @@ export const HexagonLayerToggle: React.FC<HexagonLayerToggleProps> = ({ value, o
   );
 };
 
+interface MapDataWindowToggleProps {
+  value: MapDataWindow;
+  onChange: (v: MapDataWindow) => void;
+}
+
+/** Toggle para escolher quais dados ver no mapa: 15 min, 1 hora ou ambos. */
+export const MapDataWindowToggle: React.FC<MapDataWindowToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <Timer className="w-3.5 h-3.5" />
+        Dados no mapa
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange('15min')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === '15min' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Hexágonos e bolinhas pelo acumulado de 15 min"
+        >
+          15 min
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('1h')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === '1h' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Hexágonos e bolinhas pelo acumulado de 1 hora"
+        >
+          1 hora
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('both')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === 'both' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Mostrar as duas camadas (15 min e 1 h)"
+        >
+          Ambos
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface HistoricalViewModeToggleProps {
+  value: HistoricalViewMode;
+  onChange: (v: HistoricalViewMode) => void;
+  /** Só exibe quando há estações com acumulado no período */
+  hasAccumulated?: boolean;
+}
+
+/** Toggle para modo histórico: instantâneo (snapshot no horário) ou acumulado no período. */
+export const HistoricalViewModeToggle: React.FC<HistoricalViewModeToggleProps> = ({
+  value,
+  onChange,
+  hasAccumulated = true,
+}) => {
+  if (!hasAccumulated) return null;
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <BarChart3 className="w-3.5 h-3.5" />
+        Vista (histórico)
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange('instant')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === 'instant' ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Valores no horário selecionado do timeline"
+        >
+          Instantâneo
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('accumulated')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === 'accumulated' ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Soma de chuva no período (De + Até)"
+        >
+          Acumulado no período
+        </button>
+      </div>
+    </div>
+  );
+};
+
 interface TimeWindowControlProps {
   value: number;
   onChange: (minutes: number) => void;
@@ -155,6 +256,10 @@ interface HistoricalTimelineControlProps {
   timeline: string[];
   selectedTimestamp: string | null;
   onTimestampChange: (timestamp: string) => void;
+  /** Ao clicar em "Aplicar", busca dados com o intervalo atual (evita buscar a cada mudança de campo) */
+  onApplyFilter?: () => void;
+  /** Exibe "Buscando..." ao lado do botão enquanto carrega */
+  refreshing?: boolean;
 }
 
 function formatTimelineLabel(isoTs: string): string {
@@ -184,6 +289,8 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   timeline,
   selectedTimestamp,
   onTimestampChange,
+  onApplyFilter,
+  refreshing = false,
 }) => {
   const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
   const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
@@ -193,13 +300,15 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
       <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
-        <CalendarDays className="w-3.5 h-3.5" />
+        <CalendarDays className="w-3.5 h-3.5 shrink-0" />
         Histórico (GCP)
       </div>
 
-      <div className="space-y-1.5">
+      <p className="text-[10px] text-gray-500 mb-2">Ajuste o intervalo e clique em Aplicar para buscar</p>
+
+      <div className="space-y-2">
         <div>
-          <label className="block text-[10px] text-gray-500 mb-0.5">De</label>
+          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">De (data)</label>
           <input
             type="date"
             value={dateValue}
@@ -208,57 +317,69 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
             className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
           />
         </div>
-        {onDateToChange && (
+        <div>
+          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Até (data)</label>
+          <input
+            type="date"
+            value={dateToValue ?? dateValue}
+            onChange={(e) => onDateToChange?.(e.target.value)}
+            disabled={!enabled}
+            min={dateValue}
+            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
           <div>
-            <label className="block text-[10px] text-gray-500 mb-0.5">Até</label>
+            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (de)</label>
             <input
-              type="date"
-              value={dateToValue ?? dateValue}
-              onChange={(e) => onDateToChange(e.target.value)}
+              type="time"
+              value={timeFrom}
+              onChange={(e) => onTimeFromChange?.(e.target.value)}
               disabled={!enabled}
-              min={dateValue}
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
             />
           </div>
-        )}
+          <div>
+            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (até)</label>
+            <input
+              type="time"
+              value={timeTo}
+              onChange={(e) => onTimeToChange?.(e.target.value)}
+              disabled={!enabled}
+              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+            />
+          </div>
+        </div>
       </div>
       {hasRange && (
-        <div className="mt-1 text-[10px] text-gray-500">
+        <div className="mt-2 text-[10px] text-gray-500">
           Período: {dateValue} a {dateToValue}
         </div>
       )}
 
-      {enabled && onTimeFromChange && onTimeToChange && (
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
-          <div>
-            <label className="block text-[10px] text-gray-500 mb-0.5">Horário (de)</label>
-            <input
-              type="time"
-              value={timeFrom}
-              onChange={(e) => onTimeFromChange(e.target.value)}
-              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-500 mb-0.5">Horário (até)</label>
-            <input
-              type="time"
-              value={timeTo}
-              onChange={(e) => onTimeToChange(e.target.value)}
-              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700"
-            />
-          </div>
+      {enabled && onApplyFilter && (
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onApplyFilter}
+            disabled={refreshing}
+            className="flex-1 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {refreshing ? 'Buscando…' : 'Aplicar'}
+          </button>
+          {refreshing && <span className="text-[10px] text-gray-500">Atualizando dados…</span>}
         </div>
       )}
 
       {!enabled && (
         <div className="mt-2 text-[10px] text-gray-500">
-          Ative o modo "Histórico" no topo para usar este filtro.
+          Ative o modo &quot;Histórico&quot; no topo para usar datas e acumulado.
         </div>
       )}
 
       {enabled && timeline.length > 0 && (
         <>
+          <p className="mt-3 text-[11px] font-medium text-gray-600 mb-1">Snapshot no horário</p>
           <input
             type="range"
             min={0}

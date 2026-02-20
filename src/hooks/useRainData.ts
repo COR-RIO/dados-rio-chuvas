@@ -60,6 +60,7 @@ export const useRainData = (
   const [totalStations, setTotalStations] = useState<number>(0);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
+  const loadDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const getLatestReadAt = (data: RainStation[]): Date | null => {
     if (!data.length) return null;
@@ -148,18 +149,29 @@ export const useRainData = (
       setRefreshing(false);
       inFlightRef.current = false;
     }
-  }, [useMock, mode, historicalDate, historicalTimeFrom, historicalTimeTo, historicalTimestamp]);
+  }, [useMock, mode, dateFrom, dateTo, historicalTimeFrom, historicalTimeTo, historicalTimestamp]);
+
+  loadDataRef.current = loadData;
 
   const refresh = useCallback(() => {
-    loadData();
-  }, [loadData]);
+    loadDataRef.current();
+  }, []);
 
   useEffect(() => {
-    loadData();
-    if (useMock || mode === 'historical') return;
-    const interval = setInterval(loadData, refreshInterval);
+    if (useMock) {
+      loadDataRef.current();
+      return;
+    }
+    if (mode === 'historical') {
+      // Histórico: busca só ao entrar no modo; mudanças de data/hora não disparam fetch.
+      // O usuário clica "Aplicar" no painel para buscar com o novo intervalo.
+      loadDataRef.current();
+      return;
+    }
+    loadDataRef.current();
+    const interval = setInterval(() => loadDataRef.current(), refreshInterval);
     return () => clearInterval(interval);
-  }, [loadData, refreshInterval, useMock, mode]);
+  }, [refreshInterval, useMock, mode]);
 
   return {
     stations,

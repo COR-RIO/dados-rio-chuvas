@@ -15,6 +15,15 @@ export interface RainStation {
     h96: number;
     mes: number;
   };
+  /** Acumulado no período selecionado (modo histórico), em mm. Preenchido quando vista = acumulado. */
+  accumulated?: {
+    /** Soma de m15 em janelas de 15 min (uma leitura por janela, sem repetir). */
+    mm_15min: number;
+    /** Soma de h01 em janelas de 1 h (uma leitura por hora, sem repetir). */
+    mm_1h: number;
+    /** Acumulado “inteligente”: horas inteiras com h01 + restante em janelas de 15 min com m15 (sem sobrepor). */
+    mm_accumulated: number;
+  };
 }
 
 export interface RainLevel {

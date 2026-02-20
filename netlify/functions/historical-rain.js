@@ -27,6 +27,9 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
 };
 
+/** Cache 5 min no browser e no CDN (Netlify) para reduzir chamadas ao BigQuery. */
+const CACHE_CONTROL_SUCCESS = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
+
 let stationCoordsCache = null;
 
 function normalizeStationKey(value) {
@@ -287,7 +290,10 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
+      headers: {
+        ...CORS_HEADERS,
+        'Cache-Control': CACHE_CONTROL_SUCCESS,
+      },
       body: JSON.stringify({ success: true, data: rowsWithLocation }),
     };
   } catch (err) {

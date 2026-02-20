@@ -11,15 +11,18 @@ import { RainDataTable } from './RainDataTable';
 import {
   MapLayers,
   HexagonLayerToggle,
+  MapDataWindowToggle,
+  HistoricalViewModeToggle,
   HistoricalTimelineControl,
   FocusCityButton,
   FitCityOnLoad,
   MAP_TYPES,
   type MapTypeId,
+  type MapDataWindow,
+  type HistoricalViewMode,
 } from './MapControls';
+import { getAccumulatedRainLevel } from '../utils/rainLevel';
 import 'leaflet/dist/leaflet.css';
-
-const HEX_INFLUENCE_WINDOW_MINUTES = 15;
 
 // Fix para ícones do Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -47,6 +50,16 @@ interface LeafletMapProps {
   historicalTimeline: string[];
   selectedHistoricalTimestamp: string | null;
   onHistoricalTimestampChange: (timestamp: string) => void;
+  /** Quais dados exibir no mapa: 15min, 1h ou ambos */
+  mapDataWindow?: MapDataWindow;
+  onMapDataWindowChange?: (v: MapDataWindow) => void;
+  /** No histórico: instantâneo (snapshot) ou acumulado no período */
+  historicalViewMode?: HistoricalViewMode;
+  onHistoricalViewModeChange?: (v: HistoricalViewMode) => void;
+  /** Chama ao clicar em "Aplicar" no painel histórico (busca com o intervalo atual) */
+  onApplyHistoricalFilter?: () => void;
+  /** Exibe indicador de carregamento no painel histórico */
+  historicalRefreshing?: boolean;
 }
 
 // Componente para criar polígonos dos bairros
@@ -144,13 +157,39 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
   );
 };
 
+// Cor da bolinha por nível de influência 0-4 (mesma paleta dos hexágonos)
+const INFLUENCE_COLORS: Record<0 | 1 | 2 | 3 | 4, string> = {
+  0: '#eceded',
+  1: '#42b9eb',
+  2: '#2f90be',
+  3: '#2a688f',
+  4: '#13335a',
+};
+
 // Componente para criar marcadores das estações
-const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => {
+const StationMarkers: React.FC<{
+  stations: RainStation[];
+  mapDataWindow?: MapDataWindow;
+  showAccumulated?: boolean;
+}> = ({ stations, mapDataWindow = '1h', showAccumulated = false }) => {
   return (
     <>
       {stations.map((station) => {
         const oneHourRain = Math.max(0, station.data.h01 ?? 0);
-        const rainLevel = getRainLevel(oneHourRain);
+        const m15 = Math.max(0, station.data.m15 ?? 0);
+        const acc = station.accumulated;
+        const useAccumulated = showAccumulated && acc;
+        const accumulatedMm = useAccumulated ? acc.mm_accumulated : 0;
+
+        let rainLevel: { color: string; name: string };
+        if (useAccumulated) {
+          rainLevel = getAccumulatedRainLevel(accumulatedMm);
+        } else if (mapDataWindow === '15min') {
+          const level = m15 <= 0 ? 0 : m15 < 1.25 ? 1 : m15 <= 6.25 ? 2 : m15 <= 12.5 ? 3 : 4;
+          rainLevel = { color: INFLUENCE_COLORS[level as 0 | 1 | 2 | 3 | 4], name: ['Sem chuva', 'Fraca', 'Moderada', 'Forte', 'Muito forte'][level] };
+        } else {
+          rainLevel = getRainLevel(oneHourRain);
+        }
         
         // Criar ícone personalizado para a estação
         const stationIcon = L.divIcon({
@@ -190,11 +229,16 @@ const StationMarkers: React.FC<{ stations: RainStation[] }> = ({ stations }) => 
                   }}></div>
                   <span style={{ fontSize: '14px', color: '#666' }}>{rainLevel.name}</span>
                 </div>
+                {useAccumulated && (
+                  <p style={{ margin: '4px 0', fontSize: '14px', color: '#333', fontWeight: 600 }}>
+                    Acumulado no período: {acc!.mm_accumulated.toFixed(1)} mm
+                  </p>
+                )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Chuva 1h (bolinha):</strong> {oneHourRain.toFixed(1)}mm/h
+                  <strong>Chuva 15min:</strong> {m15.toFixed(1)} mm
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Acumulado 15min (influência):</strong> {Math.max(0, station.data.m15 ?? 0).toFixed(1)}mm
+                  <strong>Chuva 1h:</strong> {oneHourRain.toFixed(1)} mm/h
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Última atualização:</strong> {new Date(station.read_at).toLocaleTimeString('pt-BR')}
@@ -225,11 +269,26 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   historicalTimeline,
   selectedHistoricalTimestamp,
   onHistoricalTimestampChange,
+  mapDataWindow: mapDataWindowProp,
+  onMapDataWindowChange,
+  historicalViewMode: historicalViewModeProp,
+  onHistoricalViewModeChange,
+  onApplyHistoricalFilter,
+  historicalRefreshing = false,
 }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showHexagons, setShowHexagons] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
+  const mapDataWindow = mapDataWindowProp ?? mapDataWindowInternal;
+  const setMapDataWindow = onMapDataWindowChange ?? setMapDataWindowInternal;
+  const [historicalViewModeInternal, setHistoricalViewModeInternal] = useState<HistoricalViewMode>('instant');
+  const historicalViewMode = historicalViewModeProp ?? historicalViewModeInternal;
+  const setHistoricalViewMode = onHistoricalViewModeChange ?? setHistoricalViewModeInternal;
+  const hasAccumulated = stations.some((s) => s.accumulated != null);
+  const displayStations =
+    historicalViewMode === 'accumulated' ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
@@ -263,9 +322,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
-      <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2">
+      <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2 max-h-[calc(100vh-7rem)] overflow-y-auto min-w-[200px] pr-1">
         <MapLayers value={mapType} onChange={onMapTypeChange} />
+        <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
         <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+        {historicalMode && (
+          <HistoricalViewModeToggle
+            value={historicalViewMode}
+            onChange={setHistoricalViewMode}
+            hasAccumulated={hasAccumulated}
+          />
+        )}
         <HistoricalTimelineControl
           enabled={historicalMode}
           dateValue={historicalDate}
@@ -279,6 +346,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           timeline={historicalTimeline}
           selectedTimestamp={selectedHistoricalTimestamp}
           onTimestampChange={onHistoricalTimestampChange}
+          onApplyFilter={onApplyHistoricalFilter}
+          refreshing={historicalRefreshing}
         />
       </div>
 
@@ -318,18 +387,51 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         />
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
-        {showHexagons && (
+        {showHexagons && mapDataWindow === '15min' && (
           <HexRainLayer
-            stations={stations}
+            stations={displayStations}
             resolution={8}
             mapType={mapType}
-            timeWindowMinutes={HEX_INFLUENCE_WINDOW_MINUTES}
+            timeWindow="15min"
             bairrosData={bairrosData ?? undefined}
           />
         )}
+        {showHexagons && mapDataWindow === '1h' && (
+          <HexRainLayer
+            stations={displayStations}
+            resolution={8}
+            mapType={mapType}
+            timeWindow="1h"
+            bairrosData={bairrosData ?? undefined}
+          />
+        )}
+        {showHexagons && mapDataWindow === 'both' && (
+          <>
+            <HexRainLayer
+              stations={displayStations}
+              resolution={8}
+              mapType={mapType}
+              timeWindow="15min"
+              bairrosData={bairrosData ?? undefined}
+              variant="primary"
+            />
+            <HexRainLayer
+              stations={displayStations}
+              resolution={8}
+              mapType={mapType}
+              timeWindow="1h"
+              bairrosData={bairrosData ?? undefined}
+              variant="secondary"
+            />
+          </>
+        )}
         {zonasData && <ZonasPolygons zonasData={zonasData} showHexagons={showHexagons} />}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
-        <StationMarkers stations={stations} />
+        <StationMarkers
+          stations={stations}
+          mapDataWindow={mapDataWindow}
+          showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+        />
       </MapContainer>
     </div>
   );

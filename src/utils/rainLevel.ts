@@ -23,3 +23,32 @@ export const getRainLevel = (rainfall: number): RainLevel => {
   if (n <= 50) return rainLevels[3];
   return rainLevels[4];
 };
+
+/** Níveis para chuva acumulada no período (mm). Critério provisório; pode ser refinado depois. */
+export const accumulatedRainLevels: RainLevel[] = [
+  { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: '#eceded', bgColor: 'bg-gray-100' },
+  { name: 'baixo', description: '0,1 – 10 mm', min: 0.1, max: 10, color: '#42b9eb', bgColor: 'bg-blue-100' },
+  { name: 'moderado', description: '10 – 25 mm', min: 10, max: 25, color: '#2f90be', bgColor: 'bg-blue-200' },
+  { name: 'alto', description: '25 – 50 mm', min: 25, max: 50, color: '#2a688f', bgColor: 'bg-blue-300' },
+  { name: 'muito alto', description: '> 50 mm', min: 50.1, max: null, color: '#13335a', bgColor: 'bg-blue-400' },
+];
+
+/** Retorna nível e cor para chuva acumulada (mm) no período selecionado. */
+export const getAccumulatedRainLevel = (accumulatedMm: number): RainLevel => {
+  const n = Number(accumulatedMm);
+  if (n !== n || n <= 0) return accumulatedRainLevels[0];
+  if (n <= 10) return accumulatedRainLevels[1];
+  if (n <= 25) return accumulatedRainLevels[2];
+  if (n <= 50) return accumulatedRainLevels[3];
+  return accumulatedRainLevels[4];
+};
+
+/** Converte mm acumulados em nível 0–4 para hexágonos (mesma paleta de influência). */
+export function accumulatedMmToInfluenceLevel(mm: number): 0 | 1 | 2 | 3 | 4 {
+  const n = Number(mm);
+  if (n !== n || n <= 0) return 0;
+  if (n <= 10) return 1;
+  if (n <= 25) return 2;
+  if (n <= 50) return 3;
+  return 4;
+}

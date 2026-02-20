@@ -27,8 +27,13 @@ export interface BairroCollection {
   features: BairroFeature[];
 }
 
+import { createCache } from '../utils/cache';
+
 // URL do GeoJSON da Prefeitura do Rio de Janeiro
 const RIO_GEOJSON_URL = 'https://pgeo3.rio.rj.gov.br/arcgis/rest/services/Cartografia/Limites_administrativos/MapServer/4/query?outFields=*&where=1%3D1&f=geojson';
+
+const BAIRROS_CACHE = createCache<string, BairroCollection>({ ttlMs: 60 * 60 * 1000, maxEntries: 1 });
+const ZONAS_CACHE = createCache<string, ZonasPluvCollection>({ ttlMs: 24 * 60 * 60 * 1000, maxEntries: 1 });
 
 // Dados estáticos como fallback (caso a API não esteja disponível)
 const RIO_BAIRROS_FALLBACK: BairroCollection = {
@@ -62,23 +67,24 @@ const RIO_BAIRROS_FALLBACK: BairroCollection = {
   ]
 };
 
-// Função para buscar dados dos bairros do Rio de Janeiro
+const BAIRROS_CACHE_KEY = 'bairros';
+
+// Função para buscar dados dos bairros do Rio de Janeiro (com cache 1h)
 export const fetchRioBairrosData = async (): Promise<BairroCollection> => {
+  const cached = BAIRROS_CACHE.get(BAIRROS_CACHE_KEY);
+  if (cached) return cached;
   try {
-    console.log('Buscando dados do GeoJSON da Prefeitura do Rio...');
-    const response = await fetch(RIO_GEOJSON_URL);
-    
+    const response = await fetch(RIO_GEOJSON_URL, {
+      headers: { Accept: 'application/json' },
+    });
     if (!response.ok) {
       throw new Error(`Erro ao buscar dados dos bairros: ${response.status}`);
     }
-    
     const data: BairroCollection = await response.json();
-    
     if (!data.features || data.features.length === 0) {
       throw new Error('Nenhum bairro encontrado nos dados');
     }
-    
-    console.log(`Dados carregados: ${data.features.length} bairros`);
+    BAIRROS_CACHE.set(BAIRROS_CACHE_KEY, data);
     return data;
   } catch (error) {
     console.warn('Erro ao buscar dados da API, usando fallback:', error);
@@ -178,7 +184,11 @@ export interface ZonasPluvCollection {
 // Carregado de data/ via Vite (?url copia para dist e devolve a URL)
 import zonasPluvGeojsonUrl from '../../data/zonas-pluviometricas.geojson?url';
 
+const ZONAS_CACHE_KEY = 'zonas';
+
 export const fetchZonasPluvData = async (): Promise<ZonasPluvCollection> => {
+  const cached = ZONAS_CACHE.get(ZONAS_CACHE_KEY);
+  if (cached) return cached;
   const response = await fetch(zonasPluvGeojsonUrl);
   if (!response.ok) {
     throw new Error(`Erro ao carregar zonas pluviométricas: ${response.status}`);
@@ -187,5 +197,6 @@ export const fetchZonasPluvData = async (): Promise<ZonasPluvCollection> => {
   if (!data.features?.length) {
     throw new Error('Nenhuma zona pluviométrica encontrada');
   }
+  ZONAS_CACHE.set(ZONAS_CACHE_KEY, data);
   return data;
 };

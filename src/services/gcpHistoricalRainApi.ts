@@ -5,6 +5,7 @@ import type {
   RainStation,
   HistoricalRainInterval,
 } from '../types/rain';
+import { createFetchCache } from '../utils/cache';
 
 /** No Netlify usamos o caminho direto da function para evitar redirect que devolve index.html. */
 function getHistoricalRainApiBase(): string {
@@ -119,19 +120,23 @@ function toQueryString(params: HistoricalRainParams): string {
   return qs ? `?${qs}` : '';
 }
 
+const historicalRainCache = createFetchCache<HistoricalRainRecord[]>(15 * 60 * 1000, 30);
+
 /**
  * Busca dados históricos de chuvas no GCP (BigQuery) via Netlify Function.
- * Requer que a função historical-rain esteja deployada e variáveis de ambiente configuradas.
+ * Resultados cacheados por 5 min por conjunto de parâmetros (menos carga no servidor e mais rápido ao repetir consulta).
  */
 export async function fetchHistoricalRain(
   params: HistoricalRainParams = {}
 ): Promise<HistoricalRainRecord[]> {
+  const cacheKey = toQueryString(params) || 'default';
+  const cached = historicalRainCache.get(cacheKey);
+  if (cached) return cached;
   const base = getHistoricalRainApiBase();
   const url = `${base}${toQueryString(params)}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
-    cache: 'no-cache',
   });
 
   const contentType = res.headers.get('content-type') || '';
@@ -157,6 +162,7 @@ export async function fetchHistoricalRain(
     throw new Error(body.error || 'Dados históricos indisponíveis');
   }
 
+  historicalRainCache.set(cacheKey, body.data);
   return body.data;
 }
 
@@ -300,6 +306,10 @@ function toStationId(record: HistoricalRainRecord, index: number, name: string):
   return `gcp-${normalized || index + 1}`;
 }
 
+function getStationIdFromRecord(record: HistoricalRainRecord, index: number): string {
+  return toStationId(record, index, toStationName(record, index));
+}
+
 function toRainStation(record: HistoricalRainRecord, index: number): RainStation | null {
   const location = parseLocation(record);
   if (!location) return null;
@@ -335,6 +345,140 @@ export interface HistoricalStationsTimelineResult {
   timeline: string[];
   selectedTimestamp: string | null;
   stations: RainStation[];
+  /** Acumulado por estação no intervalo [dateFrom+timeFrom, dateTo+timeTo], quando aplicável */
+  accumulatedByStation?: Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }>;
+}
+
+/** Constrói Date de início e fim do intervalo a partir dos parâmetros da query. */
+function parseIntervalBounds(params: HistoricalRainParams): { start: Date; end: Date } | null {
+  const dateFrom = params.dateFrom?.trim();
+  const dateTo = params.dateTo?.trim();
+  if (!dateFrom || !dateTo) return null;
+  const timeFrom = params.timeFrom?.trim() || '00:00';
+  const timeTo = params.timeTo?.trim() || '23:59';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const parseDate = (dateStr: string, timeStr: string): Date => {
+    const [h = '0', m = '0'] = timeStr.split(':');
+    const d = new Date(dateStr + 'T' + pad(Number(h)) + ':' + pad(Number(m)) + ':00');
+    return Number.isNaN(d.getTime()) ? new Date(0) : d;
+  };
+  const start = parseDate(dateFrom, timeFrom);
+  const end = parseDate(dateTo, timeTo);
+  if (start.getTime() >= end.getTime()) return null;
+  return { start, end };
+}
+
+/**
+ * Calcula acumulado por estação no intervalo, sem duplicar:
+ * - mm_15min: uma leitura m15 por janela de 15 min no intervalo inteiro.
+ * - mm_1h: uma leitura h01 por hora no intervalo inteiro.
+ * - mm_accumulated: "inteligente" — horas inteiras com h01 (uma por hora) + restante com m15 (janelas de 15 min).
+ *   Ex.: 4h → 4×h01. 8h37min → 8×h01 + 2×m15 (30 min do restante; os 7 min não entram para não sobrepor).
+ */
+function computeAccumulatedPerStation(
+  rows: HistoricalRainRecord[],
+  intervalStart: Date,
+  intervalEnd: Date,
+  toStationIdFromRecord: (record: HistoricalRainRecord, index: number) => string
+): Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }> {
+  const result = new Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }>();
+  const byStation = new Map<string, Array<{ read_at: Date; m15: number; h01: number }>>();
+
+  rows.forEach((record, index) => {
+    const id = toStationIdFromRecord(record, index);
+    const readAt = new Date(toIsoTimestamp(record));
+    if (Number.isNaN(readAt.getTime())) return;
+    const m15 = Math.max(0, pickNumber(record, ['m15', 'rain_15m'], 0));
+    const h01 = Math.max(0, pickNumber(record, ['h01', 'rain_1h', 'precipitation_mm'], 0));
+
+    let list = byStation.get(id);
+    if (!list) {
+      list = [];
+      byStation.set(id, list);
+    }
+    list.push({ read_at: readAt, m15, h01 });
+  });
+
+  const ms15 = 15 * 60 * 1000;
+  const ms1h = 60 * 60 * 1000;
+  const startMs = intervalStart.getTime();
+  const endMs = intervalEnd.getTime();
+
+  byStation.forEach((list, stationId) => {
+    list.sort((a, b) => a.read_at.getTime() - b.read_at.getTime());
+
+    let sum15 = 0;
+    let sum1h = 0;
+
+    // Janelas de 15 min (para mm_15min)
+    const firstBucketEnd15 = Math.ceil(startMs / ms15) * ms15;
+    for (let T = firstBucketEnd15; T <= endMs; T += ms15) {
+      const bucketEnd = new Date(T);
+      const bucketStart = new Date(T - ms15);
+      const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
+      if (inBucket.length === 0) continue;
+      const best = inBucket[inBucket.length - 1];
+      sum15 += best.m15;
+    }
+
+    // Janelas de 1 h (para mm_1h)
+    const firstBucketEnd1h = Math.ceil(startMs / ms1h) * ms1h;
+    for (let T = firstBucketEnd1h; T <= endMs; T += ms1h) {
+      const bucketEnd = new Date(T);
+      const bucketStart = new Date(T - ms1h);
+      const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
+      if (inBucket.length === 0) continue;
+      const best = inBucket[inBucket.length - 1];
+      sum1h += best.h01;
+    }
+
+    // Acumulado inteligente: horas inteiras com h01 + restante com m15 (sem sobrepor)
+    let sumAccumulated = 0;
+    const firstHourEnd = Math.ceil(startMs / ms1h) * ms1h;
+    if (firstHourEnd <= endMs) {
+      let lastHourBoundary = firstHourEnd - ms1h; // último limite de hora considerado
+      for (let T = firstHourEnd; T <= endMs; T += ms1h) {
+        const bucketEnd = new Date(T);
+        const bucketStart = new Date(T - ms1h);
+        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
+        if (inBucket.length > 0) {
+          const best = inBucket[inBucket.length - 1];
+          sumAccumulated += best.h01;
+        }
+        lastHourBoundary = T;
+      }
+      // Restante após a última hora cheia: só janelas de 15 min completas (sem sobrepor)
+      for (let T = lastHourBoundary + ms15; T <= endMs; T += ms15) {
+        const bucketEnd = new Date(T);
+        const bucketStart = new Date(T - ms15);
+        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
+        if (inBucket.length > 0) {
+          const best = inBucket[inBucket.length - 1];
+          sumAccumulated += best.m15;
+        }
+      }
+    } else {
+      // Intervalo menor que 1 h: só janelas de 15 min
+      const first15 = Math.ceil(startMs / ms15) * ms15;
+      for (let T = first15; T <= endMs; T += ms15) {
+        const bucketEnd = new Date(T);
+        const bucketStart = new Date(T - ms15);
+        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
+        if (inBucket.length > 0) {
+          const best = inBucket[inBucket.length - 1];
+          sumAccumulated += best.m15;
+        }
+      }
+    }
+
+    result.set(stationId, {
+      mm_15min: Math.round(sum15 * 100) / 100,
+      mm_1h: Math.round(sum1h * 100) / 100,
+      mm_accumulated: Math.round(sumAccumulated * 100) / 100,
+    });
+  });
+
+  return result;
 }
 
 /**
@@ -385,11 +529,22 @@ export async function fetchHistoricalRainStationsTimeline(
       ? selectedTimestamp
       : timeline[timeline.length - 1];
 
-  const stations = Array.from(byTimestamp.get(effectiveTimestamp)?.values() ?? []).sort((a, b) =>
+  let stations = Array.from(byTimestamp.get(effectiveTimestamp)?.values() ?? []).sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR')
   );
 
-  return { timeline, selectedTimestamp: effectiveTimestamp, stations };
+  const bounds = parseIntervalBounds(params);
+  let accumulatedByStation: Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }> | undefined;
+  if (bounds) {
+    accumulatedByStation = computeAccumulatedPerStation(rows, bounds.start, bounds.end, getStationIdFromRecord);
+    stations = stations.map((s) => {
+      const acc = accumulatedByStation?.get(s.id);
+      if (!acc) return s;
+      return { ...s, accumulated: { mm_15min: acc.mm_15min, mm_1h: acc.mm_1h, mm_accumulated: acc.mm_accumulated } };
+    });
+  }
+
+  return { timeline, selectedTimestamp: effectiveTimestamp, stations, accumulatedByStation };
 }
 
 /**
