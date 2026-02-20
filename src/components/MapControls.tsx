@@ -264,15 +264,40 @@ interface HistoricalTimelineControlProps {
   viewMode?: 'instant' | 'accumulated';
 }
 
-function formatTimelineLabel(isoTs: string): string {
-  const parsed = new Date(isoTs);
-  if (Number.isNaN(parsed.getTime())) return isoTs;
-  return parsed.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+/** Retorna HH:mm a partir de um timestamp ISO. */
+function timeFromIso(isoTs: string): string {
+  const d = new Date(isoTs);
+  if (Number.isNaN(d.getTime())) return '00:00';
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Encontra o timestamp da timeline mais próximo de (dateYyyyMmDd + timeHhMm). */
+function findClosestTimestamp(
+  timeline: string[],
+  dateYyyyMmDd: string,
+  timeHhMm: string
+): string | null {
+  if (!timeline.length) return null;
+  const [h, m] = timeHhMm.split(':').map(Number);
+  const targetMinutes = (h ?? 0) * 60 + (m ?? 0);
+  const sameDay = timeline.filter((ts) => ts.slice(0, 10) === dateYyyyMmDd);
+  const list = sameDay.length > 0 ? sameDay : timeline;
+  let best = list[0];
+  let bestDiff = Math.abs(
+    new Date(best).getHours() * 60 + new Date(best).getMinutes() - targetMinutes
+  );
+  for (const ts of list) {
+    const diff = Math.abs(
+      new Date(ts).getHours() * 60 + new Date(ts).getMinutes() - targetMinutes
+    );
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = ts;
+    }
+  }
+  return best;
 }
 
 /**
@@ -422,25 +447,26 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         </div>
       )}
 
-      {enabled && !isAccumulatedView && timeline.length > 0 && (
-        <>
-          <p className="mt-3 text-[11px] font-medium text-gray-600 mb-1">Snapshot no horário</p>
+      {enabled && !isAccumulatedView && timeline.length > 0 && onTimestampChange && (
+        <div className="mt-3">
+          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+            Horário para análise
+          </label>
           <input
-            type="range"
-            min={0}
-            max={timeline.length - 1}
-            step={1}
-            value={safeIndex}
-            onChange={(e) => onTimestampChange(timeline[Number(e.target.value)])}
-            className="mt-2 w-full accent-blue-600 cursor-pointer"
+            type="time"
+            value={currentTs ? timeFromIso(currentTs) : '00:00'}
+            onChange={(e) => {
+              const dateForSnapshot = (currentTs ?? timeline[timeline.length - 1])?.slice(0, 10) ?? dateValue;
+              const closest = findClosestTimestamp(timeline, dateForSnapshot, e.target.value);
+              if (closest) onTimestampChange(closest);
+            }}
+            disabled={!enabled}
+            className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
           />
-          <div className="mt-1 text-[10px] text-gray-700 font-semibold">
-            {currentTs ? formatTimelineLabel(currentTs) : 'Sem horário'}
+          <div className="mt-1 text-[10px] text-gray-500">
+            {timeline.length} horários no período
           </div>
-          <div className="text-[10px] text-gray-500">
-            {timeline.length} horários disponíveis no dia selecionado
-          </div>
-        </>
+        </div>
       )}
 
       {enabled && timeline.length === 0 && (

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { MapTypeId } from './MapControls';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
-import { rainLevels } from '../utils/rainLevel';
+import { rainLevels, accumulatedRainLevels } from '../utils/rainLevel';
 
 interface InfluenceLegendProps {
   showHexagons: boolean;
@@ -39,7 +39,10 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
             </div>
           ))}
           <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
-            Hexágonos por influência com critério fixo de 15min (m15)
+            Cada hexágono = área de influência da estação mais próxima (nível só dessa estação).
+          </div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
+            Modo instantâneo: critério 15min (m15) ou 1h (h01). Modo acumulado: mm no período (De/Até).
           </div>
         </div>
       ) : (
@@ -62,6 +65,28 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
           ))}
         </div>
         <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1">Fonte: Alerta Rio</div>
+      </div>
+
+      <div className="mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-blue-200">
+        <div className="text-[10px] sm:text-[11px] font-medium text-blue-800 mb-1">
+          Acumulado no período (hexágonos e bolinhas)
+        </div>
+        <div className="text-[9px] sm:text-[10px] text-gray-600 mb-1">
+          Nível por mm acumulados no intervalo escolhido (De/Até + horários). Só a área de influência de cada estação.
+        </div>
+        <div className="flex flex-col gap-1">
+          {accumulatedRainLevels.map((level, i) => (
+            <div key={i} className="flex items-center gap-1.5 sm:gap-2">
+              <div
+                className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded border border-white flex-shrink-0 shadow-sm"
+                style={{ backgroundColor: level.color }}
+              />
+              <span className="text-[10px] sm:text-[11px] font-medium text-gray-700 capitalize">
+                {level.name} ({level.description})
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

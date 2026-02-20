@@ -122,8 +122,9 @@ function squaredDistance(lat1: number, lng1: number, lat2: number, lng2: number)
 
 /**
  * Encontra a estação mais próxima e retorna o nível de influência (0-4) para a área de abrangência.
+ * Cada hexágono usa somente o dado da estação cuja área de influência o contém (estação mais próxima).
  * timeWindow '15min': usa m15 (mm/15min). '1h': usa h01 (mm/h). Critérios oficiais (Termos Meteorológicos).
- * Se a estação tiver accumulated (acumulado no período), usa esse valor para o nível.
+ * Se a estação tiver accumulated (acumulado no período), usa mm_accumulated para o nível (escala em mm).
  */
 function getLevelForPoint(lat: number, lng: number, stations: RainStation[], timeWindow: HexTimeWindow): InfluenceLevelValue {
   if (!stations.length) return 0;

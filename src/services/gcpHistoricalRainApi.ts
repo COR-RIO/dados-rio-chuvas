@@ -345,6 +345,8 @@ export interface HistoricalStationsTimelineResult {
   timeline: string[];
   selectedTimestamp: string | null;
   stations: RainStation[];
+  /** Estações por timestamp (para trocar horário de análise sem novo fetch) */
+  stationsByTimestamp?: Record<string, RainStation[]>;
   /** Acumulado por estação no intervalo [dateFrom+timeFrom, dateTo+timeTo], quando aplicável */
   accumulatedByStation?: Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }>;
 }
@@ -529,22 +531,32 @@ export async function fetchHistoricalRainStationsTimeline(
       ? selectedTimestamp
       : timeline[timeline.length - 1];
 
-  let stations = Array.from(byTimestamp.get(effectiveTimestamp)?.values() ?? []).sort((a, b) =>
-    a.name.localeCompare(b.name, 'pt-BR')
-  );
-
   const bounds = parseIntervalBounds(params);
   let accumulatedByStation: Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }> | undefined;
   if (bounds) {
     accumulatedByStation = computeAccumulatedPerStation(rows, bounds.start, bounds.end, getStationIdFromRecord);
-    stations = stations.map((s) => {
-      const acc = accumulatedByStation?.get(s.id);
+  }
+
+  const enrichWithAccumulated = (list: RainStation[]): RainStation[] => {
+    if (!accumulatedByStation) return list;
+    return list.map((s) => {
+      const acc = accumulatedByStation!.get(s.id);
       if (!acc) return s;
       return { ...s, accumulated: { mm_15min: acc.mm_15min, mm_1h: acc.mm_1h, mm_accumulated: acc.mm_accumulated } };
     });
+  };
+
+  const stationsByTimestamp: Record<string, RainStation[]> = {};
+  for (const ts of timeline) {
+    const list = Array.from(byTimestamp.get(ts)?.values() ?? []).sort((a, b) =>
+      a.name.localeCompare(b.name, 'pt-BR')
+    );
+    stationsByTimestamp[ts] = enrichWithAccumulated(list);
   }
 
-  return { timeline, selectedTimestamp: effectiveTimestamp, stations, accumulatedByStation };
+  let stations = stationsByTimestamp[effectiveTimestamp] ?? [];
+
+  return { timeline, selectedTimestamp: effectiveTimestamp, stations, stationsByTimestamp, accumulatedByStation };
 }
 
 /**

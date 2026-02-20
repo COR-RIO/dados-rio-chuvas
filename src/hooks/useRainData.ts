@@ -57,6 +57,7 @@ export const useRainData = (
   const [dataSource, setDataSource] = useState<RainDataSource>('api');
   const [historicalTimeline, setHistoricalTimeline] = useState<string[]>([]);
   const [activeHistoricalTimestamp, setActiveHistoricalTimestamp] = useState<string | null>(null);
+  const [stationsByTimestamp, setStationsByTimestamp] = useState<Record<string, RainStation[]>>({});
   const [totalStations, setTotalStations] = useState<number>(0);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -88,6 +89,7 @@ export const useRainData = (
         setDataSource('mock');
         setHistoricalTimeline([]);
         setActiveHistoricalTimestamp(null);
+        setStationsByTimestamp({});
         hasLoadedRef.current = true;
         return;
       }
@@ -101,7 +103,7 @@ export const useRainData = (
             timeTo: historicalTimeTo,
             limit: 10000,
           },
-          historicalTimestamp
+          undefined
         );
 
         if (!timelineData.stations.length) {
@@ -120,6 +122,7 @@ export const useRainData = (
         setDataSource('gcp');
         setHistoricalTimeline(timelineData.timeline);
         setActiveHistoricalTimestamp(timelineData.selectedTimestamp);
+        setStationsByTimestamp(timelineData.stationsByTimestamp ?? {});
         hasLoadedRef.current = true;
         return;
       }
@@ -138,6 +141,7 @@ export const useRainData = (
       setDataSource('api');
       setHistoricalTimeline([]);
       setActiveHistoricalTimestamp(null);
+      setStationsByTimestamp({});
       hasLoadedRef.current = true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados';
@@ -149,7 +153,7 @@ export const useRainData = (
       setRefreshing(false);
       inFlightRef.current = false;
     }
-  }, [useMock, mode, dateFrom, dateTo, historicalTimeFrom, historicalTimeTo, historicalTimestamp]);
+  }, [useMock, mode, dateFrom, dateTo, historicalTimeFrom, historicalTimeTo]);
 
   loadDataRef.current = loadData;
 
@@ -163,15 +167,26 @@ export const useRainData = (
       return;
     }
     if (mode === 'historical') {
-      // Histórico: busca só ao entrar no modo; mudanças de data/hora não disparam fetch.
-      // O usuário clica "Aplicar" no painel para buscar com o novo intervalo.
-      loadDataRef.current();
+      // Histórico: não carrega automaticamente. Evita lentidão e garante melhor qualidade.
+      // O usuário define o intervalo e clica "Aplicar" no painel para buscar.
+      setLoading(false);
+      setStations([]);
+      setHistoricalTimeline([]);
+      setActiveHistoricalTimestamp(null);
+      setStationsByTimestamp({});
       return;
     }
     loadDataRef.current();
     const interval = setInterval(() => loadDataRef.current(), refreshInterval);
     return () => clearInterval(interval);
   }, [refreshInterval, useMock, mode]);
+
+  const effectiveHistoricalTs = historicalTimestamp ?? activeHistoricalTimestamp;
+  useEffect(() => {
+    if (mode !== 'historical' || !effectiveHistoricalTs || !Object.keys(stationsByTimestamp).length) return;
+    const list = stationsByTimestamp[effectiveHistoricalTs];
+    if (list) setStations(list);
+  }, [mode, effectiveHistoricalTs, stationsByTimestamp]);
 
   return {
     stations,

@@ -105,7 +105,6 @@ function App() {
           selectedHistoricalTimestamp={historicalTimestamp ?? activeHistoricalTimestamp}
           onHistoricalTimestampChange={(ts) => {
             setHistoricalTimestamp(ts);
-            if (dataMode === 'historical' && !useMockDemo) refresh();
           }}
           onApplyHistoricalFilter={refresh}
           historicalRefreshing={refreshing}
