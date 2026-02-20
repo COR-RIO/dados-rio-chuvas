@@ -280,6 +280,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showHexagons, setShowHexagons] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(true);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
   const mapDataWindow = mapDataWindowProp ?? mapDataWindowInternal;
   const setMapDataWindow = onMapDataWindowChange ?? setMapDataWindowInternal;
@@ -323,33 +324,56 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
       <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2 max-h-[calc(100vh-7rem)] overflow-y-auto min-w-[200px] pr-1">
-        <MapLayers value={mapType} onChange={onMapTypeChange} />
-        <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
-        <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
-        {historicalMode && (
-          <HistoricalViewModeToggle
-            value={historicalViewMode}
-            onChange={setHistoricalViewMode}
-            hasAccumulated={hasAccumulated}
-          />
+        {showFiltersPanel ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowFiltersPanel(false)}
+              className="w-full bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              title="Ocultar filtros"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Ocultar filtros
+            </button>
+            <MapLayers value={mapType} onChange={onMapTypeChange} />
+            <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
+            <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+            {historicalMode && (
+              <HistoricalViewModeToggle
+                value={historicalViewMode}
+                onChange={setHistoricalViewMode}
+                hasAccumulated={hasAccumulated}
+              />
+            )}
+            <HistoricalTimelineControl
+              enabled={historicalMode}
+              dateValue={historicalDate}
+              onDateChange={onHistoricalDateChange}
+              dateToValue={historicalDateTo ?? historicalDate}
+              onDateToChange={onHistoricalDateToChange ?? (() => {})}
+              timeFrom={historicalTimeFrom}
+              timeTo={historicalTimeTo}
+              onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
+              onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
+              timeline={historicalTimeline}
+              selectedTimestamp={selectedHistoricalTimestamp}
+              onTimestampChange={onHistoricalTimestampChange}
+              onApplyFilter={onApplyHistoricalFilter}
+              refreshing={historicalRefreshing}
+              viewMode={historicalViewMode}
+            />
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowFiltersPanel(true)}
+            className="bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            title="Mostrar filtros"
+          >
+            <ChevronRight className="w-4 h-4" />
+            Mostrar filtros
+          </button>
         )}
-        <HistoricalTimelineControl
-          enabled={historicalMode}
-          dateValue={historicalDate}
-          onDateChange={onHistoricalDateChange}
-          dateToValue={historicalDateTo ?? historicalDate}
-          onDateToChange={onHistoricalDateToChange ?? (() => {})}
-          timeFrom={historicalTimeFrom}
-          timeTo={historicalTimeTo}
-          onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
-          onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
-          timeline={historicalTimeline}
-          selectedTimestamp={selectedHistoricalTimestamp}
-          onTimestampChange={onHistoricalTimestampChange}
-          onApplyFilter={onApplyHistoricalFilter}
-          refreshing={historicalRefreshing}
-          viewMode={historicalViewMode}
-        />
       </div>
 
       <button
