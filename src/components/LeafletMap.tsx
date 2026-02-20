@@ -348,6 +348,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           onTimestampChange={onHistoricalTimestampChange}
           onApplyFilter={onApplyHistoricalFilter}
           refreshing={historicalRefreshing}
+          viewMode={historicalViewMode}
         />
       </div>
 
@@ -367,7 +368,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         }`}
       >
         <div className="h-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
-          <RainDataTable stations={stations} embedded />
+          <RainDataTable
+            stations={stations}
+            embedded
+            showAccumulatedColumn={historicalMode && hasAccumulated}
+          />
         </div>
       </div>
 

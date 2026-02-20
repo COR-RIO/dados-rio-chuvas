@@ -260,6 +260,8 @@ interface HistoricalTimelineControlProps {
   onApplyFilter?: () => void;
   /** Exibe "Buscando..." ao lado do botão enquanto carrega */
   refreshing?: boolean;
+  /** Quando "accumulated", mostra o intervalo em vez do slider de snapshot */
+  viewMode?: 'instant' | 'accumulated';
 }
 
 function formatTimelineLabel(isoTs: string): string {
@@ -291,11 +293,43 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   onTimestampChange,
   onApplyFilter,
   refreshing = false,
+  viewMode = 'instant',
 }) => {
   const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
   const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
   const currentTs = timeline[safeIndex] ?? null;
   const hasRange = dateToValue && dateToValue !== dateValue;
+
+  const isAccumulatedView = viewMode === 'accumulated';
+  const formatDateBr = (yyyyMmDd: string) => {
+    const [y, m, d] = yyyyMmDd.split('-');
+    return d && m && y ? `${d}/${m}/${y}` : yyyyMmDd;
+  };
+  const intervalLabel = (() => {
+    const dFrom = dateValue;
+    const dTo = dateToValue ?? dateValue;
+    const tFrom = timeFrom ?? '00:00';
+    const tTo = timeTo ?? '23:59';
+    if (dFrom === dTo && tFrom === '00:00' && tTo === '23:59') return `${formatDateBr(dFrom)} (dia inteiro)`;
+    return `${formatDateBr(dFrom)} ${tFrom} a ${formatDateBr(dTo)} ${tTo}`;
+  })();
+  const intervalHoursLabel = (() => {
+    try {
+      const [hF, mF] = (timeFrom ?? '00:00').split(':').map(Number);
+      const [hT, mT] = (timeTo ?? '23:59').split(':').map(Number);
+      const [yF, moF, dF] = dateValue.split('-').map(Number);
+      const [yT, moT, dT] = (dateToValue ?? dateValue).split('-').map(Number);
+      const start = new Date(yF, moF - 1, dF, hF, mF || 0, 0).getTime();
+      const end = new Date(yT, moT - 1, dT, hT, mT || 0, 0).getTime();
+      const hours = (end - start) / (60 * 60 * 1000);
+      if (hours < 1) return `${Math.round(hours * 60)} min`;
+      const h = Math.floor(hours);
+      const m = Math.round((hours - h) * 60);
+      return m > 0 ? `${h}h ${m}min` : `${h}h`;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -377,7 +411,18 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         </div>
       )}
 
-      {enabled && timeline.length > 0 && (
+      {enabled && isAccumulatedView && (
+        <div className="mt-3 rounded bg-blue-50 border border-blue-200 px-2.5 py-2">
+          <p className="text-[11px] font-semibold text-blue-800">Acumulado no período</p>
+          <p className="mt-0.5 text-[10px] text-blue-700">{intervalLabel}</p>
+          {intervalHoursLabel != null && (
+            <p className="mt-0.5 text-[10px] text-blue-600 font-medium">Intervalo: {intervalHoursLabel}</p>
+          )}
+          <p className="mt-1 text-[10px] text-blue-600/90">Valores no mapa e na tabela referem-se a este período, não ao último horário.</p>
+        </div>
+      )}
+
+      {enabled && !isAccumulatedView && timeline.length > 0 && (
         <>
           <p className="mt-3 text-[11px] font-medium text-gray-600 mb-1">Snapshot no horário</p>
           <input

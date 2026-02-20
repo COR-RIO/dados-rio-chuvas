@@ -6,12 +6,14 @@ import { getRainLevel } from '../utils/rainLevel';
 interface RainDataTableProps {
   stations: RainStation[];
   embedded?: boolean;
+  /** Exibe coluna "Acumulado" com station.accumulated.mm_accumulated (período escolhido no histórico) */
+  showAccumulatedColumn?: boolean;
 }
 
-type SortField = 'name' | 'm05' | 'm15' | 'h01' | 'h24';
+type SortField = 'name' | 'm05' | 'm15' | 'h01' | 'h24' | 'accumulated';
 type SortDirection = 'asc' | 'desc';
 
-export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded = false }) => {
+export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded = false, showAccumulatedColumn = false }) => {
   const [sortField, setSortField] = useState<SortField>('h01');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -48,6 +50,10 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
       case 'h24':
         aValue = a.data.h24;
         bValue = b.data.h24;
+        break;
+      case 'accumulated':
+        aValue = a.accumulated?.mm_accumulated ?? -1;
+        bValue = b.accumulated?.mm_accumulated ?? -1;
         break;
       default:
         return 0;
@@ -111,7 +117,7 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                       {station.name}
                     </span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-xs font-semibold">
+                  <div className={`grid gap-2 text-xs font-semibold ${showAccumulatedColumn ? 'grid-cols-5' : 'grid-cols-4'}`}>
                     <div className="text-right">
                       <div className="text-gray-500">5m</div>
                       <div className={station.data.m05 > 0 ? 'text-blue-700' : 'text-gray-500'}>
@@ -136,6 +142,14 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                         {station.data.h24.toFixed(1)}
                       </div>
                     </div>
+                    {showAccumulatedColumn && (
+                      <div className="text-right bg-blue-50/50 rounded px-0.5">
+                        <div className="text-gray-500">Acum.</div>
+                        <div className={(station.accumulated?.mm_accumulated ?? 0) > 0 ? 'text-blue-700' : 'text-gray-500'}>
+                          {(station.accumulated?.mm_accumulated ?? 0).toFixed(1)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -149,11 +163,12 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
         <table className={`w-full ${embedded ? 'table-fixed' : 'min-w-[520px]'}`}>
           {embedded && (
             <colgroup>
-              <col style={{ width: '44%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: showAccumulatedColumn ? '38%' : '44%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              {showAccumulatedColumn && <col style={{ width: '14%' }} />}
             </colgroup>
           )}
           <thead className="bg-gray-50">
@@ -203,6 +218,18 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                   24h
                 </div>
               </th>
+              {showAccumulatedColumn && (
+                <th 
+                  className={`${embedded ? 'px-1.5 py-1.5 text-[11px]' : 'px-3 lg:px-4 py-2 lg:py-3 text-xs lg:text-sm'} text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors bg-blue-50`}
+                  onClick={() => handleSort('accumulated')}
+                  title="Acumulado no período (De/Até + horários)"
+                >
+                  <div className={`flex items-center justify-end ${embedded ? 'gap-0.5' : 'gap-1 lg:gap-2'}`}>
+                    {getSortIcon('accumulated')}
+                    {embedded ? 'Acum.' : 'Acumulado'}
+                  </div>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -259,6 +286,15 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
                       {station.data.h24.toFixed(1)}
                     </span>
                   </td>
+                  {showAccumulatedColumn && (
+                    <td className={`${embedded ? 'px-1.5 py-1.5' : 'px-3 lg:px-4 py-2 lg:py-3'} text-right bg-blue-50/50`}>
+                      <span className={`${embedded ? 'text-[11px]' : 'text-xs lg:text-sm'} font-semibold ${
+                        (station.accumulated?.mm_accumulated ?? 0) > 0 ? 'text-blue-700' : 'text-gray-500'
+                      }`}>
+                        {(station.accumulated?.mm_accumulated ?? 0).toFixed(1)}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               );
             })}
