@@ -47,6 +47,10 @@ export function getInfluenceColor(level: InfluenceLevelValue, _mapType?: MapVisu
   return LEGEND_PALETTE[l] ?? LEGEND_PALETTE[0];
 }
 
+/** Contorno dos hexágonos mais visível para não confundir áreas de estações diferentes (linha azul bem visível). */
+const HEX_STROKE_WEIGHT = 1.7;
+const HEX_STROKE_OPACITY = 1;
+
 export function getHexOverlayTuning(
   mapType: MapVisualType,
   resolution: number
@@ -65,35 +69,35 @@ export function getHexOverlayTuning(
 
   if (mapType === 'escuro') {
     return {
-      strokeColor: '#E2E8F0',
-      strokeOpacity: 0.8,
-      weight: base.weight,
+      strokeColor: '#93C5FD',
+      strokeOpacity: HEX_STROKE_OPACITY,
+      weight: HEX_STROKE_WEIGHT,
       fillOpacity: Math.min(0.9, base.fillOpacity + 0.12),
     };
   }
 
   if (mapType === 'satelite') {
     return {
-      strokeColor: '#1F2937',
-      strokeOpacity: 0.5,
-      weight: base.weight,
+      strokeColor: '#60A5FA',
+      strokeOpacity: HEX_STROKE_OPACITY,
+      weight: HEX_STROKE_WEIGHT,
       fillOpacity: Math.min(0.9, base.fillOpacity + 0.08),
     };
   }
 
   if (mapType === 'terreno') {
     return {
-      strokeColor: '#F8FAFC',
-      strokeOpacity: 0.9,
-      weight: base.weight,
+      strokeColor: '#3B82F6',
+      strokeOpacity: HEX_STROKE_OPACITY,
+      weight: HEX_STROKE_WEIGHT,
       fillOpacity: Math.min(0.9, base.fillOpacity + 0.04),
     };
   }
 
   return {
-    strokeColor: '#FFFFFF',
-    strokeOpacity: 0.9,
-    weight: base.weight,
+    strokeColor: '#1d4ed8',
+    strokeOpacity: HEX_STROKE_OPACITY,
+    weight: HEX_STROKE_WEIGHT,
     fillOpacity: base.fillOpacity,
   };
 }

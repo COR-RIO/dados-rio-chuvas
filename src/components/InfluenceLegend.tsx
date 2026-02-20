@@ -39,7 +39,7 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
             </div>
           ))}
           <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
-            Cada hexágono = área de influência da estação mais próxima (nível só dessa estação).
+            Área de abrangência = polígonos oficiais do arquivo zonas-pluviometricas.geojson (33 estações). Cor = nível de chuva da estação; contorno azul delimita cada zona.
           </div>
           <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
             Modo instantâneo: critério 15min (m15) ou 1h (h01). Modo acumulado: mm no período (De/Até).

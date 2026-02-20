@@ -7,6 +7,7 @@ import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { HexRainLayer } from './HexRainLayer';
+import { ZoneRainLayer } from './ZoneRainLayer';
 import { RainDataTable } from './RainDataTable';
 import {
   MapLayers,
@@ -416,7 +417,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         />
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
-        {showHexagons && mapDataWindow === '15min' && (
+        {showHexagons && zonasData && (
+          <ZoneRainLayer
+            zonasData={zonasData}
+            stations={displayStations}
+            mapType={mapType}
+            timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
+            showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+          />
+        )}
+        {showHexagons && !zonasData && mapDataWindow === '15min' && (
           <HexRainLayer
             stations={displayStations}
             resolution={8}
@@ -425,7 +435,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             bairrosData={bairrosData ?? undefined}
           />
         )}
-        {showHexagons && mapDataWindow === '1h' && (
+        {showHexagons && !zonasData && mapDataWindow === '1h' && (
           <HexRainLayer
             stations={displayStations}
             resolution={8}
@@ -434,7 +444,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             bairrosData={bairrosData ?? undefined}
           />
         )}
-        {showHexagons && mapDataWindow === 'both' && (
+        {showHexagons && !zonasData && mapDataWindow === 'both' && (
           <>
             <HexRainLayer
               stations={displayStations}
@@ -454,7 +464,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             />
           </>
         )}
-        {zonasData && <ZonasPolygons zonasData={zonasData} showHexagons={showHexagons} />}
+        {zonasData && !showHexagons && <ZonasPolygons zonasData={zonasData} showHexagons={false} />}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
         <StationMarkers
           stations={stations}

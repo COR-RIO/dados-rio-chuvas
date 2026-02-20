@@ -120,33 +120,36 @@ function squaredDistance(lat1: number, lng1: number, lat2: number, lng2: number)
   return dlat * dlat + dlng * dlng;
 }
 
-/**
- * Encontra a estação mais próxima e retorna o nível de influência (0-4) para a área de abrangência.
- * Cada hexágono usa somente o dado da estação cuja área de influência o contém (estação mais próxima).
- * timeWindow '15min': usa m15 (mm/15min). '1h': usa h01 (mm/h). Critérios oficiais (Termos Meteorológicos).
- * Se a estação tiver accumulated (acumulado no período), usa mm_accumulated para o nível (escala em mm).
- */
-function getLevelForPoint(lat: number, lng: number, stations: RainStation[], timeWindow: HexTimeWindow): InfluenceLevelValue {
-  if (!stations.length) return 0;
-  let nearest = stations[0];
-  let minD2 = squaredDistance(lat, lng, nearest.location[0], nearest.location[1]);
+/** Índice da estação mais próxima de (lat, lng). Usado para garantir que cada hexágono pertença a uma única área de abrangência. */
+function nearestStationIndex(lat: number, lng: number, stations: RainStation[]): number {
+  if (!stations.length) return -1;
+  let idx = 0;
+  let minD2 = squaredDistance(lat, lng, stations[0].location[0], stations[0].location[1]);
   for (let i = 1; i < stations.length; i++) {
-    const s = stations[i];
-    const d2 = squaredDistance(lat, lng, s.location[0], s.location[1]);
+    const d2 = squaredDistance(lat, lng, stations[i].location[0], stations[i].location[1]);
     if (d2 < minD2) {
       minD2 = d2;
-      nearest = s;
+      idx = i;
     }
   }
+  return idx;
+}
+
+/**
+ * Retorna o nível de influência (0-4) da estação mais próxima.
+ * timeWindow '15min': m15. '1h': h01. Se accumulated, usa mm_accumulated.
+ */
+function getLevelForPoint(lat: number, lng: number, stations: RainStation[], timeWindow: HexTimeWindow): InfluenceLevelValue {
+  const idx = nearestStationIndex(lat, lng, stations);
+  if (idx < 0) return 0;
+  const nearest = stations[idx];
   if (nearest.accumulated) {
     return accumulatedMmToInfluenceLevel(nearest.accumulated.mm_accumulated);
   }
   if (timeWindow === '1h') {
-    const h01 = nearest.data.h01 ?? 0;
-    return rainfallToInfluenceLevel1h(h01);
+    return rainfallToInfluenceLevel1h(nearest.data.h01 ?? 0);
   }
-  const m15 = nearest.data.m15 ?? 0;
-  return rainfallToInfluenceLevel15min(m15);
+  return rainfallToInfluenceLevel15min(nearest.data.m15 ?? 0);
 }
 
 export interface HexCell {
@@ -155,11 +158,10 @@ export interface HexCell {
 }
 
 /**
- * Gera hexágonos H3 apenas dentro da região do RJ e atribui o nível de chuva (0-4)
- * baseado na estação mais próxima.
- * timeWindow: '15min' usa m15 (mm/15min), '1h' usa h01 (mm/h).
- * Se bairrosData for passado, usa exatamente os polígonos dos bairros (limite real do município).
- * Caso contrário, usa um retângulo aproximado (bbox).
+ * Gera hexágonos H3 apenas dentro da região do RJ. Cada hexágono é incluído somente se
+ * pertencer inteiramente à área de abrangência de uma única estação (centro e todos os
+ * vértices têm a mesma estação mais próxima), para não sobrepor áreas de estações com valores diferentes.
+ * timeWindow: '15min' usa m15, '1h' usa h01.
  */
 export function buildHexRainGrid(
   stations: RainStation[],
@@ -175,9 +177,20 @@ export function buildHexRainGrid(
   const cells: HexCell[] = [];
   for (const h3Index of indices) {
     const boundary = cellToBoundary(h3Index, true) as [number, number][];
+    const [latCenter, lngCenter] = cellToLatLng(h3Index);
+    const centerIdx = nearestStationIndex(latCenter, lngCenter, stations);
+    if (centerIdx < 0) continue;
+    // Só inclui o hex se todos os vértices pertencerem à mesma estação (área de influência correta, sem sobrepor).
+    let sameStation = true;
+    for (const [lng, lat] of boundary) {
+      if (nearestStationIndex(lat, lng, stations) !== centerIdx) {
+        sameStation = false;
+        break;
+      }
+    }
+    if (!sameStation) continue;
     const positions = boundary.map(([lng, lat]) => [lat, lng] as [number, number]);
-    const [lat, lng] = cellToLatLng(h3Index);
-    const level = getLevelForPoint(lat, lng, stations, timeWindow);
+    const level = getLevelForPoint(latCenter, lngCenter, stations, timeWindow);
     cells.push({ positions, level });
   }
   return cells;
