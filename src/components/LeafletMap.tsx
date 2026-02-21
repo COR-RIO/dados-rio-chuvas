@@ -12,6 +12,7 @@ import { RainDataTable } from './RainDataTable';
 import {
   MapLayers,
   HexagonLayerToggle,
+  InfluenceLinesToggle,
   MapDataWindowToggle,
   HistoricalViewModeToggle,
   HistoricalTimelineControl,
@@ -280,6 +281,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showHexagons, setShowHexagons] = useState(true);
+  const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showFiltersPanel, setShowFiltersPanel] = useState(true);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
@@ -339,6 +341,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             <MapLayers value={mapType} onChange={onMapTypeChange} />
             <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
             <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
+            <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
             {historicalMode && (
               <HistoricalViewModeToggle
                 value={historicalViewMode}
@@ -418,13 +421,62 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
         {showHexagons && zonasData && (
-          <ZoneRainLayer
-            zonasData={zonasData}
-            stations={displayStations}
-            mapType={mapType}
-            timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
-            showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-          />
+          <>
+            <ZoneRainLayer
+              zonasData={zonasData}
+              stations={displayStations}
+              mapType={mapType}
+              timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
+              showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+              showInfluenceLines={showInfluenceLines}
+            />
+            {mapDataWindow === '15min' && (
+              <HexRainLayer
+                stations={displayStations}
+                resolution={9}
+                mapType={mapType}
+                timeWindow="15min"
+                zonasData={zonasData}
+                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+                showInfluenceLines={showInfluenceLines}
+              />
+            )}
+            {mapDataWindow === '1h' && (
+              <HexRainLayer
+                stations={displayStations}
+                resolution={9}
+                mapType={mapType}
+                timeWindow="1h"
+                zonasData={zonasData}
+                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+                showInfluenceLines={showInfluenceLines}
+              />
+            )}
+            {mapDataWindow === 'both' && (
+              <>
+                <HexRainLayer
+                  stations={displayStations}
+                  resolution={9}
+                  mapType={mapType}
+                  timeWindow="15min"
+                  zonasData={zonasData}
+                  showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+                  variant="primary"
+                  showInfluenceLines={showInfluenceLines}
+                />
+                <HexRainLayer
+                  stations={displayStations}
+                  resolution={9}
+                  mapType={mapType}
+                  timeWindow="1h"
+                  zonasData={zonasData}
+                  showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+                  variant="secondary"
+                  showInfluenceLines={showInfluenceLines}
+                />
+              </>
+            )}
+          </>
         )}
         {showHexagons && !zonasData && mapDataWindow === '15min' && (
           <HexRainLayer
@@ -433,6 +485,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             mapType={mapType}
             timeWindow="15min"
             bairrosData={bairrosData ?? undefined}
+            showInfluenceLines={showInfluenceLines}
           />
         )}
         {showHexagons && !zonasData && mapDataWindow === '1h' && (
@@ -442,6 +495,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             mapType={mapType}
             timeWindow="1h"
             bairrosData={bairrosData ?? undefined}
+            showInfluenceLines={showInfluenceLines}
           />
         )}
         {showHexagons && !zonasData && mapDataWindow === 'both' && (
@@ -453,6 +507,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               timeWindow="15min"
               bairrosData={bairrosData ?? undefined}
               variant="primary"
+              showInfluenceLines={showInfluenceLines}
             />
             <HexRainLayer
               stations={displayStations}
@@ -461,6 +516,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               timeWindow="1h"
               bairrosData={bairrosData ?? undefined}
               variant="secondary"
+              showInfluenceLines={showInfluenceLines}
             />
           </>
         )}

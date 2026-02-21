@@ -2,10 +2,11 @@ import { polygonToCells, cellToBoundary, cellToLatLng, gridDisk } from 'h3-js';
 import type { RainStation } from '../types/rain';
 import { rainfallToInfluenceLevel15min, rainfallToInfluenceLevel1h, type InfluenceLevelValue } from '../types/alertaRio';
 import { accumulatedMmToInfluenceLevel } from './rainLevel';
+import type { BairroCollection, ZonasPluvCollection } from '../services/citiesApi';
+import { findStationForZone } from './zoneStationMatch';
 
 /** Janela de dados para os hexágonos: 15 min (m15) ou 1 hora (h01) */
 export type HexTimeWindow = '15min' | '1h';
-import type { BairroCollection } from '../services/citiesApi';
 
 /** Bbox aproximada do município do Rio de Janeiro [lng, lat] - usado só se não houver bairros */
 const RIO_BBOX_LNG_LAT: number[][] = [
@@ -152,6 +153,32 @@ function getLevelForPoint(lat: number, lng: number, stations: RainStation[], tim
   return rainfallToInfluenceLevel15min(nearest.data.m15 ?? 0);
 }
 
+/** Índice da zona (feature) que contém o ponto (lng, lat), ou -1 se nenhuma. */
+function getZoneIndexForPoint(lng: number, lat: number, zonasData: ZonasPluvCollection): number {
+  for (let i = 0; i < zonasData.features.length; i++) {
+    const rings = getExteriorRings(zonasData.features[i] as GeoFeature);
+    for (const ring of rings) {
+      if (ring.length && pointInRing(lng, lat, ring)) return i;
+    }
+  }
+  return -1;
+}
+
+/** Nível de influência (0-4) a partir dos dados da estação. */
+function getLevelFromStation(
+  station: RainStation,
+  timeWindow: HexTimeWindow,
+  showAccumulated: boolean
+): InfluenceLevelValue {
+  if (showAccumulated && station.accumulated != null) {
+    return accumulatedMmToInfluenceLevel(station.accumulated.mm_accumulated);
+  }
+  if (timeWindow === '1h') {
+    return rainfallToInfluenceLevel1h(station.data.h01 ?? 0);
+  }
+  return rainfallToInfluenceLevel15min(station.data.m15 ?? 0);
+}
+
 export interface HexCell {
   positions: [number, number][]; // [lat, lng] para Leaflet
   level: InfluenceLevelValue;
@@ -191,6 +218,58 @@ export function buildHexRainGrid(
     if (!sameStation) continue;
     const positions = boundary.map(([lng, lat]) => [lat, lng] as [number, number]);
     const level = getLevelForPoint(latCenter, lngCenter, stations, timeWindow);
+    cells.push({ positions, level });
+  }
+  return cells;
+}
+
+/**
+ * Gera hexágonos H3 exatamente dentro das áreas de abrangência oficiais (zonas-pluviometricas.geojson).
+ * Cada hexágono só é incluído se estiver inteiramente dentro de uma única zona; o nível vem da estação
+ * dessa zona (properties.est). Assim o hexágono fica exatamente na área que cada estação ocupa no mapa.
+ */
+export function buildHexRainGridFromZonas(
+  zonasData: ZonasPluvCollection,
+  stations: RainStation[],
+  res: number = DEFAULT_RES,
+  timeWindow: HexTimeWindow = '15min',
+  showAccumulated: boolean = false
+): HexCell[] {
+  const indices = new Set<string>();
+  for (const feature of zonasData.features) {
+    const rings = getExteriorRings(feature as GeoFeature);
+    for (const ring of rings) {
+      if (ring.length < 3) continue;
+      try {
+        const ids = polygonToCells(ring, res, true);
+        ids.forEach((id) => indices.add(id));
+      } catch {
+        // polígono inválido: ignora
+      }
+    }
+  }
+
+  const cells: HexCell[] = [];
+  for (const h3Index of indices) {
+    const [latCenter, lngCenter] = cellToLatLng(h3Index);
+    const zoneIdx = getZoneIndexForPoint(lngCenter, latCenter, zonasData);
+    if (zoneIdx < 0) continue;
+
+    const boundary = cellToBoundary(h3Index, true) as [number, number][];
+    let sameZone = true;
+    for (const [lng, lat] of boundary) {
+      if (getZoneIndexForPoint(lng, lat, zonasData) !== zoneIdx) {
+        sameZone = false;
+        break;
+      }
+    }
+    if (!sameZone) continue;
+
+    const feature = zonasData.features[zoneIdx];
+    const est = feature.properties?.est ?? '';
+    const station = findStationForZone(est, stations);
+    const level = station ? getLevelFromStation(station, timeWindow, showAccumulated) : 0;
+    const positions = boundary.map(([lng, lat]) => [lat, lng] as [number, number]);
     cells.push({ positions, level });
   }
   return cells;

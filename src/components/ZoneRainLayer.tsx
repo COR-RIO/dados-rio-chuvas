@@ -20,6 +20,8 @@ interface ZoneRainLayerProps {
   timeWindow: ZoneTimeWindow;
   /** Quando true, usa mm_accumulated para o nível (vista acumulado no período) */
   showAccumulated?: boolean;
+  /** Quando true, desenha contorno entre zonas (cor branca). Quando false, sem linhas. */
+  showInfluenceLines?: boolean;
 }
 
 /** Converte coordenadas GeoJSON [lng, lat] para Leaflet [lat, lng] e remove 3ª coordenada. */
@@ -58,8 +60,13 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
   mapType,
   timeWindow,
   showAccumulated = false,
+  showInfluenceLines = true,
 }) => {
-  const zoneStroke = useMemo(() => getHexOverlayTuning(mapType, 8), [mapType]);
+  const zoneStroke = useMemo(() => {
+    const base = getHexOverlayTuning(mapType, 8);
+    if (!showInfluenceLines) return { ...base, weight: 0, strokeOpacity: 0 };
+    return { ...base, strokeColor: '#ffffff', strokeOpacity: 1 };
+  }, [mapType, showInfluenceLines]);
 
   const items = useMemo(() => {
     const result: { key: string; positions: [number, number][][]; level: InfluenceLevelValue; name: string; est?: string }[] = [];

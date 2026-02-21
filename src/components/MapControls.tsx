@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
+import { Map, Layers, Hexagon, LineSegment, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
 
 /** Dados exibidos no mapa: só 15min, só 1h, ou ambas as camadas */
 export type MapDataWindow = '15min' | '1h' | 'both';
@@ -89,6 +89,43 @@ export const HexagonLayerToggle: React.FC<HexagonLayerToggleProps> = ({ value, o
       <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
         <Hexagon className="w-3.5 h-3.5" />
         Hexágonos
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Sim
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Não
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface InfluenceLinesToggleProps {
+  value: boolean;
+  onChange: (show: boolean) => void;
+}
+
+/** Controle para mostrar ou ocultar as linhas de influência (contornos das zonas e hexágonos). Quando ativo, usa cor branca. */
+export const InfluenceLinesToggle: React.FC<InfluenceLinesToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <LineSegment className="w-3.5 h-3.5" />
+        Linhas de influência
       </div>
       <div className="flex flex-col gap-1">
         <button
