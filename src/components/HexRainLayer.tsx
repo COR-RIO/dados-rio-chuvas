@@ -3,7 +3,7 @@ import { Polygon } from 'react-leaflet';
 import { RainStation } from '../types/rain';
 import { buildHexRainGrid, buildHexRainGridFromZonas, type HexTimeWindow } from '../utils/hexGrid';
 import type { BairroCollection, ZonasPluvCollection } from '../services/citiesApi';
-import type { MapTypeId } from './MapControls';
+import type { MapTypeId } from './mapControlTypes';
 import { getHexOverlayTuning, getInfluenceColor } from '../utils/influenceTheme';
 
 interface HexRainLayerProps {
@@ -20,14 +20,14 @@ interface HexRainLayerProps {
   showAccumulated?: boolean;
   /** Estilo opcional quando em modo "ambos" (ex.: opacidade reduzida ou só contorno) */
   variant?: 'primary' | 'secondary';
-  /** Quando true, desenha contorno dos hexágonos (cor branca). Quando false, sem linhas. */
+  /** Quando false, oculta também as bordas brancas dos hexágonos (para não confundir com linhas de zona). */
   showInfluenceLines?: boolean;
 }
 
 /** Camada de hexágonos de área de influência da chuva (níveis 0-4+). Com zonasData, cada hexágono fica exatamente na área de abrangência da estação. */
 export const HexRainLayer: React.FC<HexRainLayerProps> = ({
   stations,
-  resolution = 9,
+  resolution = 7,
   mapType = 'rua',
   timeWindow = '15min',
   bairrosData = null,
@@ -48,15 +48,14 @@ export const HexRainLayer: React.FC<HexRainLayerProps> = ({
 
   const hexStyle = getHexOverlayTuning(mapType, resolution);
   const isSecondary = variant === 'secondary';
-  const fillOpacity = isSecondary ? Math.max(0.25, hexStyle.fillOpacity - 0.35) : hexStyle.fillOpacity;
-  const weight = isSecondary ? hexStyle.weight + 0.5 : hexStyle.weight;
-  const strokeColor = showInfluenceLines ? '#ffffff' : 'transparent';
-  const strokeWeight = showInfluenceLines ? weight : 0;
-  const strokeOpacity = showInfluenceLines ? 1 : 0;
+  const fillOpacity = isSecondary ? Math.max(0.5, hexStyle.fillOpacity - 0.25) : hexStyle.fillOpacity;
 
   return (
     <>
       {hexCells.map((cell, i) => {
+        const fillColor = getInfluenceColor(cell.level, mapType);
+        const strokeColor = showInfluenceLines ? '#ffffff' : fillColor;
+        const strokeWeight = showInfluenceLines ? 1.2 : 1;
         return (
           <Polygon
             key={`hex-${timeWindow}-${i}`}
@@ -64,8 +63,8 @@ export const HexRainLayer: React.FC<HexRainLayerProps> = ({
             pathOptions={{
               color: strokeColor,
               weight: strokeWeight,
-              opacity: strokeOpacity,
-              fillColor: getInfluenceColor(cell.level, mapType),
+              opacity: 1,
+              fillColor,
               fillOpacity,
             }}
           />

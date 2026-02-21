@@ -62,17 +62,17 @@ export function getHexOverlayTuning(
 } {
   const base =
     resolution <= 7
-      ? { weight: 1.15, fillOpacity: 0.8 }
+      ? { weight: 1.15, fillOpacity: 0.95 }
       : resolution === 8
-        ? { weight: 0.9, fillOpacity: 0.75 }
-        : { weight: 0.65, fillOpacity: 0.68 };
+        ? { weight: 0.9, fillOpacity: 0.92 }
+        : { weight: 0.65, fillOpacity: 0.9 };
 
   if (mapType === 'escuro') {
     return {
       strokeColor: '#93C5FD',
       strokeOpacity: HEX_STROKE_OPACITY,
       weight: HEX_STROKE_WEIGHT,
-      fillOpacity: Math.min(0.9, base.fillOpacity + 0.12),
+      fillOpacity: 0.98,
     };
   }
 
@@ -81,7 +81,7 @@ export function getHexOverlayTuning(
       strokeColor: '#60A5FA',
       strokeOpacity: HEX_STROKE_OPACITY,
       weight: HEX_STROKE_WEIGHT,
-      fillOpacity: Math.min(0.9, base.fillOpacity + 0.08),
+      fillOpacity: 0.96,
     };
   }
 
@@ -90,7 +90,7 @@ export function getHexOverlayTuning(
       strokeColor: '#3B82F6',
       strokeOpacity: HEX_STROKE_OPACITY,
       weight: HEX_STROKE_WEIGHT,
-      fillOpacity: Math.min(0.9, base.fillOpacity + 0.04),
+      fillOpacity: 0.96,
     };
   }
 
@@ -98,7 +98,7 @@ export function getHexOverlayTuning(
     strokeColor: '#1d4ed8',
     strokeOpacity: HEX_STROKE_OPACITY,
     weight: HEX_STROKE_WEIGHT,
-    fillOpacity: base.fillOpacity,
+    fillOpacity: 0.95,
   };
 }
 

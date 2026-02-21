@@ -5,7 +5,7 @@ import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
 import { InfluenceLegend } from './components/InfluenceLegend';
-import type { MapTypeId } from './components/MapControls';
+import type { MapTypeId } from './components/mapControlTypes';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);

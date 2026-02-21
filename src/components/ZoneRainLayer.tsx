@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Polygon, Popup } from 'react-leaflet';
 import type { RainStation } from '../types/rain';
 import type { ZonaPluvFeature, ZonasPluvCollection } from '../services/citiesApi';
-import type { MapTypeId } from './MapControls';
+import type { MapTypeId } from './mapControlTypes';
 import { findStationForZone } from '../utils/zoneStationMatch';
 import { rainfallToInfluenceLevel15min, rainfallToInfluenceLevel1h } from '../types/alertaRio';
 import type { InfluenceLevelValue } from '../types/alertaRio';
@@ -20,7 +20,7 @@ interface ZoneRainLayerProps {
   timeWindow: ZoneTimeWindow;
   /** Quando true, usa mm_accumulated para o nível (vista acumulado no período) */
   showAccumulated?: boolean;
-  /** Quando true, desenha contorno entre zonas (cor branca). Quando false, sem linhas. */
+  /** Linha de influência: contorno que corta/delimita a área de abrangência de cada estação (fronteira entre zonas). */
   showInfluenceLines?: boolean;
 }
 
@@ -104,15 +104,18 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
 
   return (
     <>
-      {items.map(({ key, positions, level, name, est }) => (
+      {items.map(({ key, positions, level, name, est }) => {
+        const fillColor = getInfluenceColor(level, mapType);
+        const strokeColor = showInfluenceLines ? '#ffffff' : fillColor;
+        return (
         <Polygon
           key={key}
           positions={positions}
           pathOptions={{
-            color: zoneStroke.strokeColor,
+            color: strokeColor,
             weight: zoneStroke.weight,
             opacity: zoneStroke.strokeOpacity,
-            fillColor: getInfluenceColor(level, mapType),
+            fillColor,
             fillOpacity,
           }}
         >
@@ -126,7 +129,8 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
             </div>
           </Popup>
         </Polygon>
-      ))}
+        );
+      })}
     </>
   );
 };

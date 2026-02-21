@@ -1,5 +1,5 @@
 import React from 'react';
-import type { MapTypeId } from './MapControls';
+import type { MapTypeId } from './mapControlTypes';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels, accumulatedRainLevels } from '../utils/rainLevel';
 

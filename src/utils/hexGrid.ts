@@ -1,4 +1,5 @@
 import { polygonToCells, cellToBoundary, cellToLatLng, gridDisk } from 'h3-js';
+import * as martinez from 'martinez-polygon-clipping';
 import type { RainStation } from '../types/rain';
 import { rainfallToInfluenceLevel15min, rainfallToInfluenceLevel1h, type InfluenceLevelValue } from '../types/alertaRio';
 import { accumulatedMmToInfluenceLevel } from './rainLevel';
@@ -17,8 +18,8 @@ const RIO_BBOX_LNG_LAT: number[][] = [
   [-43.8, -23.05],
 ];
 
-/** Resolução H3: 8 = hexágonos um pouco maiores (menos custo de renderização) */
-const DEFAULT_RES = 8;
+/** Resolução H3: 7 = hexágonos maiores (menos células, sistema mais rápido) */
+const DEFAULT_RES = 7;
 
 /** Feature genérica: pode vir como Polygon ou MultiPolygon da API */
 type GeoFeature = {
@@ -28,9 +29,13 @@ type GeoFeature = {
   };
 };
 
-/** Garante anel como [lng, lat][] (remove 3ª coordenada se existir) */
+/** Garante anel como [lng, lat][] (remove 3ª coordenada se existir) e fechado (primeiro = último) */
 function normalizeRing(ring: number[][]): number[][] {
-  return ring.map((pt) => (pt.length >= 2 ? [Number(pt[0]), Number(pt[1])] : [0, 0]));
+  const out = ring.map((pt) => (pt.length >= 2 ? [Number(pt[0]), Number(pt[1])] : [0, 0]));
+  if (out.length >= 3 && (out[0][0] !== out[out.length - 1][0] || out[0][1] !== out[out.length - 1][1])) {
+    out.push([out[0][0], out[0][1]]);
+  }
+  return out;
 }
 
 /**
@@ -184,10 +189,39 @@ export interface HexCell {
   level: InfluenceLevelValue;
 }
 
+/** Centróide aproximado de um anel [lng, lat][] (ignora ponto de fechamento se duplicado). */
+function ringCentroid(ring: number[][]): [number, number] {
+  let n = ring.length;
+  if (n <= 0) return [0, 0];
+  if (n > 1 && ring[0][0] === ring[n - 1][0] && ring[0][1] === ring[n - 1][1]) n -= 1;
+  let sumLng = 0, sumLat = 0;
+  for (let i = 0; i < n; i++) {
+    sumLng += ring[i][0];
+    sumLat += ring[i][1];
+  }
+  return [sumLng / n, sumLat / n];
+}
+
+/** União de todos os anéis (limite do município). Retorna null se falhar. */
+function unionOfRings(ringsList: number[][][]): number[][][] | number[][][][] | null {
+  if (ringsList.length === 0) return null;
+  if (ringsList.length === 1) return [ringsList[0]];
+  try {
+    let acc: number[][][] | number[][][][] = [ringsList[0]];
+    for (let i = 1; i < ringsList.length; i++) {
+      const next = martinez.union(acc as martinez.Geometry, [ringsList[i]]);
+      if (!next || next.length === 0) break;
+      acc = next as number[][][] | number[][][][];
+    }
+    return acc;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Gera hexágonos H3 apenas dentro da região do RJ. Cada hexágono é incluído somente se
- * pertencer inteiramente à área de abrangência de uma única estação (centro e todos os
- * vértices têm a mesma estação mais próxima), para não sobrepor áreas de estações com valores diferentes.
+ * Gera hexágonos H3 recortados pelo limite do município (bairros). Preenche TODO o mapa do Rio:
+ * usa o conjunto completo de células que tocam o município e recorta cada hex pelo limite, sem deixar buracos.
  * timeWindow: '15min' usa m15, '1h' usa h01.
  */
 export function buildHexRainGrid(
@@ -196,18 +230,77 @@ export function buildHexRainGrid(
   bairrosData?: BairroCollection | null,
   timeWindow: HexTimeWindow = '15min'
 ): HexCell[] {
-  const indices =
-    bairrosData?.features?.length ?
-      getH3IndicesInsideBairros(bairrosData, res)
-    : new Set(polygonToCells(RIO_BBOX_LNG_LAT, res, true));
-
   const cells: HexCell[] = [];
+
+  if (bairrosData?.features?.length) {
+    const ringsList: number[][][] = [];
+    for (const feature of bairrosData.features) {
+      for (const ring of getExteriorRings(feature as GeoFeature)) {
+        if (ring.length < 3) continue;
+        ringsList.push(normalizeRing(ring));
+      }
+    }
+
+    const cityUnion = unionOfRings(ringsList);
+    const indices = getH3IndicesInsideBairros(bairrosData, res);
+
+    if (cityUnion && cityUnion.length > 0) {
+      for (const h3Index of indices) {
+        const boundary = cellToBoundary(h3Index, true) as [number, number][];
+        const hexRing = boundary.length >= 3 ? normalizeRing(boundary) : null;
+        if (!hexRing) continue;
+        const hexPoly: [number[][]][] = [hexRing];
+        try {
+          const result = martinez.intersection(hexPoly, cityUnion);
+          const exteriors = intersectionToExteriorRings(result);
+          for (const exterior of exteriors) {
+            const positions = (exterior as [number, number][]).map(
+              ([lng, lat]) => [lat, lng] as [number, number]
+            );
+            if (positions.length < 3) continue;
+            const [lngC, latC] = ringCentroid(exterior as [number, number][]);
+            const level = getLevelForPoint(latC, lngC, stations, timeWindow);
+            cells.push({ positions, level });
+          }
+        } catch {
+          // ignora
+        }
+      }
+    } else {
+      for (const h3Index of indices) {
+        const boundary = cellToBoundary(h3Index, true) as [number, number][];
+        const hexRing = boundary.length >= 3 ? normalizeRing(boundary) : null;
+        if (!hexRing) continue;
+        const hexPoly: [number[][]][] = [hexRing];
+        for (const zoneRing of ringsList) {
+          const zonePoly: [number[][]][] = [zoneRing];
+          try {
+            const result = martinez.intersection(hexPoly, zonePoly);
+            const exteriors = intersectionToExteriorRings(result);
+            for (const exterior of exteriors) {
+              const positions = (exterior as [number, number][]).map(
+                ([lng, lat]) => [lat, lng] as [number, number]
+              );
+              if (positions.length < 3) continue;
+              const [lngC, latC] = ringCentroid(exterior as [number, number][]);
+              const level = getLevelForPoint(latC, lngC, stations, timeWindow);
+              cells.push({ positions, level });
+            }
+          } catch {
+            // ignora
+          }
+        }
+      }
+    }
+    return cells;
+  }
+
+  const indices = new Set(polygonToCells(RIO_BBOX_LNG_LAT, res, true));
   for (const h3Index of indices) {
     const boundary = cellToBoundary(h3Index, true) as [number, number][];
     const [latCenter, lngCenter] = cellToLatLng(h3Index);
     const centerIdx = nearestStationIndex(latCenter, lngCenter, stations);
     if (centerIdx < 0) continue;
-    // Só inclui o hex se todos os vértices pertencerem à mesma estação (área de influência correta, sem sobrepor).
     let sameStation = true;
     for (const [lng, lat] of boundary) {
       if (nearestStationIndex(lat, lng, stations) !== centerIdx) {
@@ -224,9 +317,23 @@ export function buildHexRainGrid(
 }
 
 /**
- * Gera hexágonos H3 exatamente dentro das áreas de abrangência oficiais (zonas-pluviometricas.geojson).
- * Cada hexágono só é incluído se estiver inteiramente dentro de uma única zona; o nível vem da estação
- * dessa zona (properties.est). Assim o hexágono fica exatamente na área que cada estação ocupa no mapa.
+ * Converte resultado de martinez.intersection (Polygon ou MultiPolygon) em array de anéis exteriores.
+ * Polygon = [ ring, hole? ]; MultiPolygon = [ polygon, polygon, ... ] com polygon = [ ring, ... ].
+ * Em Polygon, result[0][0] é Position ([lng,lat], length 2). Em MultiPolygon, result[0][0] é Ring (length >= 3).
+ */
+function intersectionToExteriorRings(result: number[][][] | number[][][][] | null): number[][][] {
+  if (!result || result.length === 0) return [];
+  const first = result[0];
+  if (!first || !first.length) return [];
+  const isMulti = first[0].length > 2;
+  const polygons: number[][][] = isMulti ? (result as number[][][][]) : [result as number[][][]];
+  return polygons.map((poly) => poly[0]).filter((ring) => ring && ring.length >= 3);
+}
+
+/**
+ * Gera hexágonos H3 recortados pelas áreas de abrangência (zonas-pluviometricas.geojson).
+ * Cada hexágono é interceptado com cada zona: só a parte que cai dentro da zona é desenhada,
+ * com a cor/nível dessa zona. Assim as cores correspondem exatamente à abrangência de cada região.
  */
 export function buildHexRainGridFromZonas(
   zonasData: ZonasPluvCollection,
@@ -235,42 +342,61 @@ export function buildHexRainGridFromZonas(
   timeWindow: HexTimeWindow = '15min',
   showAccumulated: boolean = false
 ): HexCell[] {
-  const indices = new Set<string>();
-  for (const feature of zonasData.features) {
-    const rings = getExteriorRings(feature as GeoFeature);
-    for (const ring of rings) {
-      if (ring.length < 3) continue;
-      try {
-        const ids = polygonToCells(ring, res, true);
-        ids.forEach((id) => indices.add(id));
-      } catch {
-        // polígono inválido: ignora
-      }
-    }
-  }
-
   const cells: HexCell[] = [];
-  for (const h3Index of indices) {
-    const [latCenter, lngCenter] = cellToLatLng(h3Index);
-    const zoneIdx = getZoneIndexForPoint(lngCenter, latCenter, zonasData);
-    if (zoneIdx < 0) continue;
 
-    const boundary = cellToBoundary(h3Index, true) as [number, number][];
-    let sameZone = true;
-    for (const [lng, lat] of boundary) {
-      if (getZoneIndexForPoint(lng, lat, zonasData) !== zoneIdx) {
-        sameZone = false;
-        break;
-      }
-    }
-    if (!sameZone) continue;
-
+  for (let zoneIdx = 0; zoneIdx < zonasData.features.length; zoneIdx++) {
     const feature = zonasData.features[zoneIdx];
     const est = feature.properties?.est ?? '';
     const station = findStationForZone(est, stations);
     const level = station ? getLevelFromStation(station, timeWindow, showAccumulated) : 0;
-    const positions = boundary.map(([lng, lat]) => [lat, lng] as [number, number]);
-    cells.push({ positions, level });
+
+    const rings = getExteriorRings(feature as GeoFeature);
+    const zoneH3Indices = new Set<string>();
+    for (const ring of rings) {
+      if (ring.length < 3) continue;
+      try {
+        const ids = polygonToCells(ring, res, true);
+        ids.forEach((id) => zoneH3Indices.add(id));
+      } catch {
+        // polígono inválido: ignora
+      }
+    }
+    // Expande 1 anel de vizinhança para cobrir bordas (hexágonos que cortam a zona)
+    const expanded = new Set<string>(zoneH3Indices);
+    for (const id of zoneH3Indices) {
+      try {
+        gridDisk(id, 1).forEach((n) => expanded.add(n));
+      } catch {
+        // ignora
+      }
+    }
+
+    const zoneRings = rings.map((r) => normalizeRing(r)).filter((r) => r.length >= 3);
+
+    for (const h3Index of expanded) {
+      const boundary = cellToBoundary(h3Index, true) as [number, number][];
+      const hexRing = boundary.length >= 3 ? normalizeRing(boundary) : null;
+      if (!hexRing) continue;
+
+      const hexPoly: [number[][]][] = [hexRing];
+
+      for (const zoneRing of zoneRings) {
+        const zonePoly: [number[][]][] = [zoneRing];
+        try {
+          const result = martinez.intersection(hexPoly, zonePoly);
+          const exteriors = intersectionToExteriorRings(result);
+          for (const exterior of exteriors) {
+            const positions = (exterior as [number, number][]).map(
+              ([lng, lat]) => [lat, lng] as [number, number]
+            );
+            if (positions.length >= 3) cells.push({ positions, level });
+          }
+        } catch {
+          // interseção falhou: ignora este par hex/zona
+        }
+      }
+    }
   }
+
   return cells;
 }

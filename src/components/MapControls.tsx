@@ -1,47 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, LineSegment, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
-
-/** Dados exibidos no mapa: só 15min, só 1h, ou ambas as camadas */
-export type MapDataWindow = '15min' | '1h' | 'both';
-
-/** No modo histórico: mostrar snapshot no horário ou acumulado no período */
-export type HistoricalViewMode = 'instant' | 'accumulated';
-
-export type MapTypeId = 'rua' | 'satelite' | 'escuro' | 'terreno';
-
-export const MAP_TYPES: Array<{
-  id: MapTypeId;
-  label: string;
-  url: string;
-  attribution: string;
-}> = [
-  {
-    id: 'rua',
-    label: 'Rua',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  },
-  {
-    id: 'satelite',
-    label: 'Satélite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
-  },
-  {
-    id: 'escuro',
-    label: 'Escuro',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-  },
-  {
-    id: 'terreno',
-    label: 'Terreno',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://opentopomap.org/">OpenTopoMap</a>',
-  },
-];
+import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
+import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -119,18 +80,19 @@ interface InfluenceLinesToggleProps {
   onChange: (show: boolean) => void;
 }
 
-/** Controle para mostrar ou ocultar as linhas de influência (contornos das zonas e hexágonos). Quando ativo, usa cor branca. */
+/** Exibe ou oculta as zonas do arquivo zonas-pluviometricas.geojson (linhas em azul que dividem a área de cada pluviômetro). Ocultar evita confusão com os bairros do Rio. */
 export const InfluenceLinesToggle: React.FC<InfluenceLinesToggleProps> = ({ value, onChange }) => {
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
-      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
-        <LineSegment className="w-3.5 h-3.5" />
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Zonas dos pluviômetros (zonas-pluviometricas.geojson). Ocultar para não confundir com bairros (Ipanema, Copacabana, etc.).">
+        <Route className="w-3.5 h-3.5" />
         Linhas de influência
       </div>
       <div className="flex flex-col gap-1">
         <button
           type="button"
           onClick={() => onChange(true)}
+          title="Mostrar as zonas dos pluviômetros (linhas em azul)"
           className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
             value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
@@ -140,6 +102,7 @@ export const InfluenceLinesToggle: React.FC<InfluenceLinesToggleProps> = ({ valu
         <button
           type="button"
           onClick={() => onChange(false)}
+          title="Ocultar as zonas dos pluviômetros (evita confusão com bairros)"
           className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
             !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
@@ -546,9 +509,6 @@ function boundsFromBairros(bairrosData: { features: Array<{ geometry: { type?: s
   }
   return points.length > 0 ? L.latLngBounds(points) : null;
 }
-
-/** Dados GeoJSON compatíveis para cálculo de bounds (bairros ou zonas pluviométricas). */
-export type BoundsGeoJson = { features: Array<{ geometry: { coordinates: number[][] | number[][][] | number[][][][] } }> } | null;
 
 interface FitCityOnLoadProps {
   /** Bairros ou zonas pluviométricas para encaixar a vista (preferir zonas quando disponível). */

@@ -18,11 +18,8 @@ import {
   HistoricalTimelineControl,
   FocusCityButton,
   FitCityOnLoad,
-  MAP_TYPES,
-  type MapTypeId,
-  type MapDataWindow,
-  type HistoricalViewMode,
 } from './MapControls';
+import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getAccumulatedRainLevel } from '../utils/rainLevel';
 import 'leaflet/dist/leaflet.css';
 
@@ -422,18 +419,20 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <FocusCityButton boundsData={boundsData} />
         {showHexagons && zonasData && (
           <>
-            <ZoneRainLayer
-              zonasData={zonasData}
-              stations={displayStations}
-              mapType={mapType}
-              timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
-              showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-              showInfluenceLines={showInfluenceLines}
-            />
+            {showInfluenceLines && (
+              <ZoneRainLayer
+                zonasData={zonasData}
+                stations={displayStations}
+                mapType={mapType}
+                timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
+                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+                showInfluenceLines={true}
+              />
+            )}
             {mapDataWindow === '15min' && (
               <HexRainLayer
                 stations={displayStations}
-                resolution={9}
+                resolution={7}
                 mapType={mapType}
                 timeWindow="15min"
                 zonasData={zonasData}
@@ -444,7 +443,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             {mapDataWindow === '1h' && (
               <HexRainLayer
                 stations={displayStations}
-                resolution={9}
+                resolution={7}
                 mapType={mapType}
                 timeWindow="1h"
                 zonasData={zonasData}
@@ -456,7 +455,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <>
                 <HexRainLayer
                   stations={displayStations}
-                  resolution={9}
+                  resolution={7}
                   mapType={mapType}
                   timeWindow="15min"
                   zonasData={zonasData}
@@ -466,7 +465,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 />
                 <HexRainLayer
                   stations={displayStations}
-                  resolution={9}
+                  resolution={7}
                   mapType={mapType}
                   timeWindow="1h"
                   zonasData={zonasData}
@@ -481,7 +480,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         {showHexagons && !zonasData && mapDataWindow === '15min' && (
           <HexRainLayer
             stations={displayStations}
-            resolution={8}
+            resolution={7}
             mapType={mapType}
             timeWindow="15min"
             bairrosData={bairrosData ?? undefined}
@@ -491,7 +490,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         {showHexagons && !zonasData && mapDataWindow === '1h' && (
           <HexRainLayer
             stations={displayStations}
-            resolution={8}
+            resolution={7}
             mapType={mapType}
             timeWindow="1h"
             bairrosData={bairrosData ?? undefined}
@@ -502,7 +501,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           <>
             <HexRainLayer
               stations={displayStations}
-              resolution={8}
+              resolution={7}
               mapType={mapType}
               timeWindow="15min"
               bairrosData={bairrosData ?? undefined}
@@ -511,7 +510,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             />
             <HexRainLayer
               stations={displayStations}
-              resolution={8}
+              resolution={7}
               mapType={mapType}
               timeWindow="1h"
               bairrosData={bairrosData ?? undefined}
@@ -520,7 +519,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             />
           </>
         )}
-        {zonasData && !showHexagons && <ZonasPolygons zonasData={zonasData} showHexagons={false} />}
+        {zonasData && !showHexagons && showInfluenceLines && (
+          <ZonasPolygons zonasData={zonasData} showHexagons={false} />
+        )}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
         <StationMarkers
           stations={stations}
