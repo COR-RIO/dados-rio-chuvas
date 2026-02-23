@@ -29,11 +29,11 @@ export interface AlertaRioCollection {
 
 /** Níveis para área de abrangência (hexágonos) – 15 min. Mesma paleta. */
 export const INFLUENCE_LEVELS = [
-  { value: 0, label: '0', color: '#E0F2FE', min: 0, max: 0 },
-  { value: 1, label: '1', color: '#60A5FA', min: 0.01, max: 1.24 },
-  { value: 2, label: '2', color: '#42b9eb', min: 1.25, max: 6.25 },
-  { value: 3, label: '3', color: '#2f90be', min: 6.25, max: 12.5 },
-  { value: 4, label: '4+', color: '#13335a', min: 12.51, max: null },
+  { value: 0, label: '0', color: '#CCD2D8', min: 0, max: 0 },
+  { value: 1, label: '1', color: '#7EC9E8', min: 0.01, max: 1.24 },
+  { value: 2, label: '2', color: '#42B9EB', min: 1.25, max: 6.25 },
+  { value: 3, label: '3', color: '#2C85B2', min: 6.25, max: 12.5 },
+  { value: 4, label: '4+', color: '#13335A', min: 12.51, max: null },
 ] as const;
 
 export type InfluenceLevelValue = 0 | 1 | 2 | 3 | 4;
