@@ -255,18 +255,18 @@ function App() {
           {showMapLegend && (
             <div className="mt-3 sm:mt-4 flex flex-wrap gap-4 sm:gap-6 items-start">
               <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3 sm:p-4 shrink-0">
-                <InfluenceLegend showHexagons={true} mapType={mapType} embedded />
+                <InfluenceLegend showHexagons={false} mapType={mapType} embedded />
               </div>
 
               <div className="space-y-3 text-xs text-gray-600 min-w-0 flex-1">
                 <div className="space-y-1">
                   <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
-                  <p>• <strong>Contornos azuis:</strong> zonas pluviométricas oficiais do Rio.</p>
-                  <p>• <strong>Hexágonos Sim/Não:</strong> mostra ou oculta a camada de influência.</p>
+                  <p>• <strong>Cores de fundo:</strong> cada zona (área de influência) usa a mesma paleta por nível de chuva (sem chuva, fraca, moderada, forte, muito forte).</p>
+                  <p>• <strong>Linhas de influência:</strong> contornos que delimitam as zonas no painel do mapa.</p>
                 </div>
 
                 <div className="space-y-1">
-                  <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a influência de chuva da estação mais próxima com base em 15min.</p>
+                  <p>• <strong>Níveis de chuva:</strong> mesma paleta (cinza, azuis) para 15min, 1h e acumulado nas zonas e bolinhas.</p>
                   <p>• <strong>Modo Histórico (GCP):</strong> em <strong>Instantâneo</strong> use uma data e o horário para análise; em <strong>Acumulado no período</strong> aparecem <strong>De</strong> e <strong>Até</strong> para o intervalo (ex.: 09/02/2026 até 10/02/2026).</p>
                 </div>
 

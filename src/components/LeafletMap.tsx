@@ -6,12 +6,10 @@ import { RainStation } from '../types/rain';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
-import { HexRainLayer } from './HexRainLayer';
 import { ZoneRainLayer } from './ZoneRainLayer';
 import { RainDataTable } from './RainDataTable';
 import {
   MapLayers,
-  HexagonLayerToggle,
   InfluenceLinesToggle,
   MapDataWindowToggle,
   HistoricalViewModeToggle,
@@ -111,50 +109,6 @@ const BairroPolygons: React.FC<{ bairrosData: any; showHexagons: boolean }> = ({
           </Polygon>
         );
       })}
-    </>
-  );
-};
-
-// Polígonos das zonas pluviométricas (do KML/GeoJSON)
-const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').ZonasPluvCollection; showHexagons: boolean }> = ({ zonasData, showHexagons }) => {
-  const polygons: { key: string; positions: [number, number][][]; name: string; est?: string }[] = [];
-  zonasData.features.forEach((feature, fi) => {
-    const name = feature.properties.name;
-    const est = feature.properties.est;
-    if (feature.geometry.type === 'Polygon') {
-      const ring = (feature.geometry.coordinates as number[][][])[0] ?? [];
-      const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
-      polygons.push({ key: `zona-${fi}-0`, positions, name, est });
-    } else if (feature.geometry.type === 'MultiPolygon') {
-      (feature.geometry.coordinates as number[][][][]).forEach((poly, pi) => {
-        const ring = poly[0] ?? [];
-        const positions = [ring.map((c) => [c[1], c[0]] as [number, number])];
-        polygons.push({ key: `zona-${fi}-${pi}`, positions, name, est });
-      });
-    }
-  });
-  return (
-    <>
-      {polygons.map(({ key, positions, name, est }) => (
-        <Polygon
-          key={key}
-          positions={positions}
-          pathOptions={{
-            color: '#0ea5e9',
-            weight: showHexagons ? 2.2 : 2,
-            opacity: showHexagons ? 1 : 0.8,
-            fillColor: '#0ea5e9',
-            fillOpacity: showHexagons ? 0 : 0.08,
-          }}
-        >
-          <Popup>
-            <div style={{ padding: '8px', fontFamily: 'Arial, sans-serif' }}>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#333' }}>{name}</h3>
-              {est && <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>Estação: {est}</p>}
-            </div>
-          </Popup>
-        </Polygon>
-      ))}
     </>
   );
 };
@@ -276,8 +230,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
-  const [showHexagons, setShowHexagons] = useState(true);
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
+  const showHexagons = false; // Hexágonos off; cores de fundo vêm das zonas (ZoneRainLayer)
   const [showSidebar, setShowSidebar] = useState(true);
   const [showFiltersPanel, setShowFiltersPanel] = useState(true);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
@@ -343,7 +297,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             </button>
             <MapLayers value={mapType} onChange={onMapTypeChange} />
             <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
-            <HexagonLayerToggle value={showHexagons} onChange={setShowHexagons} />
             <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
             {historicalMode && (
               <HistoricalViewModeToggle
@@ -425,110 +378,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         />
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
-        {showHexagons && zonasData && (
-          <>
-            {showInfluenceLines && (
-              <ZoneRainLayer
-                zonasData={zonasData}
-                stations={displayStations}
-                mapType={mapType}
-                timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
-                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-                showInfluenceLines={true}
-              />
-            )}
-            {mapDataWindow === '15min' && (
-              <HexRainLayer
-                stations={displayStations}
-                resolution={7}
-                mapType={mapType}
-                timeWindow="15min"
-                zonasData={zonasData}
-                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-                showInfluenceLines={showInfluenceLines}
-              />
-            )}
-            {mapDataWindow === '1h' && (
-              <HexRainLayer
-                stations={displayStations}
-                resolution={7}
-                mapType={mapType}
-                timeWindow="1h"
-                zonasData={zonasData}
-                showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-                showInfluenceLines={showInfluenceLines}
-              />
-            )}
-            {mapDataWindow === 'both' && (
-              <>
-                <HexRainLayer
-                  stations={displayStations}
-                  resolution={7}
-                  mapType={mapType}
-                  timeWindow="15min"
-                  zonasData={zonasData}
-                  showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-                  variant="primary"
-                  showInfluenceLines={showInfluenceLines}
-                />
-                <HexRainLayer
-                  stations={displayStations}
-                  resolution={7}
-                  mapType={mapType}
-                  timeWindow="1h"
-                  zonasData={zonasData}
-                  showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
-                  variant="secondary"
-                  showInfluenceLines={showInfluenceLines}
-                />
-              </>
-            )}
-          </>
-        )}
-        {showHexagons && !zonasData && mapDataWindow === '15min' && (
-          <HexRainLayer
+        {zonasData && (
+          <ZoneRainLayer
+            zonasData={zonasData}
             stations={displayStations}
-            resolution={7}
             mapType={mapType}
-            timeWindow="15min"
-            bairrosData={bairrosData ?? undefined}
+            timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
+            showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
             showInfluenceLines={showInfluenceLines}
           />
-        )}
-        {showHexagons && !zonasData && mapDataWindow === '1h' && (
-          <HexRainLayer
-            stations={displayStations}
-            resolution={7}
-            mapType={mapType}
-            timeWindow="1h"
-            bairrosData={bairrosData ?? undefined}
-            showInfluenceLines={showInfluenceLines}
-          />
-        )}
-        {showHexagons && !zonasData && mapDataWindow === 'both' && (
-          <>
-            <HexRainLayer
-              stations={displayStations}
-              resolution={7}
-              mapType={mapType}
-              timeWindow="15min"
-              bairrosData={bairrosData ?? undefined}
-              variant="primary"
-              showInfluenceLines={showInfluenceLines}
-            />
-            <HexRainLayer
-              stations={displayStations}
-              resolution={7}
-              mapType={mapType}
-              timeWindow="1h"
-              bairrosData={bairrosData ?? undefined}
-              variant="secondary"
-              showInfluenceLines={showInfluenceLines}
-            />
-          </>
-        )}
-        {zonasData && !showHexagons && showInfluenceLines && (
-          <ZonasPolygons zonasData={zonasData} showHexagons={false} />
         )}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
         <StationMarkers

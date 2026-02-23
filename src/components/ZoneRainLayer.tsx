@@ -63,8 +63,8 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
   showInfluenceLines = true,
 }) => {
   const zoneStroke = useMemo(() => {
+    if (!showInfluenceLines) return { weight: 0, strokeOpacity: 0 };
     const base = getHexOverlayTuning(mapType, 8);
-    if (!showInfluenceLines) return { ...base, weight: 0, strokeOpacity: 0 };
     return { ...base, strokeColor: '#ffffff', strokeOpacity: 1 };
   }, [mapType, showInfluenceLines]);
 
@@ -100,19 +100,18 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
 
   if (!items.length) return null;
 
-  const fillOpacity = 0.72;
+  const fillOpacity = 1; // Cor totalmente profunda, sem opacidade
 
   return (
     <>
       {items.map(({ key, positions, level, name, est }) => {
         const fillColor = getInfluenceColor(level, mapType);
-        const strokeColor = showInfluenceLines ? '#ffffff' : fillColor;
         return (
         <Polygon
           key={key}
           positions={positions}
           pathOptions={{
-            color: strokeColor,
+            color: showInfluenceLines ? '#ffffff' : 'transparent',
             weight: zoneStroke.weight,
             opacity: zoneStroke.strokeOpacity,
             fillColor,

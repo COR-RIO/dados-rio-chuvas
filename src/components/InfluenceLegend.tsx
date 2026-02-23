@@ -27,27 +27,28 @@ export const InfluenceLegend: React.FC<InfluenceLegendProps> = ({
       style={{ fontFamily: 'Arial, sans-serif' }}
     >
       <div className="text-[11px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-1.5">Legenda do mapa</div>
-      {showHexagons ? (
-        <div className="flex flex-col gap-1">
-          {legendItems.map(({ value, label, color }) => (
-            <div key={value} className="flex items-center gap-1.5 sm:gap-2">
-              <div
-                className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded border border-white flex-shrink-0 shadow-sm"
-                style={{ backgroundColor: color }}
-              />
-              <span className="text-[10px] sm:text-[11px] font-medium text-gray-700 break-words">{label}</span>
+      <div className="flex flex-col gap-1">
+        <div className="text-[9px] sm:text-[10px] text-gray-500 mb-0.5">Critério oficial 15 min (mm/15min). Mesmas cores para 1h e acumulado; só mudam os limites.</div>
+        {legendItems.map(({ value, label, color }) => (
+          <div key={value} className="flex items-center gap-1.5 sm:gap-2">
+            <div
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded border border-white flex-shrink-0 shadow-sm"
+              style={{ backgroundColor: color }}
+            />
+            <span className="text-[10px] sm:text-[11px] font-medium text-gray-700 break-words">{label}</span>
+          </div>
+        ))}
+        {showHexagons && (
+          <>
+            <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
+              Área de abrangência = polígonos oficiais (zonas pluviométricas). Cor = nível de chuva da estação.
             </div>
-          ))}
-          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
-            Área de abrangência = polígonos oficiais do arquivo zonas-pluviometricas.geojson (33 estações). Cor = nível de chuva da estação; contorno azul delimita cada zona.
-          </div>
-          <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
-            Modo instantâneo: critério 15min (m15) ou 1h (h01). Modo acumulado: mm no período (De/Até).
-          </div>
-        </div>
-      ) : (
-        <div className="text-[11px] text-gray-500">Camada de hexágonos oculta.</div>
-      )}
+            <div className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">
+              Modo instantâneo: critério 15min (m15) ou 1h (h01). Modo acumulado: mm no período (De/Até).
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-gray-200">
         <div className="text-[10px] sm:text-[11px] font-medium text-gray-700 mb-1">Bolinhas: chuva de 1h (h01)</div>
