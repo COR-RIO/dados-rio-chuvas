@@ -1,4 +1,5 @@
 import type { InfluenceLevelValue } from '../types/alertaRio';
+import { RAIN_LEVEL_PALETTE } from './rainLevel';
 
 export type MapVisualType = 'rua' | 'satelite' | 'escuro' | 'terreno';
 
@@ -11,13 +12,13 @@ const LEVEL_TEXT: Record<InfluenceLevelValue, string> = {
   4: 'Muito forte (>12,5 mm/15min)',
 };
 
-/** Degradê oficial 5 níveis para área de abrangência (15 min) */
+/** Mesma paleta para 15 min, 1h e acumulado: Sem Chuva | Fraca | Moderada | Forte | Muito Forte */
 const HEX_LEVEL_COLORS: Record<InfluenceLevelValue, string> = {
-  0: '#eceded',
-  1: '#42b9eb',
-  2: '#2f90be',
-  3: '#2a688f',
-  4: '#13335a',
+  0: RAIN_LEVEL_PALETTE[0],
+  1: RAIN_LEVEL_PALETTE[1],
+  2: RAIN_LEVEL_PALETTE[2],
+  3: RAIN_LEVEL_PALETTE[3],
+  4: RAIN_LEVEL_PALETTE[4],
 };
 
 const PALETTES: Record<MapVisualType, Record<InfluenceLevelValue, string>> = {

@@ -27,12 +27,12 @@ export interface AlertaRioCollection {
   features: AlertaRioFeature[];
 }
 
-/** Níveis para área de abrangência (hexágonos) – Termos Meteorológicos: 15 min (mm/15min) */
+/** Níveis para área de abrangência (hexágonos) – 15 min. Mesma paleta. */
 export const INFLUENCE_LEVELS = [
-  { value: 0, label: '0', color: '#eceded', min: 0, max: 0 },
-  { value: 1, label: '1', color: '#42b9eb', min: 0.01, max: 1.24 },
-  { value: 2, label: '2', color: '#2f90be', min: 1.25, max: 6.25 },
-  { value: 3, label: '3', color: '#2a688f', min: 6.25, max: 12.5 },
+  { value: 0, label: '0', color: '#9CA3AF', min: 0, max: 0 },
+  { value: 1, label: '1', color: '#60A5FA', min: 0.01, max: 1.24 },
+  { value: 2, label: '2', color: '#42b9eb', min: 1.25, max: 6.25 },
+  { value: 3, label: '3', color: '#2f90be', min: 6.25, max: 12.5 },
   { value: 4, label: '4+', color: '#13335a', min: 12.51, max: null },
 ] as const;
 

@@ -1,16 +1,25 @@
 import { RainLevel } from '../types/rain';
 
 /**
- * Cores das BOLINHAS (e tabela): sempre chuva de 1 HORA (h01).
- * Paleta fixa: verde → azul claro → amarelo → laranja → vermelho.
- * NÃO trocar por cores azuis; o degradê azul é só para hexágonos (15 min) em influenceTheme.
+ * Paleta única para 15 min, 1 h e acumulado.
+ */
+export const RAIN_LEVEL_PALETTE: Record<0 | 1 | 2 | 3 | 4, string> = {
+  0: '#9CA3AF',  // cinza mais visível (Sem chuva)
+  1: '#60A5FA',  // azul bem claro (Fraca)
+  2: '#42b9eb',  // era 1 (Moderada)
+  3: '#2f90be',  // era 2 (Forte)
+  4: '#13335a',  // mantém (Muito Forte)
+};
+
+/**
+ * Cores das BOLINHAS (e tabela): chuva de 1 HORA (h01). Mesma paleta para 15 min, 1h e acumulado.
  */
 export const rainLevels: RainLevel[] = [
-  { name: 'sem chuva', description: '0,0 mm/h', min: 0, max: 0, color: '#1FCC70', bgColor: 'bg-emerald-100' },
-  { name: 'chuva fraca', description: '< 5,0 mm/h', min: 0.01, max: 4.99, color: '#61BBFF', bgColor: 'bg-blue-200' },
-  { name: 'chuva moderada', description: '5,0 – 25,0 mm/h', min: 5.0, max: 25.0, color: '#EAF000', bgColor: 'bg-yellow-200' },
-  { name: 'chuva forte', description: '25,1 – 50,0 mm/h', min: 25.1, max: 50.0, color: '#FEA600', bgColor: 'bg-orange-200' },
-  { name: 'chuva muito forte', description: '> 50,0 mm/h', min: 50.1, max: null, color: '#EE0000', bgColor: 'bg-red-200' },
+  { name: 'sem chuva', description: '0,0 mm/h', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-gray-300' },
+  { name: 'chuva fraca', description: '< 5,0 mm/h', min: 0.01, max: 4.99, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
+  { name: 'chuva moderada', description: '5,0 – 25,0 mm/h', min: 5.0, max: 25.0, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
+  { name: 'chuva forte', description: '25,1 – 50,0 mm/h', min: 25.1, max: 50.0, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },
+  { name: 'chuva muito forte', description: '> 50,0 mm/h', min: 50.1, max: null, color: RAIN_LEVEL_PALETTE[4], bgColor: 'bg-blue-900' },
 ];
 
 /** Critério oficial 1h: Sem chuva 0 | Fraca <5 | Moderada 5–25 | Forte 25,1–50 | Muito forte >50 (mm/h) */
@@ -24,13 +33,13 @@ export const getRainLevel = (rainfall: number): RainLevel => {
   return rainLevels[4];
 };
 
-/** Níveis para chuva acumulada no período (mm). Critério Debriefing Estágio 3. */
+/** Níveis para chuva acumulada no período (mm). Mesma paleta: Sem Chuva | Fraca | Moderada | Forte | Muito Forte. */
 export const accumulatedRainLevels: RainLevel[] = [
-  { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: '#eceded', bgColor: 'bg-gray-100' },
-  { name: 'nível 1', description: '< 25,4 mm', min: 0.1, max: 25.39, color: '#42b9eb', bgColor: 'bg-blue-100' },
-  { name: 'nível 2', description: '25,4 – 47,0 mm', min: 25.4, max: 46.99, color: '#2f90be', bgColor: 'bg-blue-200' },
-  { name: 'nível 3', description: '47,0 – 69,2 mm', min: 47.0, max: 69.19, color: '#2a688f', bgColor: 'bg-blue-300' },
-  { name: 'nível 4', description: '> 69,2 mm', min: 69.2, max: null, color: '#13335a', bgColor: 'bg-blue-400' },
+  { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-gray-300' },
+  { name: 'fraca', description: '< 25,4 mm', min: 0.1, max: 25.39, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
+  { name: 'moderada', description: '25,4 – 47,0 mm', min: 25.4, max: 46.99, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
+  { name: 'forte', description: '47,0 – 69,2 mm', min: 47.0, max: 69.19, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },
+  { name: 'muito forte', description: '> 69,2 mm', min: 69.2, max: null, color: RAIN_LEVEL_PALETTE[4], bgColor: 'bg-blue-900' },
 ];
 
 /** Retorna nível e cor para chuva acumulada (mm) no período – critério Estágio 3. */

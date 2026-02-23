@@ -20,7 +20,7 @@ import {
   FitCityOnLoad,
 } from './MapControls';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
-import { getAccumulatedRainLevel } from '../utils/rainLevel';
+import { getAccumulatedRainLevel, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
 import 'leaflet/dist/leaflet.css';
 
 // Fix para ícones do Leaflet
@@ -159,14 +159,8 @@ const ZonasPolygons: React.FC<{ zonasData: import('../services/citiesApi').Zonas
   );
 };
 
-// Cor da bolinha por nível de influência 0-4 (mesma paleta dos hexágonos)
-const INFLUENCE_COLORS: Record<0 | 1 | 2 | 3 | 4, string> = {
-  0: '#eceded',
-  1: '#42b9eb',
-  2: '#2f90be',
-  3: '#2a688f',
-  4: '#13335a',
-};
+// Cor da bolinha por nível de influência 0-4 (mesma paleta: 15 min, 1h e acumulado)
+const INFLUENCE_COLORS = RAIN_LEVEL_PALETTE;
 
 // Componente para criar marcadores das estações
 const StationMarkers: React.FC<{
