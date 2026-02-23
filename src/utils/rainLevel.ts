@@ -4,7 +4,7 @@ import { RainLevel } from '../types/rain';
  * Paleta única para 15 min, 1 h e acumulado.
  */
 export const RAIN_LEVEL_PALETTE: Record<0 | 1 | 2 | 3 | 4, string> = {
-  0: '#9CA3AF',  // cinza mais visível (Sem chuva)
+  0: '#E0F2FE',  // azul muito claro – sem chuva (bom contraste em mapa escuro e claro)
   1: '#60A5FA',  // azul bem claro (Fraca)
   2: '#42b9eb',  // era 1 (Moderada)
   3: '#2f90be',  // era 2 (Forte)
@@ -15,7 +15,7 @@ export const RAIN_LEVEL_PALETTE: Record<0 | 1 | 2 | 3 | 4, string> = {
  * Cores das BOLINHAS (e tabela): chuva de 1 HORA (h01). Mesma paleta para 15 min, 1h e acumulado.
  */
 export const rainLevels: RainLevel[] = [
-  { name: 'sem chuva', description: '0,0 mm/h', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-gray-300' },
+  { name: 'sem chuva', description: '0,0 mm/h', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-sky-100' },
   { name: 'chuva fraca', description: '< 5,0 mm/h', min: 0.01, max: 4.99, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
   { name: 'chuva moderada', description: '5,0 – 25,0 mm/h', min: 5.0, max: 25.0, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
   { name: 'chuva forte', description: '25,1 – 50,0 mm/h', min: 25.1, max: 50.0, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },
@@ -35,7 +35,7 @@ export const getRainLevel = (rainfall: number): RainLevel => {
 
 /** Níveis para chuva acumulada no período (mm). Mesma paleta: Sem Chuva | Fraca | Moderada | Forte | Muito Forte. */
 export const accumulatedRainLevels: RainLevel[] = [
-  { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-gray-300' },
+  { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-sky-100' },
   { name: 'fraca', description: '< 25,4 mm', min: 0.1, max: 25.39, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
   { name: 'moderada', description: '25,4 – 47,0 mm', min: 25.4, max: 46.99, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
   { name: 'forte', description: '47,0 – 69,2 mm', min: 47.0, max: 69.19, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },

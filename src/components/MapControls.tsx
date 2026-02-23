@@ -3,6 +3,8 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
+import { getInfluenceLegendItems } from '../utils/influenceTheme';
+import { rainLevels } from '../utils/rainLevel';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -154,11 +156,59 @@ export const MapDataWindowToggle: React.FC<MapDataWindowToggleProps> = ({ value,
           className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
             value === 'both' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
-          title="Mostrar as duas camadas (15 min e 1 h)"
+          title="Zonas = critério 15 min; bolinhas = critério 1 h"
         >
           Ambos
         </button>
       </div>
+      {value === 'both' && (
+        <p className="mt-1.5 text-[10px] text-gray-500 leading-tight">
+          Zonas: 15 min. Bolinhas: 1 h.
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** Legenda compacta do critério em uso (15 min, 1 h ou ambos) conforme "Dados no mapa". */
+interface MapDataWindowLegendProps {
+  value: MapDataWindow;
+}
+
+const legendBoxClass = 'bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 p-2 min-w-0 shrink-0';
+
+export const MapDataWindowLegend: React.FC<MapDataWindowLegendProps> = ({ value }) => {
+  const items15 = getInfluenceLegendItems();
+  const items1h = rainLevels.map((l, i) => ({ value: i as 0 | 1 | 2 | 3 | 4, label: `${l.name} (${l.description})`, color: l.color }));
+
+  const renderStrip = (title: string, items: Array<{ value: number; label: string; color: string }>) => (
+    <div className="mb-1 last:mb-0">
+      <div className="text-[10px] font-semibold text-gray-600 mb-1">{title}</div>
+      <div className="flex flex-col gap-0.5">
+        {items.map(({ value: v, label, color }) => (
+          <div key={v} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded flex-shrink-0 border border-white shadow-sm" style={{ backgroundColor: color }} />
+            <span className="text-[9px] text-gray-700 truncate" title={label}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={legendBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-1.5 text-xs font-semibold text-gray-700">
+        <BarChart3 className="w-3.5 h-3.5" />
+        Legenda
+      </div>
+      {value === '15min' && renderStrip('Critério 15 min (zonas e bolinhas)', items15)}
+      {value === '1h' && renderStrip('Critério 1 h (zonas e bolinhas)', items1h)}
+      {value === 'both' && (
+        <>
+          {renderStrip('Zonas: 15 min', items15)}
+          {renderStrip('Bolinhas: 1 h', items1h)}
+        </>
+      )}
     </div>
   );
 };

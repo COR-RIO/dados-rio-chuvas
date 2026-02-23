@@ -263,6 +263,7 @@ function App() {
                   <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
                   <p>• <strong>Cores de fundo:</strong> cada zona (área de influência) usa a mesma paleta por nível de chuva (sem chuva, fraca, moderada, forte, muito forte).</p>
                   <p>• <strong>Linhas de influência:</strong> contornos que delimitam as zonas no painel do mapa.</p>
+                  <p>• <strong>Dados no mapa = Ambos:</strong> zonas pelo critério 15 min; bolinhas pelo critério 1 h (mesma paleta de cores).</p>
                 </div>
 
                 <div className="space-y-1">

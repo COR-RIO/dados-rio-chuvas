@@ -383,7 +383,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             zonasData={zonasData}
             stations={displayStations}
             mapType={mapType}
-            timeWindow={mapDataWindow === '15min' ? '15min' : '1h'}
+            timeWindow={mapDataWindow === '1h' ? '1h' : '15min'}
             showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
             showInfluenceLines={showInfluenceLines}
           />
