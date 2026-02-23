@@ -170,13 +170,12 @@ interface HistoricalViewModeToggleProps {
   hasAccumulated?: boolean;
 }
 
-/** Toggle para modo histórico: instantâneo (snapshot no horário) ou acumulado no período. */
+/** Toggle para modo histórico: instantâneo (snapshot no horário) ou acumulado no período. Sempre visível no modo histórico para poder escolher e definir De/Até. */
 export const HistoricalViewModeToggle: React.FC<HistoricalViewModeToggleProps> = ({
   value,
   onChange,
-  hasAccumulated = true,
+  hasAccumulated: _hasAccumulated = true,
 }) => {
-  if (!hasAccumulated) return null;
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
       <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
@@ -262,6 +261,9 @@ interface HistoricalTimelineControlProps {
   refreshing?: boolean;
   /** Quando "accumulated", mostra o intervalo em vez do slider de snapshot */
   viewMode?: 'instant' | 'accumulated';
+  /** No modo instantâneo: horário desejado (HH:mm). Só aplicado ao clicar em Aplicar. */
+  desiredAnalysisTime?: string;
+  onDesiredAnalysisTimeChange?: (time: string) => void;
 }
 
 /** Retorna HH:mm a partir de um timestamp ISO. */
@@ -271,33 +273,6 @@ function timeFromIso(isoTs: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/** Encontra o timestamp da timeline mais próximo de (dateYyyyMmDd + timeHhMm). */
-function findClosestTimestamp(
-  timeline: string[],
-  dateYyyyMmDd: string,
-  timeHhMm: string
-): string | null {
-  if (!timeline.length) return null;
-  const [h, m] = timeHhMm.split(':').map(Number);
-  const targetMinutes = (h ?? 0) * 60 + (m ?? 0);
-  const sameDay = timeline.filter((ts) => ts.slice(0, 10) === dateYyyyMmDd);
-  const list = sameDay.length > 0 ? sameDay : timeline;
-  let best = list[0];
-  let bestDiff = Math.abs(
-    new Date(best).getHours() * 60 + new Date(best).getMinutes() - targetMinutes
-  );
-  for (const ts of list) {
-    const diff = Math.abs(
-      new Date(ts).getHours() * 60 + new Date(ts).getMinutes() - targetMinutes
-    );
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = ts;
-    }
-  }
-  return best;
 }
 
 /**
@@ -315,10 +290,12 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   onTimeToChange,
   timeline,
   selectedTimestamp,
-  onTimestampChange,
+  onTimestampChange: _onTimestampChange,
   onApplyFilter,
   refreshing = false,
   viewMode = 'instant',
+  desiredAnalysisTime,
+  onDesiredAnalysisTimeChange,
 }) => {
   const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
   const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
@@ -363,54 +340,76 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         Histórico (GCP)
       </div>
 
-      <p className="text-[10px] text-gray-500 mb-2">Ajuste o intervalo e clique em Aplicar para buscar</p>
+      <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
+        {isAccumulatedView ? (
+          <>
+            <p>Acumulado: use De e Até para o intervalo.</p>
+            <p>Ex.: 09/02/2026 até 10/02/2026 → Aplicar.</p>
+          </>
+        ) : (
+          <>
+            <p>Instantâneo: uma data + horário abaixo.</p>
+            <p>Intervalo De/Até só no modo Acumulado.</p>
+          </>
+        )}
+      </div>
 
       <div className="space-y-2">
         <div>
-          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">De (data)</label>
+          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+            {isAccumulatedView ? 'De (data)' : 'Data'}
+          </label>
           <input
             type="date"
             value={dateValue}
-            onChange={(e) => onDateChange(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              onDateChange(v);
+              if (!isAccumulatedView) onDateToChange?.(v);
+            }}
             disabled={!enabled}
             className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
           />
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Até (data)</label>
-          <input
-            type="date"
-            value={dateToValue ?? dateValue}
-            onChange={(e) => onDateToChange?.(e.target.value)}
-            disabled={!enabled}
-            min={dateValue}
-            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <div>
-            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (de)</label>
-            <input
-              type="time"
-              value={timeFrom}
-              onChange={(e) => onTimeFromChange?.(e.target.value)}
-              disabled={!enabled}
-              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (até)</label>
-            <input
-              type="time"
-              value={timeTo}
-              onChange={(e) => onTimeToChange?.(e.target.value)}
-              disabled={!enabled}
-              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-            />
-          </div>
-        </div>
+        {isAccumulatedView && (
+          <>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Até (data)</label>
+              <input
+                type="date"
+                value={dateToValue ?? dateValue}
+                onChange={(e) => onDateToChange?.(e.target.value)}
+                disabled={!enabled}
+                min={dateValue}
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (de)</label>
+                <input
+                  type="time"
+                  value={timeFrom}
+                  onChange={(e) => onTimeFromChange?.(e.target.value)}
+                  disabled={!enabled}
+                  className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (até)</label>
+                <input
+                  type="time"
+                  value={timeTo}
+                  onChange={(e) => onTimeToChange?.(e.target.value)}
+                  disabled={!enabled}
+                  className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
-      {hasRange && (
+      {hasRange && isAccumulatedView && (
         <div className="mt-2 text-[10px] text-gray-500">
           Período: {dateValue} a {dateToValue}
         </div>
@@ -439,6 +438,7 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
       {enabled && isAccumulatedView && (
         <div className="mt-3 rounded bg-blue-50 border border-blue-200 px-2.5 py-2">
           <p className="text-[11px] font-semibold text-blue-800">Acumulado no período</p>
+          <p className="mt-0.5 text-[10px] text-blue-700">O intervalo De (data) até Até (data) acima só aparece e funciona neste modo.</p>
           <p className="mt-0.5 text-[10px] text-blue-700">{intervalLabel}</p>
           {intervalHoursLabel != null && (
             <p className="mt-0.5 text-[10px] text-blue-600 font-medium">Intervalo: {intervalHoursLabel}</p>
@@ -447,25 +447,28 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         </div>
       )}
 
-      {enabled && !isAccumulatedView && timeline.length > 0 && onTimestampChange && (
+      {enabled && !isAccumulatedView && (
         <div className="mt-3">
-          <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
-            Horário para análise
-          </label>
-          <input
-            type="time"
-            value={currentTs ? timeFromIso(currentTs) : '00:00'}
-            onChange={(e) => {
-              const dateForSnapshot = (currentTs ?? timeline[timeline.length - 1])?.slice(0, 10) ?? dateValue;
-              const closest = findClosestTimestamp(timeline, dateForSnapshot, e.target.value);
-              if (closest) onTimestampChange(closest);
-            }}
-            disabled={!enabled}
-            className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
-          />
-          <div className="mt-1 text-[10px] text-gray-500">
-            {timeline.length} horários no período
+          <p className="text-[10px] text-gray-500 mb-2">Momento fixo: data + horário. Vale ao clicar em Aplicar.</p>
+          <div>
+            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Horário (de)</label>
+            <input
+              type="time"
+              value={desiredAnalysisTime ?? (currentTs ? timeFromIso(currentTs) : '00:00')}
+              onChange={(e) => onDesiredAnalysisTimeChange?.(e.target.value)}
+              disabled={!enabled}
+              className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
+            />
           </div>
+          {timeline.length > 0 ? (
+            <div className="mt-1 text-[10px] text-gray-500">
+              {timeline.length} horários no período
+            </div>
+          ) : (
+            <div className="mt-1 text-[10px] text-gray-500">
+              Data + horário → Aplicar para carregar.
+            </div>
+          )}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -59,6 +59,9 @@ interface LeafletMapProps {
   onApplyHistoricalFilter?: () => void;
   /** Exibe indicador de carregamento no painel histórico */
   historicalRefreshing?: boolean;
+  /** No modo instantâneo: horário desejado (HH:mm). Aplicado só ao clicar em Aplicar. */
+  desiredAnalysisTime?: string;
+  onDesiredAnalysisTimeChange?: (time: string) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -274,6 +277,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onHistoricalViewModeChange,
   onApplyHistoricalFilter,
   historicalRefreshing = false,
+  desiredAnalysisTime,
+  onDesiredAnalysisTimeChange,
 }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
@@ -288,6 +293,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const historicalViewMode = historicalViewModeProp ?? historicalViewModeInternal;
   const setHistoricalViewMode = onHistoricalViewModeChange ?? setHistoricalViewModeInternal;
   const hasAccumulated = stations.some((s) => s.accumulated != null);
+
+  // No modo Instantâneo, manter "Até" igual a "De" para buscar um único dia
+  useEffect(() => {
+    if (historicalViewMode === 'instant' && onHistoricalDateToChange && historicalDateTo !== historicalDate) {
+      onHistoricalDateToChange(historicalDate);
+    }
+  }, [historicalViewMode, historicalDate, historicalDateTo, onHistoricalDateToChange]);
   const displayStations =
     historicalViewMode === 'accumulated' ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
@@ -362,6 +374,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               onApplyFilter={onApplyHistoricalFilter}
               refreshing={historicalRefreshing}
               viewMode={historicalViewMode}
+              desiredAnalysisTime={desiredAnalysisTime}
+              onDesiredAnalysisTimeChange={onDesiredAnalysisTimeChange}
             />
           </>
         ) : (

@@ -1,11 +1,12 @@
 import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
 import { InfluenceLegend } from './components/InfluenceLegend';
-import type { MapTypeId } from './components/mapControlTypes';
+import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
+import { findClosestTimestamp } from './utils/historicalTimestamp';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -16,6 +17,9 @@ function App() {
   const [historicalTimeFrom, setHistoricalTimeFrom] = useState('00:00');
   const [historicalTimeTo, setHistoricalTimeTo] = useState('23:59');
   const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
+  const [desiredAnalysisTime, setDesiredAnalysisTime] = useState<string>('00:00');
+  const [historicalViewMode, setHistoricalViewMode] = useState<HistoricalViewMode>('instant');
+  const pendingApplyTimeRef = useRef<string | null>(null);
   const [mapType, setMapType] = useState<MapTypeId>('rua');
   const {
     stations,
@@ -78,6 +82,40 @@ function App() {
       : 'Alerta Rio (API em tempo real)';
   const titleLabel = isHistoricalMode ? 'Como estava a chuva no horário selecionado?' : 'Onde está chovendo agora?';
 
+  const selectedMoment =
+    isHistoricalMode && (historicalTimestamp ?? activeHistoricalTimestamp)
+      ? (() => {
+          const ts = historicalTimestamp ?? activeHistoricalTimestamp;
+          if (!ts) return null;
+          const d = new Date(ts);
+          if (Number.isNaN(d.getTime())) return null;
+          return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        })()
+      : null;
+
+  // Ao receber nova timeline após Aplicar no Instantâneo: definir timestamp pelo horário desejado e atualizar mapa/tabela com dados do GCP
+  useEffect(() => {
+    if (historicalViewMode !== 'instant' || historicalTimeline.length === 0 || pendingApplyTimeRef.current === null) return;
+    const time = pendingApplyTimeRef.current;
+    pendingApplyTimeRef.current = null;
+    const closest = findClosestTimestamp(historicalTimeline, historicalDate, time);
+    if (closest) {
+      setHistoricalTimestamp(closest);
+      const d = new Date(closest);
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      setDesiredAnalysisTime(`${h}:${m}`);
+    }
+  }, [historicalViewMode, historicalTimeline, historicalDate]);
+
+  const handleApplyHistorical = () => {
+    setHistoricalTimestamp(null);
+    if (historicalViewMode === 'instant') {
+      pendingApplyTimeRef.current = desiredAnalysisTime || '00:00';
+    }
+    refresh();
+  };
+
   return (
     <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
       <div className="relative h-screen w-full overflow-hidden">
@@ -106,7 +144,11 @@ function App() {
           onHistoricalTimestampChange={(ts) => {
             setHistoricalTimestamp(ts);
           }}
-          onApplyHistoricalFilter={refresh}
+          desiredAnalysisTime={desiredAnalysisTime}
+          onDesiredAnalysisTimeChange={setDesiredAnalysisTime}
+          historicalViewMode={historicalViewMode}
+          onHistoricalViewModeChange={setHistoricalViewMode}
+          onApplyHistoricalFilter={handleApplyHistorical}
           historicalRefreshing={refreshing}
         />
 
@@ -116,7 +158,8 @@ function App() {
               <div className="min-w-0">
                 <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${headerTitleClass}`}>{titleLabel}</h1>
                 <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-xs ${headerMetaClass}`}>
-                  {lastUpdate && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
+                  {selectedMoment && <span>Momento dos dados: {selectedMoment}</span>}
+                  {lastUpdate && !selectedMoment && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
                   <span>Estações: {totalStations}</span>
                   <span>Fonte: {sourceLabel}</span>
                   {!useMockDemo && (
@@ -224,7 +267,7 @@ function App() {
 
                 <div className="space-y-1">
                   <p>• <strong>Exemplo do hexágono:</strong> cada célula mostra a influência de chuva da estação mais próxima com base em 15min.</p>
-                  <p>• <strong>Modo Histórico (GCP):</strong> use <strong>De</strong> e <strong>Até</strong> para definir o intervalo (ex.: 09/02/2026 até 10/02/2026) e navegue no timeline.</p>
+                  <p>• <strong>Modo Histórico (GCP):</strong> em <strong>Instantâneo</strong> use uma data e o horário para análise; em <strong>Acumulado no período</strong> aparecem <strong>De</strong> e <strong>Até</strong> para o intervalo (ex.: 09/02/2026 até 10/02/2026).</p>
                 </div>
 
                 <div className="space-y-1">
