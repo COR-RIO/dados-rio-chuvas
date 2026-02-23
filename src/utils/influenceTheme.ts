@@ -1,7 +1,7 @@
 import type { InfluenceLevelValue } from '../types/alertaRio';
 import { RAIN_LEVEL_PALETTE } from './rainLevel';
 
-export type MapVisualType = 'rua' | 'satelite' | 'escuro' | 'terreno';
+export type MapVisualType = 'rua' | 'satelite' | 'escuro';
 
 /** Legenda dos hexágonos: critério oficial em 15 min (mm/15min) – Termos Meteorológicos */
 const LEVEL_TEXT: Record<InfluenceLevelValue, string> = {
@@ -25,7 +25,6 @@ const PALETTES: Record<MapVisualType, Record<InfluenceLevelValue, string>> = {
   rua: HEX_LEVEL_COLORS,
   satelite: HEX_LEVEL_COLORS,
   escuro: HEX_LEVEL_COLORS,
-  terreno: HEX_LEVEL_COLORS,
 };
 
 /** Paleta fixa da legenda do mapa. Hexágonos usam o degradê oficial (15 min). */
@@ -80,15 +79,6 @@ export function getHexOverlayTuning(
   if (mapType === 'satelite') {
     return {
       strokeColor: '#60A5FA',
-      strokeOpacity: HEX_STROKE_OPACITY,
-      weight: HEX_STROKE_WEIGHT,
-      fillOpacity: 0.96,
-    };
-  }
-
-  if (mapType === 'terreno') {
-    return {
-      strokeColor: '#3B82F6',
       strokeOpacity: HEX_STROKE_OPACITY,
       weight: HEX_STROKE_WEIGHT,
       fillOpacity: 0.96,

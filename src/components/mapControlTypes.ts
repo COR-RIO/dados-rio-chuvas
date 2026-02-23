@@ -4,7 +4,7 @@ export type MapDataWindow = '15min' | '1h' | 'both';
 /** No modo histórico: mostrar snapshot no horário ou acumulado no período */
 export type HistoricalViewMode = 'instant' | 'accumulated';
 
-export type MapTypeId = 'rua' | 'satelite' | 'escuro' | 'terreno';
+export type MapTypeId = 'rua' | 'satelite' | 'escuro';
 
 export const MAP_TYPES: Array<{
   id: MapTypeId;
@@ -29,12 +29,6 @@ export const MAP_TYPES: Array<{
     label: 'Escuro',
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-  },
-  {
-    id: 'terreno',
-    label: 'Terreno',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://opentopomap.org/">OpenTopoMap</a>',
   },
 ];
 

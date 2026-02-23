@@ -1,6 +1,6 @@
 # Configuração GCP (BigQuery) – Dados históricos de chuvas
 
-Este projeto usa uma **Netlify Function** para consultar dados históricos de chuvas no **Google BigQuery**, usando o arquivo de credenciais (service account) do GCP.
+Este projeto usa uma **Netlify Function** para consultar dados históricos de chuvas no **Google BigQuery**, usando o arquivo de credenciais (service account) do GCP. No frontend, o **modo Histórico** permite visualizar dados em **Instantâneo** (uma data + horário) ou **Acumulado no período** (intervalo De/Até com mm acumulados por estação).
 
 ## 1. Credenciais
 
