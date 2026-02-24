@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -231,10 +231,30 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
-  const showHexagons = false; // Hexágonos off; cores de fundo vêm das zonas (ZoneRainLayer)
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [showFiltersPanel, setShowFiltersPanel] = useState(true);
+  const showHexagons = false;
+  const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+  const [showSidebar, setShowSidebar] = useState(!isMobileInitial);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(!isMobileInitial);
+  const [isMobileView, setIsMobileView] = useState(isMobileInitial);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => {
+      const mobile = mq.matches;
+      setIsMobileView(mobile);
+      if (mobile) {
+        setShowFiltersPanel(false);
+        setShowSidebar(false);
+      } else {
+        setShowFiltersPanel(true);
+        setShowSidebar(true);
+      }
+    };
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
   const mapDataWindow = mapDataWindowProp ?? mapDataWindowInternal;
   const setMapDataWindow = onMapDataWindowChange ?? setMapDataWindowInternal;
   const [historicalViewModeInternal, setHistoricalViewModeInternal] = useState<HistoricalViewMode>('instant');
@@ -283,82 +303,116 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
-      <div className="absolute top-28 left-3 z-[1200] flex flex-col gap-2 max-h-[calc(100vh-7rem)] overflow-y-auto min-w-[200px] pr-1">
+      {isMobileView && (showFiltersPanel || showSidebar) && (
+        <button
+          type="button"
+          aria-label="Fechar painel"
+          onClick={() => { setShowFiltersPanel(false); setShowSidebar(false); }}
+          className="fixed inset-0 z-[2050] bg-black/50 md:hidden"
+        />
+      )}
+
+      {/* Painel de filtros: no mobile fica ACIMA do header (z 2100); no desktop = sidebar */}
+      <div
+        className={`
+          z-[2100] md:z-[1400] flex flex-col overflow-x-hidden
+          transition-transform duration-300 ease-out
+          fixed left-0 top-0 bottom-0 w-[85vw] max-w-[320px] bg-white/98 shadow-xl border-r border-gray-200
+          md:absolute md:top-28 md:left-3 md:bottom-auto md:max-h-[calc(100vh-7rem)] md:min-w-[200px] md:w-[min(320px,calc(100vw-24px))] md:rounded-lg md:shadow-md md:border md:border-gray-200 md:bg-white/95 md:backdrop-blur
+          ${isMobileView ? (showFiltersPanel ? 'translate-x-0' : '-translate-x-full') : 'md:translate-x-0'}
+        `}
+      >
         {showFiltersPanel ? (
           <>
-            <button
-              type="button"
-              onClick={() => setShowFiltersPanel(false)}
-              className="w-full bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-              title="Ocultar filtros"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Ocultar filtros
-            </button>
-            <MapLayers value={mapType} onChange={onMapTypeChange} />
-            <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
-            <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
-            {historicalMode && (
-              <HistoricalViewModeToggle
-                value={historicalViewMode}
-                onChange={setHistoricalViewMode}
-                hasAccumulated={hasAccumulated}
-              />
+            {isMobileView && (
+              <div className="flex items-center justify-between gap-2 shrink-0 border-b border-gray-200 bg-white px-3 py-2.5">
+                <span className="font-medium text-gray-800 text-sm">Filtros</span>
+                <button type="button" onClick={() => setShowFiltersPanel(false)} className="p-2 -m-2 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Fechar filtros">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             )}
-            <HistoricalTimelineControl
-              enabled={historicalMode}
-              dateValue={historicalDate}
-              onDateChange={onHistoricalDateChange}
-              dateToValue={historicalDateTo ?? historicalDate}
-              onDateToChange={onHistoricalDateToChange ?? (() => {})}
-              timeFrom={historicalTimeFrom}
-              timeTo={historicalTimeTo}
-              onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
-              onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
-              timeline={historicalTimeline}
-              selectedTimestamp={selectedHistoricalTimestamp}
-              onTimestampChange={onHistoricalTimestampChange}
-              onApplyFilter={onApplyHistoricalFilter}
-              refreshing={historicalRefreshing}
-              viewMode={historicalViewMode}
-              desiredAnalysisTime={desiredAnalysisTime}
-              onDesiredAnalysisTimeChange={onDesiredAnalysisTimeChange}
-            />
+            {!isMobileView && (
+              <div className="shrink-0 flex items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2">
+                <span className="text-xs font-semibold text-gray-700">Filtros do mapa</span>
+                <button type="button" onClick={() => setShowFiltersPanel(false)} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100" title="Ocultar filtros">
+                  <ChevronLeft className="w-3.5 h-3.5" /> Ocultar filtros
+                </button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 py-2 flex flex-col gap-2 scroll-touch min-w-0">
+              <MapLayers value={mapType} onChange={onMapTypeChange} />
+              <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
+              <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
+              {historicalMode && (
+                <HistoricalViewModeToggle value={historicalViewMode} onChange={setHistoricalViewMode} hasAccumulated={hasAccumulated} />
+              )}
+              <HistoricalTimelineControl
+                enabled={historicalMode}
+                dateValue={historicalDate}
+                onDateChange={onHistoricalDateChange}
+                dateToValue={historicalDateTo ?? historicalDate}
+                onDateToChange={onHistoricalDateToChange ?? (() => {})}
+                timeFrom={historicalTimeFrom}
+                timeTo={historicalTimeTo}
+                onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
+                onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
+                timeline={historicalTimeline}
+                selectedTimestamp={selectedHistoricalTimestamp}
+                onTimestampChange={onHistoricalTimestampChange}
+                onApplyFilter={onApplyHistoricalFilter}
+                refreshing={historicalRefreshing}
+                viewMode={historicalViewMode}
+                desiredAnalysisTime={desiredAnalysisTime}
+                onDesiredAnalysisTimeChange={onDesiredAnalysisTimeChange}
+              />
+            </div>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={() => setShowFiltersPanel(true)}
-            className="bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-            title="Mostrar filtros"
-          >
-            <ChevronRight className="w-4 h-4" />
-            Mostrar filtros
-          </button>
+          !isMobileView && (
+            <button type="button" onClick={() => setShowFiltersPanel(true)} className="bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2" title="Mostrar filtros">
+              <ChevronRight className="w-4 h-4" /> Mostrar filtros
+            </button>
+          )
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setShowSidebar((v) => !v)}
-        className="absolute top-28 right-3 z-[1300] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-        title={showSidebar ? 'Ocultar tabela' : 'Mostrar tabela'}
-      >
-        {showSidebar ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        {showSidebar ? 'Ocultar dados' : 'Mostrar dados'}
-      </button>
+      {isMobileView && !showFiltersPanel && (
+        <button type="button" onClick={() => setShowFiltersPanel(true)} className="fixed bottom-20 left-3 z-[2050] bg-white shadow-lg rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 md:hidden" title="Abrir filtros">
+          <SlidersHorizontal className="w-5 h-5" /> Filtros
+        </button>
+      )}
 
+      {!isMobileView && (
+        <button type="button" onClick={() => setShowSidebar((v) => !v)} className="absolute top-28 right-3 z-[1300] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2" title={showSidebar ? 'Ocultar tabela' : 'Mostrar tabela'}>
+          {showSidebar ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />} {showSidebar ? 'Ocultar dados' : 'Mostrar dados'}
+        </button>
+      )}
+      {isMobileView && !showSidebar && (
+        <button type="button" onClick={() => setShowSidebar(true)} className="fixed bottom-20 right-3 z-[2050] bg-white shadow-lg rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 md:hidden" title="Abrir tabela de dados">
+          <Table2 className="w-5 h-5" /> Dados
+        </button>
+      )}
+
+      {/* Tabela de dados: no mobile fica ACIMA do header (z 2100); no desktop = sidebar */}
       <div
-        className={`absolute top-40 right-3 bottom-3 z-[1250] w-[min(500px,calc(100vw-24px))] transition-transform duration-300 ${
-          showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
-        }`}
+        className={`
+          z-[2100] md:z-[1400] flex flex-col min-w-0 transition-transform duration-300 ease-out overflow-x-hidden
+          fixed right-0 top-0 bottom-0 w-[92vw] max-w-[420px]
+          md:absolute md:top-40 md:right-3 md:bottom-3 md:w-[min(500px,calc(100vw-24px))]
+          ${isMobileView ? (showSidebar ? 'translate-x-0' : 'translate-x-full') : showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}
+        `}
       >
-        <div className="h-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
-          <RainDataTable
-            stations={stations}
-            embedded
-            showAccumulatedColumn={historicalMode && hasAccumulated}
-          />
+        <div className="h-full min-h-0 overflow-hidden rounded-l-xl border border-gray-200 bg-white shadow-xl flex flex-col md:rounded-xl">
+          {isMobileView && (
+            <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-200 bg-gray-50/80 shrink-0">
+              <span className="font-medium text-gray-800 text-sm truncate min-w-0">Dados das estações</span>
+              <button type="button" onClick={() => setShowSidebar(false)} className="p-2 -m-2 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0" aria-label="Fechar"><X className="w-5 h-5" /></button>
+            </div>
+          )}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-touch min-w-0">
+            <RainDataTable stations={stations} embedded showAccumulatedColumn={historicalMode && hasAccumulated} />
+          </div>
         </div>
       </div>
 

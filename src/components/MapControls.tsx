@@ -600,11 +600,11 @@ export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) 
     <button
       type="button"
       onClick={handleFocus}
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[1400] flex items-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1400] flex items-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors sm:bottom-3 min-w-0 max-w-[calc(100vw-2rem)]"
       title="Ajustar vista para a cidade do Rio inteira"
     >
-      <Map className="w-4 h-4" />
-      Ver cidade inteira
+      <Map className="w-4 h-4 shrink-0" />
+      <span className="truncate">Ver cidade inteira</span>
     </button>
   );
 };

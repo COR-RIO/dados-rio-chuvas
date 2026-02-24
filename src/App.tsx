@@ -152,12 +152,12 @@ function App() {
           historicalRefreshing={refreshing}
         />
 
-        <div className="absolute top-3 left-3 right-3 z-[2000] pointer-events-none">
-          <div className={`pointer-events-auto mx-auto max-w-6xl rounded-2xl border backdrop-blur shadow-lg px-3 py-2 sm:px-4 sm:py-3 ${headerPanelClass}`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${headerTitleClass}`}>{titleLabel}</h1>
-                <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] sm:text-xs ${headerMetaClass}`}>
+        <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
+          <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
+            <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-shrink-0">
+                <h1 className={`text-xs sm:text-base lg:text-lg font-bold leading-tight ${headerTitleClass}`}>{titleLabel}</h1>
+                <div className={`mt-0.5 sm:mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs ${headerMetaClass}`}>
                   {selectedMoment && <span>Momento dos dados: {selectedMoment}</span>}
                   {lastUpdate && !selectedMoment && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
                   <span>Estações: {totalStations}</span>
@@ -187,14 +187,14 @@ function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
                 <button
                   type="button"
                   onClick={() => setUseMockDemo((v) => !v)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonMockClass}`}
+                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonMockClass}`}
                   title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
                 >
-                  <Beaker className="w-4 h-4" />
+                  <Beaker className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   {useMockDemo ? 'Tempo real' : 'Exemplo'}
                 </button>
                 <button
@@ -203,7 +203,7 @@ function App() {
                     setDataMode((m) => (m === 'historical' ? 'auto' : 'historical'));
                     setHistoricalTimestamp(null);
                   }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonHistoricalClass}`}
+                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonHistoricalClass}`}
                   title={isHistoricalMode ? 'Voltar para tempo real/fallback automático' : 'Ativar filtro temporal histórico (GCP)'}
                 >
                   {isHistoricalMode ? 'Tempo real' : 'Histórico'}
@@ -211,18 +211,19 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setIsInfoModalOpen(true)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${headerButtonNeutralClass}`}
+                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                  title="Informações"
                 >
-                  <Info className="w-4 h-4" />
+                  <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   Info
                 </button>
                 <button
                   type="button"
                   onClick={refresh}
                   disabled={loading || refreshing}
-                  className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-yellow-500 px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
                 >
-                  <RefreshCw className={`w-4 h-4 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
                   Atualizar
                 </button>
               </div>
