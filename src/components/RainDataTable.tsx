@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Download } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import { getRainLevel } from '../utils/rainLevel';
+import { exportRainDataTableXlsx } from '../utils/exportXlsx';
 
 interface RainDataTableProps {
   stations: RainStation[];
@@ -73,8 +74,19 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
 
   return (
     <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
-      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200">
+      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-2">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">Dados Pluviométricos</h3>
+        {!embedded && (
+          <button
+            type="button"
+            onClick={() => exportRainDataTableXlsx(stations)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] sm:text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            title="Exportar tabela em XLSX"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar XLSX
+          </button>
+        )}
       </div>
 
       {/* Tabela como antes: colunas Estação | 5m | 15m | 1h | 24h | Acum.; valores alinhados sob cada coluna; scroll horizontal no mobile/tablet */}
