@@ -17,7 +17,9 @@ import {
   HistoricalTimelineControl,
   FocusCityButton,
   FitCityOnLoad,
+  OccurrencesToggle,
 } from './MapControls';
+import { OccurrenceTable } from './OccurrenceTable';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getAccumulatedRainLevel, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
 import 'leaflet/dist/leaflet.css';
@@ -314,6 +316,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
+  const [showOccurrencesOnMap, setShowOccurrencesOnMap] = useState(true);
+  const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
   const [showSidebar, setShowSidebar] = useState(!isMobileInitial);
@@ -427,6 +431,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <MapLayers value={mapType} onChange={onMapTypeChange} />
               <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
+              <OccurrencesToggle value={showOccurrencesOnMap} onChange={setShowOccurrencesOnMap} />
               {historicalMode && (
                 <HistoricalViewModeToggle value={historicalViewMode} onChange={setHistoricalViewMode} hasAccumulated={hasAccumulated} />
               )}
@@ -489,12 +494,59 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <div className="h-full min-h-0 overflow-hidden rounded-l-xl border border-gray-200 bg-white shadow-xl flex flex-col md:rounded-xl">
           {isMobileView && (
             <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-200 bg-gray-50/80 shrink-0">
-              <span className="font-medium text-gray-800 text-sm truncate min-w-0">Dados das estações</span>
-              <button type="button" onClick={() => setShowSidebar(false)} className="p-2 -m-2 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0" aria-label="Fechar"><X className="w-5 h-5" /></button>
+              <span className="font-medium text-gray-800 text-sm truncate min-w-0">
+                {sidebarView === 'stations' ? 'Dados das estações' : 'Ocorrências'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSidebar(false)}
+                className="p-2 -m-2 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-touch min-w-0">
-            <RainDataTable stations={stations} embedded showAccumulatedColumn={historicalMode && hasAccumulated} />
+            <div className="px-3 pt-3 pb-1 border-b border-gray-200 bg-white sticky top-0 z-10">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] text-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setSidebarView('stations')}
+                  className={`px-2.5 py-1 rounded-md font-medium ${
+                    sidebarView === 'stations'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-transparent text-gray-700 hover:bg-white'
+                  }`}
+                >
+                  Estações
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarView('occurrences')}
+                  className={`px-2.5 py-1 rounded-md font-medium ${
+                    sidebarView === 'occurrences'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-transparent text-gray-700 hover:bg-white'
+                  }`}
+                  disabled={!occurrences || occurrences.length === 0}
+                >
+                  Ocorrências
+                </button>
+              </div>
+            </div>
+            <div className="p-3">
+              {sidebarView === 'stations' && (
+                <RainDataTable
+                  stations={stations}
+                  embedded
+                  showAccumulatedColumn={historicalMode && hasAccumulated}
+                />
+              )}
+              {sidebarView === 'occurrences' && (
+                <OccurrenceTable occurrences={occurrences} embedded />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -531,7 +583,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           mapDataWindow={mapDataWindow}
           showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
         />
-        <OccurrenceMarkers occurrences={occurrences} />
+        <OccurrenceMarkers occurrences={showOccurrencesOnMap ? occurrences : undefined} />
       </MapContainer>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3 } from 'lucide-react';
+import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
@@ -110,6 +110,43 @@ export const InfluenceLinesToggle: React.FC<InfluenceLinesToggleProps> = ({ valu
           }`}
         >
           Não
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface OccurrencesToggleProps {
+  value: boolean;
+  onChange: (show: boolean) => void;
+}
+
+/** Controle para mostrar ou ocultar os marcadores de ocorrências no mapa. */
+export const OccurrencesToggle: React.FC<OccurrencesToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Ocorrências georreferenciadas associadas a chuvas fortes.">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Ocorrências no mapa
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Mostrar
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Ocultar
         </button>
       </div>
     </div>
