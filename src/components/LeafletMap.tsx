@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X } from 'lucide-react';
 import { RainStation } from '../types/rain';
+import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
@@ -60,6 +61,8 @@ interface LeafletMapProps {
   /** No modo instantâneo: horário desejado (HH:mm). Aplicado só ao clicar em Aplicar. */
   desiredAnalysisTime?: string;
   onDesiredAnalysisTimeChange?: (time: string) => void;
+  /** Ocorrências filtradas para o período atual, a serem exibidas como marcadores vermelhos. */
+  occurrences?: Occurrence[];
 }
 
 // Componente para criar polígonos dos bairros
@@ -202,6 +205,85 @@ const StationMarkers: React.FC<{
   );
 };
 
+const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrences }) => {
+  if (!occurrences || !occurrences.length) return null;
+
+  const occurrenceIcon = L.divIcon({
+    className: 'custom-occurrence-icon',
+    html: `
+      <div style="
+        width: 14px;
+        height: 14px;
+        background-color: #ef4444;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+      "></div>
+    `,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
+  return (
+    <>
+      {occurrences.map((occ) => {
+        if (occ.latitude == null || occ.longitude == null) return null;
+        const dt =
+          occ.data_hora_abertura ??
+          (occ.data_abertura && occ.hora_abertura
+            ? `${occ.data_abertura} ${occ.hora_abertura}`
+            : occ.data_abertura ?? null);
+
+        return (
+          <Marker
+            key={occ.id_ocorrencia}
+            position={[occ.latitude, occ.longitude]}
+            icon={occurrenceIcon}
+          >
+            <Popup>
+              <div style={{ padding: '10px', fontFamily: 'Arial, sans-serif', minWidth: '220px' }}>
+                <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#b91c1c', fontWeight: 700 }}>
+                  Ocorrência {occ.id_ocorrencia}
+                </h3>
+                {occ.titulo && (
+                  <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#111827', fontWeight: 600 }}>
+                    {occ.titulo}
+                  </p>
+                )}
+                {dt && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
+                    <strong>Data/hora:</strong> {dt}
+                  </p>
+                )}
+                {occ.bairro && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
+                    <strong>Bairro:</strong> {occ.bairro}
+                  </p>
+                )}
+                {occ.criticidade && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
+                    <strong>Criticidade:</strong> {occ.criticidade}
+                  </p>
+                )}
+                {occ.estagio && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
+                    <strong>Estágio:</strong> {occ.estagio}
+                  </p>
+                )}
+                {occ.localizacao && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                    {occ.localizacao}
+                  </p>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+    </>
+  );
+};
+
 // Componente principal
 export const LeafletMap: React.FC<LeafletMapProps> = ({
   stations,
@@ -227,6 +309,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   historicalRefreshing = false,
   desiredAnalysisTime,
   onDesiredAnalysisTimeChange,
+  occurrences,
 }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
@@ -448,6 +531,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           mapDataWindow={mapDataWindow}
           showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
         />
+        <OccurrenceMarkers occurrences={occurrences} />
       </MapContainer>
     </div>
   );

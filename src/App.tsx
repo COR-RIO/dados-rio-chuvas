@@ -7,6 +7,8 @@ import { InfoModal } from './components/InfoModal';
 import { InfluenceLegend } from './components/InfluenceLegend';
 import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
 import { findClosestTimestamp } from './utils/historicalTimestamp';
+import { OCCURRENCES } from './data/occurrences';
+import { filterOccurrencesByRange } from './utils/occurrenceFilter';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -20,6 +22,10 @@ function App() {
   const [desiredAnalysisTime, setDesiredAnalysisTime] = useState<string>('00:00');
   const [historicalViewMode, setHistoricalViewMode] = useState<HistoricalViewMode>('instant');
   const pendingApplyTimeRef = useRef<string | null>(null);
+  const [appliedOccDateFrom, setAppliedOccDateFrom] = useState<string | null>(null);
+  const [appliedOccTimeFrom, setAppliedOccTimeFrom] = useState<string | null>(null);
+  const [appliedOccDateTo, setAppliedOccDateTo] = useState<string | null>(null);
+  const [appliedOccTimeTo, setAppliedOccTimeTo] = useState<string | null>(null);
   const [mapType, setMapType] = useState<MapTypeId>('rua');
   const {
     stations,
@@ -113,8 +119,33 @@ function App() {
     if (historicalViewMode === 'instant') {
       pendingApplyTimeRef.current = desiredAnalysisTime || '00:00';
     }
+    // Atualiza intervalo "efetivo" usado para filtrar ocorrências,
+    // espelhando o mesmo comportamento do filtro histórico de chuva.
+    setAppliedOccDateFrom(historicalDate);
+    setAppliedOccTimeFrom(historicalTimeFrom);
+    setAppliedOccDateTo(historicalDateTo);
+    setAppliedOccTimeTo(historicalTimeTo);
     refresh();
   };
+
+  const filteredOccurrences = (() => {
+    if (!OCCURRENCES.length) return [];
+    if (isHistoricalMode) {
+      const dateFrom = appliedOccDateFrom ?? historicalDate;
+      const timeFrom = appliedOccTimeFrom ?? historicalTimeFrom;
+      const dateTo = appliedOccDateTo ?? historicalDateTo;
+      const timeTo = appliedOccTimeTo ?? historicalTimeTo;
+      return filterOccurrencesByRange(
+        OCCURRENCES,
+        dateFrom,
+        timeFrom,
+        dateTo,
+        timeTo
+      );
+    }
+    // Tempo real: mostra apenas as ocorrências do dia atual
+    return filterOccurrencesByRange(OCCURRENCES, today, '00:00', today, '23:59');
+  })();
 
   return (
     <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
@@ -150,6 +181,7 @@ function App() {
           onHistoricalViewModeChange={setHistoricalViewMode}
           onApplyHistoricalFilter={handleApplyHistorical}
           historicalRefreshing={refreshing}
+          occurrences={filteredOccurrences}
         />
 
         <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
