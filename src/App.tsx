@@ -1,5 +1,5 @@
 import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
@@ -8,7 +8,7 @@ import { InfluenceLegend } from './components/InfluenceLegend';
 import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
 import { findClosestTimestamp } from './utils/historicalTimestamp';
 import { OCCURRENCES } from './data/occurrences';
-import { filterOccurrencesByRange } from './utils/occurrenceFilter';
+import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -125,26 +125,53 @@ function App() {
     setAppliedOccTimeFrom(historicalTimeFrom);
     setAppliedOccDateTo(historicalDateTo);
     setAppliedOccTimeTo(historicalTimeTo);
+    // Aplicar os filtros pendentes de ocorrências
+    setAppliedOccTextFilter(pendingOccTextFilter);
+    setAppliedOccCategoryFilter(pendingOccCategoryFilter);
+    setAppliedShowOccurrences(pendingShowOccurrences);
     refresh();
   };
+  const [pendingShowOccurrences, setPendingShowOccurrences] = useState(true);
+  const [appliedShowOccurrences, setAppliedShowOccurrences] = useState(false);
+  const [pendingOccTextFilter, setPendingOccTextFilter] = useState<string>('');
+  const [appliedOccTextFilter, setAppliedOccTextFilter] = useState<string>('');
+  const [pendingOccCategoryFilter, setPendingOccCategoryFilter] = useState<string[]>([]);
+  const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[]>([]);
+  const availableOccCategories = useMemo(() => {
+    const cats = new Set<string>();
+    OCCURRENCES.forEach((o) => {
+      if (o.pop) cats.add(o.pop);
+    });
+    return Array.from(cats).sort();
+  }, []);
 
   const filteredOccurrences = (() => {
     if (!OCCURRENCES.length) return [];
+    let occs: typeof OCCURRENCES = [] as any;
     if (isHistoricalMode) {
       const dateFrom = appliedOccDateFrom ?? historicalDate;
       const timeFrom = appliedOccTimeFrom ?? historicalTimeFrom;
       const dateTo = appliedOccDateTo ?? historicalDateTo;
       const timeTo = appliedOccTimeTo ?? historicalTimeTo;
-      return filterOccurrencesByRange(
+      occs = filterOccurrencesByRange(
         OCCURRENCES,
         dateFrom,
         timeFrom,
         dateTo,
         timeTo
       );
+    } else {
+      // Tempo real: mostra apenas as ocorrências do dia atual
+      occs = filterOccurrencesByRange(OCCURRENCES, today, '00:00', today, '23:59');
     }
-    // Tempo real: mostra apenas as ocorrências do dia atual
-    return filterOccurrencesByRange(OCCURRENCES, today, '00:00', today, '23:59');
+
+    // Aplicar filtro por categoria (POP)
+    if (appliedOccCategoryFilter.length > 0) {
+      occs = occs.filter((o) => appliedOccCategoryFilter.includes(o.pop ?? ''));
+    }
+    // Aplicar filtro por texto (ex: "bolsão d'água")
+    const final = filterOccurrencesByText(occs, appliedOccTextFilter);
+    return final;
   })();
 
   return (
@@ -182,6 +209,14 @@ function App() {
           onApplyHistoricalFilter={handleApplyHistorical}
           historicalRefreshing={refreshing}
           occurrences={filteredOccurrences}
+          showOccurrences={pendingShowOccurrences}
+          onShowOccurrencesChange={setPendingShowOccurrences}
+          appliedShowOccurrences={appliedShowOccurrences}
+          occurrenceTextFilter={pendingOccTextFilter}
+          onOccurrenceTextFilterChange={setPendingOccTextFilter}
+          occurrenceCategoryFilter={pendingOccCategoryFilter}
+          onOccurrenceCategoryFilterChange={setPendingOccCategoryFilter}
+          availableOccurrenceCategories={availableOccCategories}
         />
 
         <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">

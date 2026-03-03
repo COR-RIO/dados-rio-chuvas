@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle } from 'lucide-react';
+import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2 } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
@@ -121,6 +121,11 @@ interface OccurrencesToggleProps {
   onChange: (show: boolean) => void;
 }
 
+interface ResizableToggleProps {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}
+
 /** Controle para mostrar ou ocultar os marcadores de ocorrências no mapa. */
 export const OccurrencesToggle: React.FC<OccurrencesToggleProps> = ({ value, onChange }) => {
   return (
@@ -153,6 +158,36 @@ export const OccurrencesToggle: React.FC<OccurrencesToggleProps> = ({ value, onC
   );
 };
 
+export const ResizableToggle: React.FC<ResizableToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Ativa largura ajustável para o painel de ocorrências (fixo à direita).">
+        <Maximize2 className="w-3.5 h-3.5" />
+        Tabela redimensionável
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Sim
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Não
+        </button>
+      </div>
+    </div>
+  );
+};
 interface MapDataWindowToggleProps {
   value: MapDataWindow;
   onChange: (v: MapDataWindow) => void;
@@ -643,5 +678,72 @@ export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) 
       <Map className="w-4 h-4 shrink-0" />
       <span className="truncate">Ver cidade inteira</span>
     </button>
+  );
+};
+
+interface OccurrenceFiltersProps {
+  textFilter: string;
+  onTextFilterChange: (text: string) => void;
+  categoryFilter: string[];
+  onCategoryFilterChange: (categories: string[]) => void;
+  availableCategories: string[];
+}
+
+/** Controle para filtrar ocorrências por texto e categoria (POP). */
+export const OccurrenceFilters: React.FC<OccurrenceFiltersProps> = ({
+  textFilter,
+  onTextFilterChange,
+  categoryFilter,
+  onCategoryFilterChange,
+  availableCategories,
+}) => {
+  const handleCategoryToggle = (category: string) => {
+    if (categoryFilter.includes(category)) {
+      onCategoryFilterChange(categoryFilter.filter((c) => c !== category));
+    } else {
+      onCategoryFilterChange([...categoryFilter, category]);
+    }
+  };
+
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Filtrar ocorrências
+      </div>
+      <div className="flex flex-col gap-2">
+        {/* Filtro por texto */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-600 font-medium">Buscar por tipo:</label>
+          <input
+            type="text"
+            placeholder="Ex: bolsão, alagamento"
+            value={textFilter}
+            onChange={(e) => onTextFilterChange(e.target.value)}
+            className="px-2 py-1.5 rounded text-xs border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Filtro por categoria */}
+        {availableCategories.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-600 font-medium">Categorias (POP):</label>
+            <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1">
+              {availableCategories.map((category) => (
+                <label key={category} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={categoryFilter.includes(category)}
+                    onChange={() => handleCategoryToggle(category)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-gray-700 text-ellipsis overflow-hidden">{category}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

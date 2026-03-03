@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X } from 'lucide-react';
@@ -18,6 +18,7 @@ import {
   FocusCityButton,
   FitCityOnLoad,
   OccurrencesToggle,
+  OccurrenceFilters,
 } from './MapControls';
 import { OccurrenceTable } from './OccurrenceTable';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
@@ -65,6 +66,19 @@ interface LeafletMapProps {
   onDesiredAnalysisTimeChange?: (time: string) => void;
   /** Ocorrências filtradas para o período atual, a serem exibidas como marcadores vermelhos. */
   occurrences?: Occurrence[];
+  /** Se o usuário quer ver ocorrências (toggle state, pendente até Aplicar) */
+  showOccurrences?: boolean;
+  onShowOccurrencesChange?: (show: boolean) => void;
+  /** Se as ocorrências devem realmente ser renderizadas (aplicado após clicar Aplicar) */
+  appliedShowOccurrences?: boolean;
+  /** Filtro de texto para ocorrências (pendente até clicar em Aplicar) */
+  occurrenceTextFilter?: string;
+  onOccurrenceTextFilterChange?: (text: string) => void;
+  /** Filtro de categorias para ocorrências (pendente até clicar em Aplicar) */
+  occurrenceCategoryFilter?: string[];
+  onOccurrenceCategoryFilterChange?: (categories: string[]) => void;
+  /** Categorias disponíveis para filtro de ocorrências */
+  availableOccurrenceCategories?: string[];
 }
 
 // Componente para criar polígonos dos bairros
@@ -228,7 +242,7 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
 
   return (
     <>
-      {occurrences.map((occ) => {
+      {occurrences.map((occ, index) => {
         if (occ.latitude == null || occ.longitude == null) return null;
         const dt =
           occ.data_hora_abertura ??
@@ -238,7 +252,7 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
 
         return (
           <Marker
-            key={occ.id_ocorrencia}
+            key={`${occ.id_ocorrencia}-${index}`}
             position={[occ.latitude, occ.longitude]}
             icon={occurrenceIcon}
           >
@@ -312,11 +326,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   desiredAnalysisTime,
   onDesiredAnalysisTimeChange,
   occurrences,
+  showOccurrences,
+  onShowOccurrencesChange,
+  appliedShowOccurrences,
+  occurrenceTextFilter,
+  onOccurrenceTextFilterChange,
+  occurrenceCategoryFilter,
+  onOccurrenceCategoryFilterChange,
+  availableOccurrenceCategories,
 }) => {
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
-  const [showOccurrencesOnMap, setShowOccurrencesOnMap] = useState(true);
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -342,12 +363,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
+
   const mapDataWindow = mapDataWindowProp ?? mapDataWindowInternal;
   const setMapDataWindow = onMapDataWindowChange ?? setMapDataWindowInternal;
   const [historicalViewModeInternal, setHistoricalViewModeInternal] = useState<HistoricalViewMode>('instant');
   const historicalViewMode = historicalViewModeProp ?? historicalViewModeInternal;
   const setHistoricalViewMode = onHistoricalViewModeChange ?? setHistoricalViewModeInternal;
   const hasAccumulated = stations.some((s) => s.accumulated != null);
+
 
   // No modo Instantâneo, manter "Até" igual a "De" para buscar um único dia
   useEffect(() => {
@@ -431,7 +454,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <MapLayers value={mapType} onChange={onMapTypeChange} />
               <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
-              <OccurrencesToggle value={showOccurrencesOnMap} onChange={setShowOccurrencesOnMap} />
+              <OccurrencesToggle value={showOccurrences ?? true} onChange={onShowOccurrencesChange ?? (() => {})} />
+              {(showOccurrences ?? true) && (
+                <OccurrenceFilters
+                  textFilter={occurrenceTextFilter ?? ''}
+                  onTextFilterChange={onOccurrenceTextFilterChange ?? (() => {})}
+                  categoryFilter={occurrenceCategoryFilter ?? []}
+                  onCategoryFilterChange={onOccurrenceCategoryFilterChange ?? (() => {})}
+                  availableCategories={availableOccurrenceCategories ?? []}
+                />
+              )}
               {historicalMode && (
                 <HistoricalViewModeToggle value={historicalViewMode} onChange={setHistoricalViewMode} hasAccumulated={hasAccumulated} />
               )}
@@ -583,7 +615,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           mapDataWindow={mapDataWindow}
           showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
         />
-        <OccurrenceMarkers occurrences={showOccurrencesOnMap ? occurrences : undefined} />
+        <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? true) ? occurrences : undefined} />
       </MapContainer>
     </div>
   );

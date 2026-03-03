@@ -12,7 +12,12 @@ type SortField =
   | 'bairro'
   | 'criticidade'
   | 'estagio'
-  | 'pluviometro_estacao';
+  | 'pluviometro_estacao'
+  | 'titulo'
+  | 'localizacao'
+  | 'sentido'
+  | 'ap'
+  | 'agencias_acionadas';
 type SortDirection = 'asc' | 'desc';
 
 function getOccurrenceDateTime(occ: Occurrence): string {
@@ -66,6 +71,26 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
           aVal = a.pluviometro_estacao ?? '';
           bVal = b.pluviometro_estacao ?? '';
           break;
+        case 'titulo':
+          aVal = a.titulo ?? '';
+          bVal = b.titulo ?? '';
+          break;
+        case 'localizacao':
+          aVal = a.localizacao ?? '';
+          bVal = b.localizacao ?? '';
+          break;
+        case 'sentido':
+          aVal = a.sentido ?? '';
+          bVal = b.sentido ?? '';
+          break;
+        case 'ap':
+          aVal = a.ap ?? '';
+          bVal = b.ap ?? '';
+          break;
+        case 'agencias_acionadas':
+          aVal = a.agencias_acionadas ?? '';
+          bVal = b.agencias_acionadas ?? '';
+          break;
         default:
           return 0;
       }
@@ -106,12 +131,14 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
       <div className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}>
         <table className="w-full min-w-[520px] table-fixed">
           <colgroup>
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '12%' }} />
             <col style={{ width: '10%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '18%' }} />
+            <col style={{ width: '10%' }} />
             <col style={{ width: '16%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '22%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '18%' }} />
           </colgroup>
           <thead className="bg-gray-50">
             <tr>

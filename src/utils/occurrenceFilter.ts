@@ -50,3 +50,14 @@ export function filterOccurrencesByRange(
   });
 }
 
+/** Filtra ocorrências por um termo de busca em campos relevantes (título, localização, bairro, criticidade, estagio). */
+export function filterOccurrencesByText(occurrences: Occurrence[], term: string | null | undefined): Occurrence[] {
+  if (!term) return occurrences;
+  const t = term.trim().toLowerCase();
+  if (!t) return occurrences;
+  return occurrences.filter((occ) => {
+    const fields = [occ.titulo, occ.localizacao, occ.bairro, occ.criticidade, occ.estagio, occ.pop, occ.ponto_rio_aguas];
+    return fields.some((f) => (f ?? '').toLowerCase().includes(t));
+  });
+}
+
