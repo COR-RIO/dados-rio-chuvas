@@ -60,52 +60,99 @@ function App() {
   });
   const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
 
-  // During playback (rain or both), compute PROGRESSIVE accumulated per station up to current frame.
-  // Matches backend logic: group readings into 1-hour buckets, take the LAST h01 per bucket per station.
-  // This avoids 4x overcounting when frames arrive every 15 min.
-  const stations: RainStation[] = useMemo(() => {
-    if (isPlaying && (playbackMode === 'rain' || playbackMode === 'both') && isHistoricalMode) {
-      const currentTs = historicalTimeline[playingIndex];
-      if (!currentTs) return rawStations;
-      const currentFrame = stationsByTimestamp[currentTs];
-      if (!currentFrame || currentFrame.length === 0) return rawStations;
+  // 1. Determine the start index for accumulation based on the filter (exactly what the user selected)
+  // Matching GCP Query logic: SUM(COALESCE(m05, 0)) FROM start TO end
+  const intervalStartIndex = useMemo(() => {
+    if (historicalTimeline.length === 0) return 0;
+    const [hFrom, mFrom] = (historicalTimeFrom || '00:00').split(':').map(Number);
+    const [yFrom, moFrom, dFrom] = historicalDate.split('-').map(Number);
+    const startMs = new Date(yFrom, moFrom - 1, dFrom, hFrom ?? 0, mFrom ?? 0, 0).getTime();
+    // Find first frame >= filter start
+    const idx = historicalTimeline.findIndex((ts) => new Date(ts).getTime() >= startMs);
+    return idx >= 0 ? idx : 0;
+  }, [historicalTimeline, historicalTimeFrom, historicalDate]);
 
-      const HOUR_MS = 60 * 60 * 1000;
-      // stationId -> { hourBucketKey -> lastH01 }
-      const buckets: Record<string, Record<string, number>> = {};
+  // 2. Pre-calculate progressive accumulation for all frames in the timeline
+  // This yields a lookup map: playingIndex -> { stationId -> accumulatedValue }
+  const progressiveAccumulationMap = useMemo(() => {
+    if (!isHistoricalMode || historicalTimeline.length === 0) return {};
 
-      for (let i = 0; i <= playingIndex; i++) {
-        const ts = historicalTimeline[i];
-        if (!ts) continue;
-        const frame = stationsByTimestamp[ts];
-        if (!frame) continue;
-        const tMs = new Date(ts).getTime();
-        const hourKey = String(Math.floor(tMs / HOUR_MS)); // one key per 1-hour window
+    const resultMap: Record<number, Record<string, number>> = {};
+    const runningSums: Record<string, number> = {};
 
-        for (const s of frame) {
-          if (!buckets[s.id]) buckets[s.id] = {};
-          // overwrite: latest reading in this bucket wins (same as backend)
-          buckets[s.id][hourKey] = Math.max(0, s.data.h01 ?? 0);
+    for (let i = 0; i < historicalTimeline.length; i++) {
+      if (i < intervalStartIndex) {
+        // Frames before the filter start have 0 accumulation
+        resultMap[i] = {};
+        continue;
+      }
+
+      const ts = historicalTimeline[i];
+      const frameData = stationsByTimestamp[ts];
+
+      if (frameData) {
+        for (const s of frameData) {
+          if (i === intervalStartIndex) {
+            runningSums[s.id] = 0;
+          } else {
+            // Priority 1: m05 (Matches user's current GCP logic)
+            // Priority 2: m15 (Fallback for legacy data)
+            // Note: We only use m15 as a "last 15m" increment if the gap is >= 15m or m05 is strictly missing/0
+            const hasM05 = s.data.m05 !== undefined && s.data.m05 !== null && s.data.m05 > 0;
+            const increment = hasM05 ? s.data.m05 : (s.data.m15 || 0);
+
+            // To be perfectly safe: if we are using m15 but frames come every 5 mins, we'd overcount.
+            // But usually, m05 is present if the frequency is 5 mins.
+            runningSums[s.id] = (runningSums[s.id] || 0) + increment;
+          }
         }
       }
+      // Save a copy of the current state of sums for this frame
+      resultMap[i] = { ...runningSums };
+    }
+    return resultMap;
+  }, [isHistoricalMode, historicalTimeline, stationsByTimestamp, intervalStartIndex]);
 
-      // Sum one h01 per hour bucket per station
-      const runningSum: Record<string, number> = {};
-      for (const [stationId, hourMap] of Object.entries(buckets)) {
-        runningSum[stationId] = Object.values(hourMap).reduce((a, b) => a + b, 0);
+  // 3. Update stations periodically during playback with the correct progressive accumulation
+  const stations: RainStation[] = useMemo(() => {
+    // We use the progressive values if playing OR if a specific historical timestamp is selected manually
+    const showProgressive = isHistoricalMode && (isPlaying || historicalTimestamp);
+
+    if (showProgressive && (playbackMode === 'rain' || playbackMode === 'both')) {
+      // If playing, use playingIndex. If stopped/manual, find index of historicalTimestamp
+      let activeIndex = playingIndex;
+      if (!isPlaying && historicalTimestamp) {
+        const found = historicalTimeline.indexOf(historicalTimestamp);
+        if (found >= 0) activeIndex = found;
       }
+
+      const currentTs = historicalTimeline[activeIndex];
+      const currentFrame = currentTs ? stationsByTimestamp[currentTs] : null;
+      if (!currentFrame) return rawStations;
+
+      const accValues = progressiveAccumulationMap[activeIndex] || {};
 
       return currentFrame.map((s) => ({
         ...s,
         accumulated: {
           mm_15min: s.accumulated?.mm_15min ?? 0,
           mm_1h: s.accumulated?.mm_1h ?? 0,
-          mm_accumulated: Math.round((runningSum[s.id] ?? 0) * 100) / 100,
+          mm_accumulated: Math.round((accValues[s.id] ?? 0) * 100) / 100,
         },
       }));
     }
     return rawStations;
-  }, [isPlaying, playbackMode, playingIndex, historicalTimeline, stationsByTimestamp, rawStations, isHistoricalMode]);
+  }, [
+    isPlaying,
+    playbackMode,
+    playingIndex,
+    historicalTimeline,
+    stationsByTimestamp,
+    rawStations,
+    isHistoricalMode,
+    progressiveAccumulationMap,
+    historicalTimestamp
+  ]);
 
 
 

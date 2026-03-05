@@ -232,15 +232,31 @@ function toIsoTimestamp(record: HistoricalRainRecord): string {
     if (parsed) return parsed;
   }
 
-  const raw = record.read_at || record.timestamp || record.dia || record.datetime || record.date_time;
+  // Prioritize dia_utc (GCP field) and then other common fields
+  const raw = record.dia_utc || record.read_at || record.timestamp || record.dia || record.datetime || record.date_time;
+
   if (typeof raw === 'string') {
-    const parsed = new Date(raw);
+    let ts = raw.trim();
+
+    // Force UTC parsing for typical BigQuery date strings (e.g. "2026-02-09 14:00:00")
+    // If it doesn't have a timezone indicator (Z or offset) and looks like a date, append Z.
+    const hasTimezone = ts.includes('Z') || ts.match(/[+-]\d{2}(:?\d{2})?$/);
+    if (!hasTimezone && ts.match(/^\d{4}-\d{2}-\d{2}/)) {
+      // Convert space to T and append Z to ensure UTC parsing in all browsers
+      ts = ts.replace(' ', 'T');
+      if (!ts.includes('T')) ts += 'T00:00:00';
+      ts += 'Z';
+    }
+
+    const parsed = new Date(ts);
     if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
   }
-  if (raw && typeof raw === 'object' && 'value' in raw && typeof raw.value === 'string') {
-    const parsed = new Date(raw.value);
+
+  if (raw && typeof raw === 'object' && 'value' in (raw as any) && typeof (raw as any).value === 'string') {
+    const parsed = new Date((raw as any).value);
     if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
   }
+
   return new Date().toISOString();
 }
 
@@ -371,11 +387,8 @@ function parseIntervalBounds(params: HistoricalRainParams): { start: Date; end: 
 }
 
 /**
- * Calcula acumulado por estação no intervalo, sem duplicar:
- * - mm_15min: uma leitura m15 por janela de 15 min no intervalo inteiro.
- * - mm_1h: uma leitura h01 por hora no intervalo inteiro.
- * - mm_accumulated: "inteligente" — horas inteiras com h01 (uma por hora) + restante com m15 (janelas de 15 min).
- *   Ex.: 4h → 4×h01. 8h37min → 8×h01 + 2×m15 (30 min do restante; os 7 min não entram para não sobrepor).
+ * Calcula acumulado por estação no intervalo, seguindo a lógica da query base do GCP:
+ * SUM(COALESCE(m05, 0)) AS chuva_acumulada_mm
  */
 function computeAccumulatedPerStation(
   rows: HistoricalRainRecord[],
@@ -384,99 +397,38 @@ function computeAccumulatedPerStation(
   toStationIdFromRecord: (record: HistoricalRainRecord, index: number) => string
 ): Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }> {
   const result = new Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }>();
-  const byStation = new Map<string, Array<{ read_at: Date; m15: number; h01: number }>>();
+
+  // stationId -> sums
+  const sums15 = new Map<string, number>();
+  const sums1h = new Map<string, number>();
+  const sums05 = new Map<string, number>();
 
   rows.forEach((record, index) => {
     const id = toStationIdFromRecord(record, index);
     const readAt = new Date(toIsoTimestamp(record));
     if (Number.isNaN(readAt.getTime())) return;
+
+    // Check if within the interval
+    if (readAt.getTime() < intervalStart.getTime() || readAt.getTime() > intervalEnd.getTime()) return;
+
+    const m05 = Math.max(0, pickNumber(record, ['m05', 'rain_5m'], 0));
     const m15 = Math.max(0, pickNumber(record, ['m15', 'rain_15m'], 0));
     const h01 = Math.max(0, pickNumber(record, ['h01', 'rain_1h', 'precipitation_mm'], 0));
 
-    let list = byStation.get(id);
-    if (!list) {
-      list = [];
-      byStation.set(id, list);
-    }
-    list.push({ read_at: readAt, m15, h01 });
+    // Lógica de acumulado: Prioridade m05 (Query GCP), fallback m15 (Dados Legados)
+    const increment = m05 > 0 ? m05 : m15;
+
+    sums05.set(id, (sums05.get(id) || 0) + increment);
+    sums15.set(id, (sums15.get(id) || 0) + m15);
+    sums1h.set(id, (sums1h.get(id) || 0) + h01);
   });
 
-  const ms15 = 15 * 60 * 1000;
-  const ms1h = 60 * 60 * 1000;
-  const startMs = intervalStart.getTime();
-  const endMs = intervalEnd.getTime();
-
-  byStation.forEach((list, stationId) => {
-    list.sort((a, b) => a.read_at.getTime() - b.read_at.getTime());
-
-    let sum15 = 0;
-    let sum1h = 0;
-
-    // Janelas de 15 min (para mm_15min)
-    const firstBucketEnd15 = Math.ceil(startMs / ms15) * ms15;
-    for (let T = firstBucketEnd15; T <= endMs; T += ms15) {
-      const bucketEnd = new Date(T);
-      const bucketStart = new Date(T - ms15);
-      const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
-      if (inBucket.length === 0) continue;
-      const best = inBucket[inBucket.length - 1];
-      sum15 += best.m15;
-    }
-
-    // Janelas de 1 h (para mm_1h)
-    const firstBucketEnd1h = Math.ceil(startMs / ms1h) * ms1h;
-    for (let T = firstBucketEnd1h; T <= endMs; T += ms1h) {
-      const bucketEnd = new Date(T);
-      const bucketStart = new Date(T - ms1h);
-      const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
-      if (inBucket.length === 0) continue;
-      const best = inBucket[inBucket.length - 1];
-      sum1h += best.h01;
-    }
-
-    // Acumulado inteligente: horas inteiras com h01 + restante com m15 (sem sobrepor)
-    let sumAccumulated = 0;
-    const firstHourEnd = Math.ceil(startMs / ms1h) * ms1h;
-    if (firstHourEnd <= endMs) {
-      let lastHourBoundary = firstHourEnd - ms1h; // último limite de hora considerado
-      for (let T = firstHourEnd; T <= endMs; T += ms1h) {
-        const bucketEnd = new Date(T);
-        const bucketStart = new Date(T - ms1h);
-        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
-        if (inBucket.length > 0) {
-          const best = inBucket[inBucket.length - 1];
-          sumAccumulated += best.h01;
-        }
-        lastHourBoundary = T;
-      }
-      // Restante após a última hora cheia: só janelas de 15 min completas (sem sobrepor)
-      for (let T = lastHourBoundary + ms15; T <= endMs; T += ms15) {
-        const bucketEnd = new Date(T);
-        const bucketStart = new Date(T - ms15);
-        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
-        if (inBucket.length > 0) {
-          const best = inBucket[inBucket.length - 1];
-          sumAccumulated += best.m15;
-        }
-      }
-    } else {
-      // Intervalo menor que 1 h: só janelas de 15 min
-      const first15 = Math.ceil(startMs / ms15) * ms15;
-      for (let T = first15; T <= endMs; T += ms15) {
-        const bucketEnd = new Date(T);
-        const bucketStart = new Date(T - ms15);
-        const inBucket = list.filter((r) => r.read_at.getTime() > bucketStart.getTime() && r.read_at.getTime() <= bucketEnd.getTime());
-        if (inBucket.length > 0) {
-          const best = inBucket[inBucket.length - 1];
-          sumAccumulated += best.m15;
-        }
-      }
-    }
-
+  sums05.forEach((val, stationId) => {
     result.set(stationId, {
-      mm_15min: Math.round(sum15 * 100) / 100,
-      mm_1h: Math.round(sum1h * 100) / 100,
-      mm_accumulated: Math.round(sumAccumulated * 100) / 100,
+      mm_15min: Math.round((sums15.get(stationId) ?? 0) * 100) / 100,
+      mm_1h: Math.round((sums1h.get(stationId) ?? 0) * 100) / 100,
+      // mm_accumulated agora é baseado no somatório de m05 solicitado pelo usuário
+      mm_accumulated: Math.round(val * 100) / 100,
     });
   });
 
@@ -626,10 +578,10 @@ export async function fetchHistoricalRainByIntervals(
     const dateLabel =
       d && m && y
         ? new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10)).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          })
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
         : dateKey;
 
     intervals.push({
