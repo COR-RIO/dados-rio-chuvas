@@ -23,6 +23,7 @@ import {
 import { OccurrenceTable } from './OccurrenceTable';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getAccumulatedRainLevel, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
+import { TimelinePlayerControl } from './MapControls/TimelinePlayerControl';
 import 'leaflet/dist/leaflet.css';
 
 // Fix para ícones do Leaflet
@@ -79,6 +80,15 @@ interface LeafletMapProps {
   onOccurrenceCategoryFilterChange?: (categories: string[]) => void;
   /** Categorias disponíveis para filtro de ocorrências */
   availableOccurrenceCategories?: string[];
+  // --- Timeline Player ---
+  isPlaying?: boolean;
+  playingIndex?: number;
+  onPlayingIndexChange?: (i: number) => void;
+  onPlayPause?: (playing: boolean) => void;
+  playbackMode?: 'rain' | 'occurrences' | 'both';
+  onPlaybackModeChange?: (mode: 'rain' | 'occurrences' | 'both') => void;
+  playbackSpeed?: number;
+  onPlaybackSpeedChange?: (speed: number) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -334,7 +344,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   occurrenceCategoryFilter,
   onOccurrenceCategoryFilterChange,
   availableOccurrenceCategories,
+  isPlaying = false,
+  playingIndex = 0,
+  onPlayingIndexChange,
+  onPlayPause,
+  playbackMode = 'both',
+  onPlaybackModeChange,
+  playbackSpeed = 1000,
+  onPlaybackSpeedChange,
 }) => {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
@@ -380,7 +399,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   }, [historicalViewMode, historicalDate, historicalDateTo, onHistoricalDateToChange]);
   const displayStations =
-    historicalViewMode === 'accumulated' ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
+    (historicalViewMode === 'accumulated' || isPlaying) ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
@@ -413,7 +432,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
+    <div ref={mapContainerRef} className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
       {isMobileView && (showFiltersPanel || showSidebar) && (
         <button
           type="button"
@@ -629,7 +648,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             stations={displayStations}
             mapType={mapType}
             timeWindow={mapDataWindow === '1h' ? '1h' : '15min'}
-            showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+            showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated) || isPlaying}
             showInfluenceLines={showInfluenceLines}
           />
         )}
@@ -637,10 +656,25 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <StationMarkers
           stations={stations}
           mapDataWindow={mapDataWindow}
-          showAccumulated={historicalMode && historicalViewMode === 'accumulated' && hasAccumulated}
+          showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated) || isPlaying}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? true) ? occurrences : undefined} />
       </MapContainer>
+
+      {/* Timeline Player - visible when data is loaded in historical mode */}
+      {historicalMode && historicalTimeline.length > 0 && onPlayPause && onPlayingIndexChange && onPlaybackModeChange && onPlaybackSpeedChange && (
+        <TimelinePlayerControl
+          timeline={historicalTimeline}
+          playingIndex={playingIndex}
+          onIndexChange={onPlayingIndexChange}
+          isPlaying={isPlaying}
+          onPlayPause={onPlayPause}
+          playbackMode={playbackMode}
+          onPlaybackModeChange={onPlaybackModeChange}
+          playbackSpeed={playbackSpeed}
+          onPlaybackSpeedChange={onPlaybackSpeedChange}
+        />
+      )}
     </div>
   );
 };

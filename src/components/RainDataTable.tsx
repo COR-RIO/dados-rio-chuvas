@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronUp, ChevronDown, Download } from 'lucide-react';
 import { RainStation } from '../types/rain';
-import { getRainLevel } from '../utils/rainLevel';
+import { getRainLevel, getAccumulatedRainLevel } from '../utils/rainLevel';
 import { exportRainDataTableXlsx } from '../utils/exportXlsx';
 
 interface RainDataTableProps {
@@ -194,7 +194,9 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
           </thead>
           <tbody className="divide-y divide-gray-200">
             {sortedStations.map((station) => {
-              const rainLevel = getRainLevel(station.data.h01);
+              const rainLevel = showAccumulatedColumn
+                ? getAccumulatedRainLevel(station.accumulated?.mm_accumulated ?? 0)
+                : getRainLevel(station.data.h01);
               const isHighRainfall = station.data.m05 > 0 || station.data.m15 > 0 || station.data.h01 > 0;
               return (
                 <tr key={station.id} className={isHighRainfall ? 'bg-blue-50' : 'hover:bg-gray-50'}>

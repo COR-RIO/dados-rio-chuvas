@@ -9,6 +9,7 @@ import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes
 import { findClosestTimestamp } from './utils/historicalTimestamp';
 import { OCCURRENCES } from './data/occurrences';
 import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
+import type { RainStation } from './types/rain';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -27,8 +28,14 @@ function App() {
   const [appliedOccDateTo, setAppliedOccDateTo] = useState<string | null>(null);
   const [appliedOccTimeTo, setAppliedOccTimeTo] = useState<string | null>(null);
   const [mapType, setMapType] = useState<MapTypeId>('rua');
+  // --- Playback state ---
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingIndex, setPlayingIndex] = useState(0);
+  const [playbackMode, setPlaybackMode] = useState<'rain' | 'occurrences' | 'both'>('both');
+  const [playbackSpeed, setPlaybackSpeed] = useState(1000); // ms per step
+
   const {
-    stations,
+    stations: rawStations,
     loading,
     refreshing,
     error,
@@ -37,6 +44,7 @@ function App() {
     dataSource,
     historicalTimeline,
     activeHistoricalTimestamp,
+    stationsByTimestamp,
     totalStations,
     refresh,
   } = useRainData({
@@ -50,9 +58,88 @@ function App() {
     historicalTimestamp,
     refreshInterval: 300000,
   });
+  const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
+
+  // During playback (rain or both), compute PROGRESSIVE accumulated per station up to current frame.
+  // Matches backend logic: group readings into 1-hour buckets, take the LAST h01 per bucket per station.
+  // This avoids 4x overcounting when frames arrive every 15 min.
+  const stations: RainStation[] = useMemo(() => {
+    if (isPlaying && (playbackMode === 'rain' || playbackMode === 'both') && isHistoricalMode) {
+      const currentTs = historicalTimeline[playingIndex];
+      if (!currentTs) return rawStations;
+      const currentFrame = stationsByTimestamp[currentTs];
+      if (!currentFrame || currentFrame.length === 0) return rawStations;
+
+      const HOUR_MS = 60 * 60 * 1000;
+      // stationId -> { hourBucketKey -> lastH01 }
+      const buckets: Record<string, Record<string, number>> = {};
+
+      for (let i = 0; i <= playingIndex; i++) {
+        const ts = historicalTimeline[i];
+        if (!ts) continue;
+        const frame = stationsByTimestamp[ts];
+        if (!frame) continue;
+        const tMs = new Date(ts).getTime();
+        const hourKey = String(Math.floor(tMs / HOUR_MS)); // one key per 1-hour window
+
+        for (const s of frame) {
+          if (!buckets[s.id]) buckets[s.id] = {};
+          // overwrite: latest reading in this bucket wins (same as backend)
+          buckets[s.id][hourKey] = Math.max(0, s.data.h01 ?? 0);
+        }
+      }
+
+      // Sum one h01 per hour bucket per station
+      const runningSum: Record<string, number> = {};
+      for (const [stationId, hourMap] of Object.entries(buckets)) {
+        runningSum[stationId] = Object.values(hourMap).reduce((a, b) => a + b, 0);
+      }
+
+      return currentFrame.map((s) => ({
+        ...s,
+        accumulated: {
+          mm_15min: s.accumulated?.mm_15min ?? 0,
+          mm_1h: s.accumulated?.mm_1h ?? 0,
+          mm_accumulated: Math.round((runningSum[s.id] ?? 0) * 100) / 100,
+        },
+      }));
+    }
+    return rawStations;
+  }, [isPlaying, playbackMode, playingIndex, historicalTimeline, stationsByTimestamp, rawStations, isHistoricalMode]);
+
+
+
+  // When the timeline loads or changes, reset playingIndex to the first frame >= user's filter start time
+  useEffect(() => {
+    if (historicalTimeline.length === 0) return;
+    setIsPlaying(false);
+    // Parse start datetime from the user's filter
+    const [hFrom, mFrom] = (historicalTimeFrom || '00:00').split(':').map(Number);
+    const [yFrom, moFrom, dFrom] = historicalDate.split('-').map(Number);
+    const startMs = new Date(yFrom, moFrom - 1, dFrom, hFrom ?? 0, mFrom ?? 0, 0).getTime();
+    // Find the first timeline index >= start
+    const idx = historicalTimeline.findIndex((ts) => new Date(ts).getTime() >= startMs);
+    setPlayingIndex(idx >= 0 ? idx : 0);
+  }, [historicalTimeline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Advance playingIndex while playing
+  useEffect(() => {
+    if (!isPlaying || historicalTimeline.length === 0) return;
+    const iv = setInterval(() => {
+      setPlayingIndex((prev) => {
+        if (prev >= historicalTimeline.length - 1) {
+          setIsPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, playbackSpeed);
+    return () => clearInterval(iv);
+  }, [isPlaying, playbackSpeed, historicalTimeline.length]);
+
+
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [showMapLegend, setShowMapLegend] = useState(true);
-  const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
   const isDarkMap = mapType === 'escuro';
   const isSatelliteMap = mapType === 'satelite';
   const isHighContrastMap = isDarkMap || isSatelliteMap;
@@ -83,20 +170,20 @@ function App() {
     ? 'Demonstração'
     : isHistoricalMode
       ? 'COR (histórico filtrado no GCP)'
-    : dataSource === 'gcp'
-      ? 'COR (histórico no GCP)'
-      : 'Alerta Rio (API em tempo real)';
+      : dataSource === 'gcp'
+        ? 'COR (histórico no GCP)'
+        : 'Alerta Rio (API em tempo real)';
   const titleLabel = isHistoricalMode ? 'Como estava a chuva no horário selecionado?' : 'Onde está chovendo agora?';
 
   const selectedMoment =
     isHistoricalMode && (historicalTimestamp ?? activeHistoricalTimestamp)
       ? (() => {
-          const ts = historicalTimestamp ?? activeHistoricalTimestamp;
-          if (!ts) return null;
-          const d = new Date(ts);
-          if (Number.isNaN(d.getTime())) return null;
-          return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-        })()
+        const ts = historicalTimestamp ?? activeHistoricalTimestamp;
+        if (!ts) return null;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      })()
       : null;
 
   // Ao receber nova timeline após Aplicar no Instantâneo: definir timestamp pelo horário desejado e atualizar mapa/tabela com dados do GCP
@@ -174,6 +261,22 @@ function App() {
     return final;
   })();
 
+  // Occurrences filtered for playback: hide occurrences if playbackMode is 'rain', else filter by playing timestamp
+  const occurrencesForPlayback = useMemo(() => {
+    if (!isPlaying) return filteredOccurrences;
+    if (playbackMode === 'rain') return [];
+    // Show occurrences that opened on or before the current playing timestamp
+    const ts = historicalTimeline[playingIndex];
+    if (!ts) return filteredOccurrences;
+    const upTo = new Date(ts);
+    return filteredOccurrences.filter((o) => {
+      const dt = o.data_hora_abertura ?? (o.data_abertura ? `${o.data_abertura} ${o.hora_abertura ?? '00:00'}` : null);
+      if (!dt) return true;
+      const d = new Date(dt);
+      return !isNaN(d.getTime()) ? d <= upTo : true;
+    });
+  }, [isPlaying, playbackMode, filteredOccurrences, historicalTimeline, playingIndex]);
+
   return (
     <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
       <div className="relative h-screen w-full overflow-hidden">
@@ -208,15 +311,23 @@ function App() {
           onHistoricalViewModeChange={setHistoricalViewMode}
           onApplyHistoricalFilter={handleApplyHistorical}
           historicalRefreshing={refreshing}
-          occurrences={filteredOccurrences}
+          occurrences={occurrencesForPlayback}
           showOccurrences={pendingShowOccurrences}
           onShowOccurrencesChange={setPendingShowOccurrences}
-          appliedShowOccurrences={appliedShowOccurrences}
+          appliedShowOccurrences={appliedShowOccurrences || (isPlaying && playbackMode !== 'rain')}
           occurrenceTextFilter={pendingOccTextFilter}
           onOccurrenceTextFilterChange={setPendingOccTextFilter}
           occurrenceCategoryFilter={pendingOccCategoryFilter}
           onOccurrenceCategoryFilterChange={setPendingOccCategoryFilter}
           availableOccurrenceCategories={availableOccCategories}
+          isPlaying={isPlaying}
+          playingIndex={playingIndex}
+          onPlayingIndexChange={setPlayingIndex}
+          onPlayPause={setIsPlaying}
+          playbackMode={playbackMode}
+          onPlaybackModeChange={setPlaybackMode}
+          playbackSpeed={playbackSpeed}
+          onPlaybackSpeedChange={setPlaybackSpeed}
         />
 
         <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
@@ -385,7 +496,7 @@ function App() {
       </footer>
 
       {/* Info Modal */}
-      <InfoModal 
+      <InfoModal
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}
         apiAvailable={apiAvailable}

@@ -199,6 +199,7 @@ export const useRainData = (
     dataSource,
     historicalTimeline,
     activeHistoricalTimestamp,
+    stationsByTimestamp,
     totalStations,
     refresh
   };
