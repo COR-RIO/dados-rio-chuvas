@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X, Maximize2, Minimize2 } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
@@ -88,21 +88,21 @@ const BairroPolygons: React.FC<{ bairrosData: any; showHexagons: boolean }> = ({
       {bairrosData.features.map((feature: any, index: number) => {
         const bairroName = feature.properties.nome;
         // Removido: cores dos bairros - apenas bolinhas coloridas
-        
+
         // Converter coordenadas para o formato do Leaflet
         let coordinates: number[][][] = [];
-        
+
         if (feature.geometry.type === 'MultiPolygon') {
           coordinates = feature.geometry.coordinates[0];
         } else if (feature.geometry.type === 'Polygon') {
           coordinates = [feature.geometry.coordinates[0]];
         }
-        
+
         // Converter para formato [lat, lng] do Leaflet
-        const leafletCoordinates = coordinates.map(polygon => 
+        const leafletCoordinates = coordinates.map(polygon =>
           polygon.map(coord => [coord[1], coord[0]] as [number, number]) // Inverter lat/lng
         );
-        
+
         return (
           <Polygon
             key={`bairro-${index}`}
@@ -159,7 +159,7 @@ const StationMarkers: React.FC<{
         } else {
           rainLevel = getRainLevel(oneHourRain);
         }
-        
+
         // Criar ícone personalizado para a estação
         const stationIcon = L.divIcon({
           className: 'custom-station-icon',
@@ -176,7 +176,7 @@ const StationMarkers: React.FC<{
           iconSize: [16, 16],
           iconAnchor: [8, 8],
         });
-        
+
         return (
           <Marker
             key={station.id}
@@ -189,12 +189,12 @@ const StationMarkers: React.FC<{
                   {station.name}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                  <div style={{ 
-                    width: '12px', 
-                    height: '12px', 
-                    backgroundColor: rainLevel.color, 
-                    borderRadius: '50%', 
-                    marginRight: '8px' 
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    backgroundColor: rainLevel.color,
+                    borderRadius: '50%',
+                    marginRight: '8px'
                   }}></div>
                   <span style={{ fontSize: '14px', color: '#666' }}>{rainLevel.name}</span>
                 </div>
@@ -345,6 +345,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showFiltersPanel, setShowFiltersPanel] = useState(!isMobileInitial);
   const [isMobileView, setIsMobileView] = useState(isMobileInitial);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -454,13 +455,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <MapLayers value={mapType} onChange={onMapTypeChange} />
               <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
-              <OccurrencesToggle value={showOccurrences ?? true} onChange={onShowOccurrencesChange ?? (() => {})} />
+              <OccurrencesToggle value={showOccurrences ?? true} onChange={onShowOccurrencesChange ?? (() => { })} />
               {(showOccurrences ?? true) && (
                 <OccurrenceFilters
                   textFilter={occurrenceTextFilter ?? ''}
-                  onTextFilterChange={onOccurrenceTextFilterChange ?? (() => {})}
+                  onTextFilterChange={onOccurrenceTextFilterChange ?? (() => { })}
                   categoryFilter={occurrenceCategoryFilter ?? []}
-                  onCategoryFilterChange={onOccurrenceCategoryFilterChange ?? (() => {})}
+                  onCategoryFilterChange={onOccurrenceCategoryFilterChange ?? (() => { })}
                   availableCategories={availableOccurrenceCategories ?? []}
                 />
               )}
@@ -472,11 +473,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 dateValue={historicalDate}
                 onDateChange={onHistoricalDateChange}
                 dateToValue={historicalDateTo ?? historicalDate}
-                onDateToChange={onHistoricalDateToChange ?? (() => {})}
+                onDateToChange={onHistoricalDateToChange ?? (() => { })}
                 timeFrom={historicalTimeFrom}
                 timeTo={historicalTimeTo}
-                onTimeFromChange={onHistoricalTimeFromChange ?? (() => {})}
-                onTimeToChange={onHistoricalTimeToChange ?? (() => {})}
+                onTimeFromChange={onHistoricalTimeFromChange ?? (() => { })}
+                onTimeToChange={onHistoricalTimeToChange ?? (() => { })}
                 timeline={historicalTimeline}
                 selectedTimestamp={selectedHistoricalTimestamp}
                 onTimestampChange={onHistoricalTimestampChange}
@@ -517,57 +518,80 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       {/* Tabela de dados: no mobile fica ACIMA do header (z 2100); no desktop = sidebar */}
       <div
         className={`
-          z-[2100] md:z-[1400] flex flex-col min-w-0 transition-transform duration-300 ease-out overflow-x-hidden
-          fixed right-0 top-0 bottom-0 w-[92vw] max-w-[420px]
-          md:absolute md:top-40 md:right-3 md:bottom-3 md:w-[min(500px,calc(100vw-24px))]
+          flex flex-col min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
+          fixed right-0 top-0 bottom-0
+          ${isTableExpanded
+            ? 'w-[95vw] md:w-[600px] lg:w-[650px] max-w-[700px] md:right-3 md:top-28 md:bottom-3 z-[2200] md:z-[2200] bg-white'
+            : 'w-[92vw] max-w-[420px] md:w-[min(500px,calc(100vw-24px))] md:absolute md:top-40 md:right-3 md:bottom-3 z-[2100] md:z-[1400]'
+          }
           ${isMobileView ? (showSidebar ? 'translate-x-0' : 'translate-x-full') : showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}
         `}
       >
         <div className="h-full min-h-0 overflow-hidden rounded-l-xl border border-gray-200 bg-white shadow-xl flex flex-col md:rounded-xl">
           {isMobileView && (
             <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-200 bg-gray-50/80 shrink-0">
-              <span className="font-medium text-gray-800 text-sm truncate min-w-0">
+              <span className="font-medium text-gray-800 text-sm truncate min-w-0 flex-1">
                 {sidebarView === 'stations' ? 'Dados das estações' : 'Ocorrências'}
               </span>
-              <button
-                type="button"
-                onClick={() => setShowSidebar(false)}
-                className="p-2 -m-2 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsTableExpanded(!isTableExpanded)}
+                  className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0 transition-colors"
+                  aria-label={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
+                >
+                  {isTableExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSidebar(false)}
+                  className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-600 shrink-0"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-touch min-w-0">
-            <div className="px-3 pt-3 pb-1 border-b border-gray-200 bg-white sticky top-0 z-10">
+            <div className="px-3 pt-3 pb-2 border-b border-gray-200 bg-white sticky top-0 z-10 flex items-center justify-between gap-2">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] text-gray-700">
                 <button
                   type="button"
                   onClick={() => setSidebarView('stations')}
-                  className={`px-2.5 py-1 rounded-md font-medium ${
-                    sidebarView === 'stations'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-transparent text-gray-700 hover:bg-white'
-                  }`}
+                  className={`px-2.5 py-1 rounded-md font-medium ${sidebarView === 'stations'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-transparent text-gray-700 hover:bg-white'
+                    }`}
                 >
                   Estações
                 </button>
                 <button
                   type="button"
                   onClick={() => setSidebarView('occurrences')}
-                  className={`px-2.5 py-1 rounded-md font-medium ${
-                    sidebarView === 'occurrences'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-transparent text-gray-700 hover:bg-white'
-                  }`}
+                  className={`px-2.5 py-1 rounded-md font-medium ${sidebarView === 'occurrences'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-transparent text-gray-700 hover:bg-white'
+                    }`}
                   disabled={!occurrences || occurrences.length === 0}
                 >
                   Ocorrências
                 </button>
               </div>
+
+              {!isMobileView && (
+                <button
+                  type="button"
+                  onClick={() => setIsTableExpanded(!isTableExpanded)}
+                  className="hidden md:flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                  aria-label={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
+                  title={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
+                >
+                  {isTableExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+              )}
             </div>
-            <div className="p-3">
+            <div className={`p-3 transition-all duration-300 ${isTableExpanded ? 'md:p-6' : ''}`}>
               {sidebarView === 'stations' && (
                 <RainDataTable
                   stations={stations}

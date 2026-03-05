@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { Occurrence } from '../types/occurrence';
 
 interface OccurrenceTableProps {
@@ -30,6 +30,34 @@ function getOccurrenceDateTime(occ: Occurrence): string {
 export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = [], embedded = false }) => {
   const [sortField, setSortField] = useState<SortField>('data_hora_abertura');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(0);
+
+  useEffect(() => {
+    if (!tableRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(tableRef.current);
+    return () => observer.disconnect();
+  }, [occurrences]);
+
+  const handleTopScroll = () => {
+    if (bottomScrollRef.current && topScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -113,9 +141,9 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
   }
 
   const headerBase =
-    'px-2 sm:px-3 py-2 text-left text-[11px] sm:text-xs font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-nowrap';
+    'px-1.5 sm:px-2 py-1.5 sm:py-2 text-left text-[10px] sm:text-[11px] font-medium text-gray-700 cursor-pointer hover:bg-gray-100';
   const cellBase =
-    'px-2 sm:px-3 py-2 text-[11px] sm:text-xs text-gray-800 align-top whitespace-nowrap';
+    'px-1.5 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-[11px] text-gray-800 align-top';
 
   return (
     <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
@@ -123,57 +151,60 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">
           Ocorrências relacionadas à chuva
         </h3>
-        <span className="text-[11px] sm:text-xs text-gray-500">
+        <span className="text-[10px] sm:text-[11px] text-gray-500">
           {sorted.length} ocorrências
         </span>
       </div>
 
-      <div className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}>
-        <table className="w-full min-w-[520px] table-fixed">
-          <colgroup>
-            <col style={{ width: '8%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '12%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '10%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '12%' }} />
-            <col style={{ width: '18%' }} />
-          </colgroup>
+      {/* Barra de rolagem superior */}
+      <div
+        ref={topScrollRef}
+        onScroll={handleTopScroll}
+        className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
+      >
+        <div style={{ width: tableWidth > 0 ? `${tableWidth}px` : '100%', height: '1px' }}></div>
+      </div>
+
+      <div
+        ref={bottomScrollRef}
+        onScroll={handleBottomScroll}
+        className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
+      >
+        <table ref={tableRef} className="w-full">
           <thead className="bg-gray-50">
             <tr>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[70px] sm:w-[90px] min-w-[70px] truncate`}
                 onClick={() => handleSort('id_ocorrencia')}
               >
                 ID
               </th>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[90px] sm:w-[110px] min-w-[90px] truncate`}
                 onClick={() => handleSort('data_hora_abertura')}
               >
-                Data/hora abertura
+                Data/hora
               </th>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[80px] sm:w-[100px] min-w-[80px] max-w-[130px] truncate`}
                 onClick={() => handleSort('bairro')}
               >
                 Bairro
               </th>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[60px] sm:w-[80px] min-w-[60px] truncate`}
                 onClick={() => handleSort('criticidade')}
               >
                 Criticidade
               </th>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[50px] sm:w-[60px] min-w-[50px] truncate`}
                 onClick={() => handleSort('estagio')}
               >
                 Estágio
               </th>
               <th
-                className={headerBase}
+                className={`${headerBase} w-[100px] sm:w-[130px] min-w-[90px] max-w-[150px] truncate`}
                 onClick={() => handleSort('pluviometro_estacao')}
               >
                 Pluviômetro / estação
@@ -185,29 +216,29 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
               const dtIso = getOccurrenceDateTime(occ);
               const dtLabel = dtIso
                 ? new Date(dtIso).toLocaleString('pt-BR', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })
                 : '-';
 
               return (
                 <tr key={occ.id_ocorrencia} className="hover:bg-gray-50">
-                  <td className={cellBase}>
+                  <td className={`${cellBase} w-[70px] sm:w-[90px] min-w-[70px] truncate`} title={occ.id_ocorrencia}>
                     <span className="font-semibold text-gray-900">
                       {occ.id_ocorrencia}
                     </span>
                   </td>
-                  <td className={cellBase}>{dtLabel}</td>
-                  <td className={cellBase}>{occ.bairro ?? '-'}</td>
-                  <td className={cellBase}>{occ.criticidade ?? '-'}</td>
-                  <td className={cellBase}>{occ.estagio ?? '-'}</td>
-                  <td className={`${cellBase} whitespace-normal`}>
-                    <div className="space-y-0.5">
-                      <div className="text-gray-900">
+                  <td className={`${cellBase} w-[90px] sm:w-[110px] min-w-[90px] truncate`} title={dtLabel}>{dtLabel}</td>
+                  <td className={`${cellBase} w-[80px] sm:w-[100px] min-w-[80px] max-w-[130px] truncate`} title={occ.bairro ?? undefined}>{occ.bairro ?? '-'}</td>
+                  <td className={`${cellBase} w-[60px] sm:w-[80px] min-w-[60px] truncate`} title={occ.criticidade ?? undefined}>{occ.criticidade ?? '-'}</td>
+                  <td className={`${cellBase} w-[50px] sm:w-[60px] min-w-[50px] truncate`} title={occ.estagio ?? undefined}>{occ.estagio ?? '-'}</td>
+                  <td className={`${cellBase} w-[100px] sm:w-[130px] min-w-[90px] max-w-[150px]`}>
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="text-gray-900 truncate" title={occ.pluviometro_estacao ?? undefined}>
                         {occ.pluviometro_estacao ?? '-'}
                       </div>
                       {occ.pluviometro_id && (
-                        <div className="text-[10px] text-gray-500">
+                        <div className="text-[9px] sm:text-[10px] text-gray-500 truncate" title={`ID: ${occ.pluviometro_id}`}>
                           ID: {occ.pluviometro_id}
                         </div>
                       )}
