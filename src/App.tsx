@@ -6,10 +6,10 @@ import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
 import { InfluenceLegend } from './components/InfluenceLegend';
 import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
+import { RainDataTable, type SortField, type SortDirection } from './components/RainDataTable';
 import { findClosestTimestamp } from './utils/historicalTimestamp';
 import { OCCURRENCES } from './data/occurrences';
 import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
-import type { RainStation } from './types/rain';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -34,6 +34,9 @@ function App() {
   const [playbackMode, setPlaybackMode] = useState<'rain' | 'occurrences' | 'both'>('both');
   const [playbackSpeed, setPlaybackSpeed] = useState(1000); // ms per step
 
+  const [sortField, setSortField] = useState<SortField>('h01');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   const {
     stations: rawStations,
     loading,
@@ -44,7 +47,6 @@ function App() {
     dataSource,
     historicalTimeline,
     activeHistoricalTimestamp,
-    stationsByTimestamp,
     totalStations,
     refresh,
   } = useRainData({
@@ -60,99 +62,53 @@ function App() {
   });
   const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
 
-  // 1. Determine the start index for accumulation based on the filter (exactly what the user selected)
-  // Matching GCP Query logic: SUM(COALESCE(m05, 0)) FROM start TO end
-  const intervalStartIndex = useMemo(() => {
-    if (historicalTimeline.length === 0) return 0;
-    const [hFrom, mFrom] = (historicalTimeFrom || '00:00').split(':').map(Number);
-    const [yFrom, moFrom, dFrom] = historicalDate.split('-').map(Number);
-    const startMs = new Date(yFrom, moFrom - 1, dFrom, hFrom ?? 0, mFrom ?? 0, 0).getTime();
-    // Find first frame >= filter start
-    const idx = historicalTimeline.findIndex((ts) => new Date(ts).getTime() >= startMs);
-    return idx >= 0 ? idx : 0;
-  }, [historicalTimeline, historicalTimeFrom, historicalDate]);
+  // We simply use the stations provided by useRainData. 
+  // The API now handles progressive accumulation correctly.
+  const stations = rawStations;
 
-  // 2. Pre-calculate progressive accumulation for all frames in the timeline
-  // This yields a lookup map: playingIndex -> { stationId -> accumulatedValue }
-  const progressiveAccumulationMap = useMemo(() => {
-    if (!isHistoricalMode || historicalTimeline.length === 0) return {};
-
-    const resultMap: Record<number, Record<string, number>> = {};
-    const runningSums: Record<string, number> = {};
-
-    for (let i = 0; i < historicalTimeline.length; i++) {
-      if (i < intervalStartIndex) {
-        // Frames before the filter start have 0 accumulation
-        resultMap[i] = {};
-        continue;
+  const sortedStations = useMemo(() => {
+    return [...stations].sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'm05':
+          aValue = a.data.m05;
+          bValue = b.data.m05;
+          break;
+        case 'm15':
+          aValue = a.data.m15;
+          bValue = b.data.m15;
+          break;
+        case 'h01':
+          aValue = a.data.h01;
+          bValue = b.data.h01;
+          break;
+        case 'h24':
+          aValue = a.data.h24;
+          bValue = b.data.h24;
+          break;
+        case 'accumulated':
+          aValue = a.accumulated?.mm_accumulated ?? -1;
+          bValue = b.accumulated?.mm_accumulated ?? -1;
+          break;
+        default:
+          return 0;
       }
-
-      const ts = historicalTimeline[i];
-      const frameData = stationsByTimestamp[ts];
-
-      if (frameData) {
-        for (const s of frameData) {
-          if (i === intervalStartIndex) {
-            runningSums[s.id] = 0;
-          } else {
-            // Priority 1: m05 (Matches user's current GCP logic)
-            // Priority 2: m15 (Fallback for legacy data)
-            // Note: We only use m15 as a "last 15m" increment if the gap is >= 15m or m05 is strictly missing/0
-            const hasM05 = s.data.m05 !== undefined && s.data.m05 !== null && s.data.m05 > 0;
-            const increment = hasM05 ? s.data.m05 : (s.data.m15 || 0);
-
-            // To be perfectly safe: if we are using m15 but frames come every 5 mins, we'd overcount.
-            // But usually, m05 is present if the frequency is 5 mins.
-            runningSums[s.id] = (runningSums[s.id] || 0) + increment;
-          }
-        }
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
       }
-      // Save a copy of the current state of sums for this frame
-      resultMap[i] = { ...runningSums };
-    }
-    return resultMap;
-  }, [isHistoricalMode, historicalTimeline, stationsByTimestamp, intervalStartIndex]);
-
-  // 3. Update stations periodically during playback with the correct progressive accumulation
-  const stations: RainStation[] = useMemo(() => {
-    // We use the progressive values if playing OR if a specific historical timestamp is selected manually
-    const showProgressive = isHistoricalMode && (isPlaying || historicalTimestamp);
-
-    if (showProgressive && (playbackMode === 'rain' || playbackMode === 'both')) {
-      // If playing, use playingIndex. If stopped/manual, find index of historicalTimestamp
-      let activeIndex = playingIndex;
-      if (!isPlaying && historicalTimestamp) {
-        const found = historicalTimeline.indexOf(historicalTimestamp);
-        if (found >= 0) activeIndex = found;
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
       }
+      return 0;
+    });
+  }, [stations, sortField, sortDirection]);
 
-      const currentTs = historicalTimeline[activeIndex];
-      const currentFrame = currentTs ? stationsByTimestamp[currentTs] : null;
-      if (!currentFrame) return rawStations;
 
-      const accValues = progressiveAccumulationMap[activeIndex] || {};
-
-      return currentFrame.map((s) => ({
-        ...s,
-        accumulated: {
-          mm_15min: s.accumulated?.mm_15min ?? 0,
-          mm_1h: s.accumulated?.mm_1h ?? 0,
-          mm_accumulated: Math.round((accValues[s.id] ?? 0) * 100) / 100,
-        },
-      }));
-    }
-    return rawStations;
-  }, [
-    isPlaying,
-    playbackMode,
-    playingIndex,
-    historicalTimeline,
-    stationsByTimestamp,
-    rawStations,
-    isHistoricalMode,
-    progressiveAccumulationMap,
-    historicalTimestamp
-  ]);
 
 
 
@@ -183,6 +139,14 @@ function App() {
     }, playbackSpeed);
     return () => clearInterval(iv);
   }, [isPlaying, playbackSpeed, historicalTimeline.length]);
+
+  // Sincronizar timestamp com a posição da linha do tempo: ao mudar o quadro (slider ou reprodução),
+  // atualizar historicalTimestamp para que o mapa e a tabela (incl. Acum. no período) acompanhem o frame atual.
+  useEffect(() => {
+    if (!isHistoricalMode || historicalTimeline.length === 0) return;
+    const ts = historicalTimeline[playingIndex];
+    if (ts) setHistoricalTimestamp(ts);
+  }, [isHistoricalMode, historicalTimeline, playingIndex]);
 
 
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -223,9 +187,9 @@ function App() {
   const titleLabel = isHistoricalMode ? 'Como estava a chuva no horário selecionado?' : 'Onde está chovendo agora?';
 
   const selectedMoment =
-    isHistoricalMode && (historicalTimestamp ?? activeHistoricalTimestamp)
+    isHistoricalMode && (historicalTimestamp || activeHistoricalTimestamp)
       ? (() => {
-        const ts = historicalTimestamp ?? activeHistoricalTimestamp;
+        const ts = historicalTimestamp || activeHistoricalTimestamp;
         if (!ts) return null;
         const d = new Date(ts);
         if (Number.isNaN(d.getTime())) return null;
@@ -308,21 +272,23 @@ function App() {
     return final;
   })();
 
-  // Occurrences filtered for playback: hide occurrences if playbackMode is 'rain', else filter by playing timestamp
+  // Ocorrências na linha do tempo: começar zerado (quadro 0 = nenhuma) e ir preenchendo conforme o tempo avança
   const occurrencesForPlayback = useMemo(() => {
-    if (!isPlaying) return filteredOccurrences;
     if (playbackMode === 'rain') return [];
-    // Show occurrences that opened on or before the current playing timestamp
+    const isHistoricalWithTimeline = isHistoricalMode && historicalTimeline.length > 0;
+    if (!isHistoricalWithTimeline) return filteredOccurrences;
+    // No primeiro quadro (início do período): nenhuma ocorrência, mapa "zerado"
+    if (playingIndex === 0) return [];
     const ts = historicalTimeline[playingIndex];
-    if (!ts) return filteredOccurrences;
+    if (!ts) return [];
     const upTo = new Date(ts);
     return filteredOccurrences.filter((o) => {
       const dt = o.data_hora_abertura ?? (o.data_abertura ? `${o.data_abertura} ${o.hora_abertura ?? '00:00'}` : null);
-      if (!dt) return true;
+      if (!dt) return false;
       const d = new Date(dt);
-      return !isNaN(d.getTime()) ? d <= upTo : true;
+      return !isNaN(d.getTime()) && d <= upTo;
     });
-  }, [isPlaying, playbackMode, filteredOccurrences, historicalTimeline, playingIndex]);
+  }, [isHistoricalMode, playbackMode, filteredOccurrences, historicalTimeline, playingIndex]);
 
   return (
     <div className="min-h-screen w-screen bg-gray-900 overflow-x-hidden">
@@ -375,7 +341,14 @@ function App() {
           onPlaybackModeChange={setPlaybackMode}
           playbackSpeed={playbackSpeed}
           onPlaybackSpeedChange={setPlaybackSpeed}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSortChange={(field: SortField, direction: SortDirection) => {
+            setSortField(field);
+            setSortDirection(direction);
+          }}
         />
+
 
         <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
           <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
@@ -525,10 +498,15 @@ function App() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-              {stations.map((station) => (
-                <RainStationCard key={station.id} station={station} />
+              {sortedStations.map((station) => (
+                <RainStationCard
+                  key={station.id}
+                  station={station}
+                  showAccumulated={isHistoricalMode && historicalViewMode === 'accumulated'}
+                />
               ))}
             </div>
+
           )}
         </div>
       </section>

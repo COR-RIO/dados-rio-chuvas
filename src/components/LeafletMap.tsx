@@ -8,7 +8,7 @@ import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
-import { RainDataTable } from './RainDataTable';
+import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
   MapLayers,
   InfluenceLinesToggle,
@@ -89,6 +89,9 @@ interface LeafletMapProps {
   onPlaybackModeChange?: (mode: 'rain' | 'occurrences' | 'both') => void;
   playbackSpeed?: number;
   onPlaybackSpeedChange?: (speed: number) => void;
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSortChange?: (field: SortField, direction: SortDirection) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -352,6 +355,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onPlaybackModeChange,
   playbackSpeed = 1000,
   onPlaybackSpeedChange,
+  sortField,
+  sortDirection,
+  onSortChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const { bairrosData, loading, error } = useBairrosData();
@@ -399,7 +405,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   }, [historicalViewMode, historicalDate, historicalDateTo, onHistoricalDateToChange]);
   const displayStations =
-    (historicalViewMode === 'accumulated' || isPlaying) ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
+    (historicalViewMode === 'accumulated') ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
@@ -616,7 +622,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   stations={stations}
                   embedded
                   showAccumulatedColumn={historicalMode && hasAccumulated}
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSortChange={onSortChange}
                 />
+
               )}
               {sidebarView === 'occurrences' && (
                 <OccurrenceTable occurrences={occurrences} embedded />
@@ -648,15 +658,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             stations={displayStations}
             mapType={mapType}
             timeWindow={mapDataWindow === '1h' ? '1h' : '15min'}
-            showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated) || isPlaying}
+            showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
             showInfluenceLines={showInfluenceLines}
           />
         )}
         {bairrosData && <BairroPolygons bairrosData={bairrosData} showHexagons={showHexagons} />}
         <StationMarkers
-          stations={stations}
+          stations={displayStations}
           mapDataWindow={mapDataWindow}
-          showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated) || isPlaying}
+          showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? true) ? occurrences : undefined} />
       </MapContainer>

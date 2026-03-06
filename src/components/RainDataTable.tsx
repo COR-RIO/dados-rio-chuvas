@@ -4,18 +4,28 @@ import { RainStation } from '../types/rain';
 import { getRainLevel, getAccumulatedRainLevel } from '../utils/rainLevel';
 import { exportRainDataTableXlsx } from '../utils/exportXlsx';
 
+
+
+export type SortField = 'name' | 'm05' | 'm15' | 'h01' | 'h24' | 'accumulated';
+export type SortDirection = 'asc' | 'desc';
+
 interface RainDataTableProps {
   stations: RainStation[];
   embedded?: boolean;
   showAccumulatedColumn?: boolean;
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSortChange?: (field: SortField, direction: SortDirection) => void;
 }
 
-type SortField = 'name' | 'm05' | 'm15' | 'h01' | 'h24' | 'accumulated';
-type SortDirection = 'asc' | 'desc';
-
-export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded = false, showAccumulatedColumn = false }) => {
-  const [sortField, setSortField] = useState<SortField>('h01');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+export const RainDataTable: React.FC<RainDataTableProps> = ({
+  stations,
+  embedded = false,
+  showAccumulatedColumn = false,
+  sortField = 'h01',
+  sortDirection = 'desc',
+  onSortChange
+}) => {
 
   const topScrollRef = useRef<HTMLDivElement>(null);
   const bottomScrollRef = useRef<HTMLDivElement>(null);
@@ -46,11 +56,13 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({ stations, embedded
   };
 
   const handleSort = (field: SortField) => {
+    let newDirection: SortDirection = 'desc';
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
+      newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    }
+
+    if (onSortChange) {
+      onSortChange(field, newDirection);
     }
   };
 

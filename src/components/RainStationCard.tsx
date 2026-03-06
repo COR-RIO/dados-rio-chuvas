@@ -1,16 +1,19 @@
 import React from 'react';
 import { MapPin, Clock } from 'lucide-react';
 import { RainStation } from '../types/rain';
-import { getRainLevel } from '../utils/rainLevel';
+import { getRainLevel, getAccumulatedRainLevel } from '../utils/rainLevel';
 
 interface RainStationCardProps {
   station: RainStation;
+  showAccumulated?: boolean;
 }
 
-export const RainStationCard: React.FC<RainStationCardProps> = ({ station }) => {
-  const rainLevel = getRainLevel(station.data.h01);
+export const RainStationCard: React.FC<RainStationCardProps> = ({ station, showAccumulated = false }) => {
+  const rainLevel = showAccumulated
+    ? getAccumulatedRainLevel(station.accumulated?.mm_accumulated ?? 0)
+    : getRainLevel(station.data.h01);
   const lastUpdate = new Date(station.read_at);
-  
+
   return (
     <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-4 lg:p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
       <div className="flex items-start justify-between mb-3 sm:mb-4">
@@ -23,23 +26,28 @@ export const RainStationCard: React.FC<RainStationCardProps> = ({ station }) => 
             </p>
           </div>
         </div>
-        <div 
+        <div
           className="w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
           style={{ backgroundColor: rainLevel.color }}
+          title={rainLevel.name}
         />
       </div>
-      
+
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4 mb-3 sm:mb-4">
         <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3">
           <p className="text-xs text-gray-500 font-medium mb-1">Última hora</p>
           <p className="text-lg sm:text-xl font-bold text-gray-800">{station.data.h01.toFixed(1)} mm</p>
         </div>
-        <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3">
-          <p className="text-xs text-gray-500 font-medium mb-1">Últimas 24h</p>
-          <p className="text-lg sm:text-xl font-bold text-gray-800">{station.data.h24.toFixed(1)} mm</p>
+        <div className={`${showAccumulated ? 'bg-blue-50 ring-1 ring-blue-100' : 'bg-gray-50'} rounded-lg sm:rounded-xl p-2 sm:p-3`}>
+          <p className="text-xs text-gray-500 font-medium mb-1">{showAccumulated ? 'Acumulado' : 'Últimas 24h'}</p>
+          <p className={`text-lg sm:text-xl font-bold ${showAccumulated ? 'text-blue-700' : 'text-gray-800'}`}>
+            {showAccumulated
+              ? `${(station.accumulated?.mm_accumulated ?? 0).toFixed(1)} mm`
+              : `${station.data.h24.toFixed(1)} mm`}
+          </p>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <Clock className="w-3 h-3 flex-shrink-0" />
         <span className="truncate">Atualizado em {lastUpdate.toLocaleTimeString('pt-BR')}</span>

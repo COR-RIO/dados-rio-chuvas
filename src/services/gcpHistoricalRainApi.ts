@@ -180,9 +180,10 @@ function toFiniteNumber(value: unknown): number | null {
 function pickNumber(record: HistoricalRainRecord, keys: string[], fallback = 0): number {
   for (const key of keys) {
     const parsed = toFiniteNumber(record[key]);
-    if (parsed != null) return parsed;
+    // Tratamos valores negativos (ex: -99.99 sentinelas de erro) como 0 para evitar bugs de acúmulo.
+    if (parsed != null) return Math.max(0, parsed);
   }
-  return fallback;
+  return Math.max(0, fallback);
 }
 
 /**
@@ -311,8 +312,9 @@ function toStationName(record: HistoricalRainRecord, index: number): string {
   return `Estação ${index + 1}`;
 }
 
-function toStationId(record: HistoricalRainRecord, index: number, name: string): string {
-  const raw = record.station_id || record.estacao_id || record.id || name || `estacao-${index + 1}`;
+function getStationIdFromRecord(record: HistoricalRainRecord, index: number): string {
+  const name = toStationName(record, index);
+  const raw = record.station_id || record.estacao_id || record.id || normalizeStationKey(name) || `estacao-${index + 1}`;
   const normalized = String(raw)
     .toLowerCase()
     .normalize('NFD')
@@ -322,16 +324,12 @@ function toStationId(record: HistoricalRainRecord, index: number, name: string):
   return `gcp-${normalized || index + 1}`;
 }
 
-function getStationIdFromRecord(record: HistoricalRainRecord, index: number): string {
-  return toStationId(record, index, toStationName(record, index));
-}
-
 function toRainStation(record: HistoricalRainRecord, index: number): RainStation | null {
   const location = parseLocation(record);
   if (!location) return null;
 
   const name = toStationName(record, index);
-  const id = toStationId(record, index, name);
+  const id = getStationIdFromRecord(record, index);
   const h01 = pickNumber(record, ['h01', 'rain_1h', 'precipitation_mm'], 0);
   const h24 = pickNumber(record, ['h24', 'rain_24h'], 0);
   const m15 = pickNumber(record, ['m15', 'rain_15m'], 0);
@@ -460,9 +458,17 @@ export async function fetchHistoricalRainStationsTimeline(
     }
   });
 
-  const timeline = Array.from(byTimestamp.keys()).sort(
+  let timeline = Array.from(byTimestamp.keys()).sort(
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
   );
+
+  const bounds = parseIntervalBounds(params);
+
+  // Limitar timeline ao horário final (Até: data + Horário até) — o vídeo vai até o fim do período selecionado
+  if (bounds) {
+    const endMs = bounds.end.getTime();
+    timeline = timeline.filter((ts) => new Date(ts).getTime() <= endMs);
+  }
 
   if (timeline.length === 0) {
     if (rows.length > 0) {
@@ -478,37 +484,134 @@ export async function fetchHistoricalRainStationsTimeline(
     return { timeline: [], selectedTimestamp: null, stations: [] };
   }
 
+  // Frame inicial em branco no horário De (data + Horário de): mapa começa vazio e preenche a partir do início
+  let blankStartIso: string | null = null;
+  if (bounds) {
+    const startIso = bounds.start.toISOString();
+    const firstDataMs = new Date(timeline[0]).getTime();
+    if (bounds.start.getTime() < firstDataMs) {
+      blankStartIso = startIso;
+      timeline = [startIso, ...timeline];
+    }
+  }
+
   const effectiveTimestamp =
-    selectedTimestamp && byTimestamp.has(selectedTimestamp)
+    selectedTimestamp && (byTimestamp.has(selectedTimestamp) || selectedTimestamp === blankStartIso)
       ? selectedTimestamp
       : timeline[timeline.length - 1];
 
-  const bounds = parseIntervalBounds(params);
-  let accumulatedByStation: Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }> | undefined;
-  if (bounds) {
-    accumulatedByStation = computeAccumulatedPerStation(rows, bounds.start, bounds.end, getStationIdFromRecord);
-  }
-
-  const enrichWithAccumulated = (list: RainStation[]): RainStation[] => {
-    if (!accumulatedByStation) return list;
-    return list.map((s) => {
-      const acc = accumulatedByStation!.get(s.id);
-      if (!acc) return s;
-      return { ...s, accumulated: { mm_15min: acc.mm_15min, mm_1h: acc.mm_1h, mm_accumulated: acc.mm_accumulated } };
-    });
-  };
-
+  // --- Implementação do Acúmulo Progressivo e Persistência ---
   const stationsByTimestamp: Record<string, RainStation[]> = {};
+  const currentAccumulated = new Map<string, { mm_15min: number; mm_1h: number; mm_accumulated: number }>();
+  // Persistência: guarda a última versão de cada estação para evitar que sumam do mapa se houver lacuna
+  const lastStateByStation = new Map<string, RainStation>();
+
+  const ZERO_DATA: RainStation['data'] = {
+    m05: 0,
+    m15: 0,
+    h01: 0,
+    h02: 0,
+    h03: 0,
+    h04: 0,
+    h24: 0,
+    h96: 0,
+    mes: 0,
+  };
+  const ZERO_ACCUMULATED = { mm_15min: 0, mm_1h: 0, mm_accumulated: 0 };
+
   for (const ts of timeline) {
-    const list = Array.from(byTimestamp.get(ts)?.values() ?? []).sort((a, b) =>
-      a.name.localeCompare(b.name, 'pt-BR')
-    );
-    stationsByTimestamp[ts] = enrichWithAccumulated(list);
+    // Frame inicial em branco: todas as estações com chuva zerada
+    if (blankStartIso && ts === blankStartIso) {
+      const firstFrameStations = Array.from(byTimestamp.get(timeline[1])?.values() ?? []);
+      const blankStations = firstFrameStations
+        .map((s) => ({
+          ...s,
+          read_at: blankStartIso!,
+          data: ZERO_DATA,
+          accumulated: ZERO_ACCUMULATED,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      stationsByTimestamp[ts] = blankStations;
+      blankStations.forEach((s) => lastStateByStation.set(s.id, s));
+      continue;
+    }
+    const stationsAtTs = Array.from(byTimestamp.get(ts)?.values() ?? []);
+
+    stationsAtTs.forEach(s => {
+      const prev = currentAccumulated.get(s.id) || { mm_15min: 0, mm_1h: 0, mm_accumulated: 0 };
+
+      // LOGICA DE INCREMENTO ROBUSTA:
+      // Se m05 existe e é > 0, usamos m05. 
+      // Caso contrário, usamos m15.
+      // Assumimos que o BigQuery injeta m05 se a frequência for 5min, e m15 se for 15min.
+      const increment = s.data.m05 > 0 ? s.data.m05 : s.data.m15;
+
+      currentAccumulated.set(s.id, {
+        mm_15min: Math.round((prev.mm_15min + s.data.m15) * 100) / 100,
+        mm_1h: Math.round((prev.mm_1h + s.data.h01) * 100) / 100,
+        mm_accumulated: Math.round((prev.mm_accumulated + increment) * 100) / 100
+      });
+
+      // Atualiza o estado persistente da estação
+      lastStateByStation.set(s.id, s);
+    });
+
+    // Criar a lista de estações para este timestamp com o snapshot do acumulado atual
+    // Usamos lastStateByStation para garantir persistência (se a estação não enviou dados agora, usamos a última)
+    stationsByTimestamp[ts] = Array.from(lastStateByStation.values()).map(s => {
+      const recordInFrame = byTimestamp.get(ts)?.get(s.id);
+      const acc = currentAccumulated.get(s.id);
+
+      return {
+        ...s,
+        read_at: ts,
+        // Se NÃO há registro neste frame exato, zeramos os campos instantâneos (intensidade)
+        // Mas mantemos as coordenadas e outras propriedades fixas da estação
+        data: recordInFrame ? s.data : {
+          ...ZERO_DATA,
+        },
+        accumulated: acc ? { ...acc } : undefined
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
-  let stations = stationsByTimestamp[effectiveTimestamp] ?? [];
+  // Estender a timeline até o Horário (até): se os dados param antes (ex.: 21:10), acrescentar um frame final em 00:10
+  if (bounds && timeline.length > 0) {
+    const lastTs = timeline[timeline.length - 1];
+    const endIso = bounds.end.toISOString();
+    if (new Date(endIso).getTime() > new Date(lastTs).getTime()) {
+      const lastStations = stationsByTimestamp[lastTs];
+      if (lastStations?.length) {
+        timeline = [...timeline, endIso];
+        const endFrameStations: RainStation[] = lastStations.map((s) => ({
+          ...s,
+          read_at: endIso,
+          data: {
+            m05: s.data.m05 ?? 0,
+            m15: s.data.m15 ?? 0,
+            h01: s.data.h01 ?? 0,
+            h02: s.data.h02 ?? 0,
+            h03: s.data.h03 ?? 0,
+            h04: s.data.h04 ?? 0,
+            h24: s.data.h24 ?? 0,
+            h96: s.data.h96 ?? 0,
+            mes: s.data.mes ?? 0,
+          },
+        }));
+        stationsByTimestamp[endIso] = endFrameStations;
+      }
+    }
+  }
 
-  return { timeline, selectedTimestamp: effectiveTimestamp, stations, stationsByTimestamp, accumulatedByStation };
+  const stations = stationsByTimestamp[effectiveTimestamp] ?? [];
+
+  return {
+    timeline,
+    selectedTimestamp: effectiveTimestamp,
+    stations,
+    stationsByTimestamp,
+    accumulatedByStation: currentAccumulated
+  };
 }
 
 /**
