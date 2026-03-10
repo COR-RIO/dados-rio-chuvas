@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { Occurrence } from '../types/occurrence';
+import { getCriticidadeLabel } from '../utils/criticidade';
 
 interface OccurrenceTableProps {
   occurrences?: Occurrence[];
@@ -10,20 +11,26 @@ type SortField =
   | 'id_ocorrencia'
   | 'data_hora_abertura'
   | 'bairro'
+  | 'titulo'
+  | 'pop'
   | 'criticidade'
   | 'estagio'
-  | 'pluviometro_estacao'
-  | 'titulo'
+  | 'duracao'
   | 'localizacao'
-  | 'sentido'
-  | 'ap'
-  | 'agencias_acionadas';
+  | 'agencias_acionadas'
+  | 'pluviometro_estacao';
 type SortDirection = 'asc' | 'desc';
 
 function getOccurrenceDateTime(occ: Occurrence): string {
   if (occ.data_hora_abertura) return occ.data_hora_abertura;
   if (occ.data_abertura && occ.hora_abertura) return `${occ.data_abertura}T${occ.hora_abertura.length === 5 ? `${occ.hora_abertura}:00` : occ.hora_abertura}`;
   if (occ.data_abertura) return `${occ.data_abertura}T00:00:00`;
+  return '';
+}
+
+function getOccurrenceDateTimeFim(occ: Occurrence): string {
+  if (occ.data_hora_encerramento) return occ.data_hora_encerramento;
+  if (occ.data_encerramento && occ.hora_encerramento) return `${occ.data_encerramento}T${occ.hora_encerramento.length === 5 ? `${occ.hora_encerramento}:00` : occ.hora_encerramento}`;
   return '';
 }
 
@@ -95,25 +102,25 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
           aVal = a.estagio ?? '';
           bVal = b.estagio ?? '';
           break;
-        case 'pluviometro_estacao':
-          aVal = a.pluviometro_estacao ?? '';
-          bVal = b.pluviometro_estacao ?? '';
-          break;
         case 'titulo':
           aVal = a.titulo ?? '';
           bVal = b.titulo ?? '';
+          break;
+        case 'pop':
+          aVal = a.pop ?? '';
+          bVal = b.pop ?? '';
+          break;
+        case 'duracao':
+          aVal = String(a.duracao ?? '');
+          bVal = String(b.duracao ?? '');
           break;
         case 'localizacao':
           aVal = a.localizacao ?? '';
           bVal = b.localizacao ?? '';
           break;
-        case 'sentido':
-          aVal = a.sentido ?? '';
-          bVal = b.sentido ?? '';
-          break;
-        case 'ap':
-          aVal = a.ap ?? '';
-          bVal = b.ap ?? '';
+        case 'pluviometro_estacao':
+          aVal = a.pluviometro_estacao ?? '';
+          bVal = b.pluviometro_estacao ?? '';
           break;
         case 'agencias_acionadas':
           aVal = a.agencias_acionadas ?? '';
@@ -124,6 +131,11 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
       }
 
       if (aVal === bVal) return 0;
+      if (sortField === 'duracao') {
+        const an = Number(aVal) || 0;
+        const bn = Number(bVal) || 0;
+        return sortDirection === 'asc' ? an - bn : bn - an;
+      }
       const comp = aVal.localeCompare(bVal, 'pt-BR', { sensitivity: 'base' });
       return sortDirection === 'asc' ? comp : -comp;
     });
@@ -173,76 +185,50 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
         <table ref={tableRef} className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th
-                className={`${headerBase} w-[70px] sm:w-[90px] min-w-[70px] truncate`}
-                onClick={() => handleSort('id_ocorrencia')}
-              >
-                ID
-              </th>
-              <th
-                className={`${headerBase} w-[90px] sm:w-[110px] min-w-[90px] truncate`}
-                onClick={() => handleSort('data_hora_abertura')}
-              >
-                Data/hora
-              </th>
-              <th
-                className={`${headerBase} w-[80px] sm:w-[100px] min-w-[80px] max-w-[130px] truncate`}
-                onClick={() => handleSort('bairro')}
-              >
-                Bairro
-              </th>
-              <th
-                className={`${headerBase} w-[60px] sm:w-[80px] min-w-[60px] truncate`}
-                onClick={() => handleSort('criticidade')}
-              >
-                Criticidade
-              </th>
-              <th
-                className={`${headerBase} w-[50px] sm:w-[60px] min-w-[50px] truncate`}
-                onClick={() => handleSort('estagio')}
-              >
-                Estágio
-              </th>
-              <th
-                className={`${headerBase} w-[100px] sm:w-[130px] min-w-[90px] max-w-[150px] truncate`}
-                onClick={() => handleSort('pluviometro_estacao')}
-              >
-                Pluviômetro / estação
-              </th>
+              <th className={`${headerBase} w-[72px] min-w-[72px] truncate`} onClick={() => handleSort('id_ocorrencia')}>ID</th>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('data_hora_abertura')}>Data/hora</th>
+              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('bairro')}>Bairro</th>
+              <th className={`${headerBase} min-w-[80px] max-w-[140px] truncate`} onClick={() => handleSort('titulo')}>Título</th>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('pop')}>POP / Tipo</th>
+              <th className={`${headerBase} w-[64px] min-w-[64px] truncate`} onClick={() => handleSort('criticidade')}>Criticidade</th>
+              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('estagio')}>Andamento</th>
+              <th className={`${headerBase} w-[56px] min-w-[56px] truncate`} onClick={() => handleSort('duracao')}>Duração</th>
+              <th className={`${headerBase} min-w-[120px] max-w-[200px] truncate`} onClick={() => handleSort('localizacao')}>Endereço</th>
+              <th className={`${headerBase} min-w-[80px] max-w-[140px] truncate`} onClick={() => handleSort('agencias_acionadas')}>Agências</th>
+              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('pluviometro_estacao')}>Pluviômetro</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sorted.map((occ) => {
+            {sorted.map((occ, index) => {
               const dtIso = getOccurrenceDateTime(occ);
               const dtLabel = dtIso
-                ? new Date(dtIso).toLocaleString('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })
+                ? new Date(dtIso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
                 : '-';
+              const dtFimIso = getOccurrenceDateTimeFim(occ);
+              const dtFimLabel = dtFimIso
+                ? new Date(dtFimIso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                : '';
 
               return (
-                <tr key={occ.id_ocorrencia} className="hover:bg-gray-50">
-                  <td className={`${cellBase} w-[70px] sm:w-[90px] min-w-[70px] truncate`} title={occ.id_ocorrencia}>
-                    <span className="font-semibold text-gray-900">
-                      {occ.id_ocorrencia}
-                    </span>
+                <tr key={`${occ.id_ocorrencia}-${index}`} className="hover:bg-gray-50">
+                  <td className={`${cellBase} w-[72px] min-w-[72px] truncate`} title={occ.id_ocorrencia}>
+                    <span className="font-semibold text-gray-900">{occ.id_ocorrencia}</span>
                   </td>
-                  <td className={`${cellBase} w-[90px] sm:w-[110px] min-w-[90px] truncate`} title={dtLabel}>{dtLabel}</td>
-                  <td className={`${cellBase} w-[80px] sm:w-[100px] min-w-[80px] max-w-[130px] truncate`} title={occ.bairro ?? undefined}>{occ.bairro ?? '-'}</td>
-                  <td className={`${cellBase} w-[60px] sm:w-[80px] min-w-[60px] truncate`} title={occ.criticidade ?? undefined}>{occ.criticidade ?? '-'}</td>
-                  <td className={`${cellBase} w-[50px] sm:w-[60px] min-w-[50px] truncate`} title={occ.estagio ?? undefined}>{occ.estagio ?? '-'}</td>
-                  <td className={`${cellBase} w-[100px] sm:w-[130px] min-w-[90px] max-w-[150px]`}>
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="text-gray-900 truncate" title={occ.pluviometro_estacao ?? undefined}>
-                        {occ.pluviometro_estacao ?? '-'}
-                      </div>
-                      {occ.pluviometro_id && (
-                        <div className="text-[9px] sm:text-[10px] text-gray-500 truncate" title={`ID: ${occ.pluviometro_id}`}>
-                          ID: {occ.pluviometro_id}
-                        </div>
-                      )}
-                    </div>
+                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={dtFimLabel ? `${dtLabel} → ${dtFimLabel}` : dtLabel}>
+                    {dtLabel}
+                  </td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`} title={occ.bairro ?? undefined}>{occ.bairro ?? '-'}</td>
+                  <td className={`${cellBase} min-w-[80px] max-w-[140px] truncate`} title={occ.titulo ?? undefined}>{occ.titulo ?? '-'}</td>
+                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={occ.pop ?? undefined}>{occ.pop ?? '-'}</td>
+                  <td className={`${cellBase} w-[64px] min-w-[64px] truncate`} title={occ.criticidade ?? undefined}>{getCriticidadeLabel(occ.criticidade) || '-'}</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`} title={occ.estagio ?? undefined}>{occ.estagio ?? '-'}</td>
+                  <td className={`${cellBase} w-[56px] min-w-[56px] truncate`} title={occ.duracao != null ? `${occ.duracao} min` : undefined}>
+                    {occ.duracao != null ? `${occ.duracao}` : '-'}
+                  </td>
+                  <td className={`${cellBase} min-w-[120px] max-w-[200px] truncate`} title={occ.localizacao ?? undefined}>{occ.localizacao ?? '-'}</td>
+                  <td className={`${cellBase} min-w-[80px] max-w-[140px] truncate`} title={occ.agencias_acionadas ?? undefined}>{occ.agencias_acionadas ?? '-'}</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`} title={occ.pluviometro_estacao ?? undefined}>
+                    {occ.pluviometro_estacao ?? '-'}
                   </td>
                 </tr>
               );
@@ -252,14 +238,9 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
       </div>
 
       <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-3 border-t border-gray-200 bg-white">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[10px] sm:text-xs text-gray-500">
-          <span>
-            Período filtrado segue o controle de histórico e horário do painel de filtros.
-          </span>
-          <span>
-            Use a coluna de pluviômetro para cruzar manualmente com os dados de chuva das estações.
-          </span>
-        </div>
+        <p className="text-[10px] sm:text-xs text-gray-500">
+          Dados da API do CoR ou da planilha. Período conforme filtro (histórico/horário). Clique no cabeçalho para ordenar.
+        </p>
       </div>
     </div>
   );

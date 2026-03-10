@@ -18,11 +18,14 @@ import {
   FocusCityButton,
   FitCityOnLoad,
   OccurrencesToggle,
+  OccurrenceSourceSelector,
   OccurrenceFilters,
 } from './MapControls';
+import type { OccurrenceDataSource } from './MapControls';
 import { OccurrenceTable } from './OccurrenceTable';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getAccumulatedRainLevel, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
+import { getCriticidadeLabel } from '../utils/criticidade';
 import { TimelinePlayerControl } from './MapControls/TimelinePlayerControl';
 import 'leaflet/dist/leaflet.css';
 
@@ -62,6 +65,10 @@ interface LeafletMapProps {
   onApplyHistoricalFilter?: () => void;
   /** Exibe indicador de carregamento no painel histórico */
   historicalRefreshing?: boolean;
+  /** Carregando ocorrências da API (Mostrar ocorrências + Aplicar) */
+  occurrenceLoading?: boolean;
+  /** Erro ao carregar ocorrências */
+  occurrenceError?: string | null;
   /** No modo instantâneo: horário desejado (HH:mm). Aplicado só ao clicar em Aplicar. */
   desiredAnalysisTime?: string;
   onDesiredAnalysisTimeChange?: (time: string) => void;
@@ -70,6 +77,11 @@ interface LeafletMapProps {
   /** Se o usuário quer ver ocorrências (toggle state, pendente até Aplicar) */
   showOccurrences?: boolean;
   onShowOccurrencesChange?: (show: boolean) => void;
+  /** Fonte dos dados: API ou planilha (arquivo estático) */
+  occurrenceDataSource?: OccurrenceDataSource;
+  onOccurrenceDataSourceChange?: (source: OccurrenceDataSource) => void;
+  /** Erro ao carregar planilha (ex.: arquivo muito grande) */
+  planilhaLoadError?: string | null;
   /** Se as ocorrências devem realmente ser renderizadas (aplicado após clicar Aplicar) */
   appliedShowOccurrences?: boolean;
   /** Filtro de texto para ocorrências (pendente até clicar em Aplicar) */
@@ -291,7 +303,7 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
                 )}
                 {occ.criticidade && (
                   <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
-                    <strong>Criticidade:</strong> {occ.criticidade}
+                    <strong>Criticidade:</strong> {getCriticidadeLabel(occ.criticidade)}
                   </p>
                 )}
                 {occ.estagio && (
@@ -336,11 +348,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onHistoricalViewModeChange,
   onApplyHistoricalFilter,
   historicalRefreshing = false,
+  occurrenceLoading = false,
+  occurrenceError = null,
   desiredAnalysisTime,
   onDesiredAnalysisTimeChange,
   occurrences,
   showOccurrences,
   onShowOccurrencesChange,
+  occurrenceDataSource = 'planilha',
+  onOccurrenceDataSourceChange,
+  planilhaLoadError = null,
   appliedShowOccurrences,
   occurrenceTextFilter,
   onOccurrenceTextFilterChange,
@@ -482,13 +499,29 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
               <OccurrencesToggle value={showOccurrences ?? true} onChange={onShowOccurrencesChange ?? (() => { })} />
               {(showOccurrences ?? true) && (
-                <OccurrenceFilters
+                <>
+                  {historicalMode && (
+                    <>
+                      <OccurrenceSourceSelector
+                        value={occurrenceDataSource}
+                        onChange={onOccurrenceDataSourceChange ?? (() => { })}
+                      />
+                      {occurrenceDataSource === 'planilha' && planilhaLoadError && (
+                        <p className="text-[10px] text-amber-700 font-medium" role="alert">{planilhaLoadError}</p>
+                      )}
+                    </>
+                  )}
+                  {!historicalMode && (
+                    <p className="text-[10px] text-gray-600">Ocorrências abertas (tempo real)</p>
+                  )}
+                  <OccurrenceFilters
                   textFilter={occurrenceTextFilter ?? ''}
                   onTextFilterChange={onOccurrenceTextFilterChange ?? (() => { })}
                   categoryFilter={occurrenceCategoryFilter ?? []}
                   onCategoryFilterChange={onOccurrenceCategoryFilterChange ?? (() => { })}
                   availableCategories={availableOccurrenceCategories ?? []}
                 />
+                </>
               )}
               {historicalMode && (
                 <HistoricalViewModeToggle value={historicalViewMode} onChange={setHistoricalViewMode} hasAccumulated={hasAccumulated} />
@@ -508,9 +541,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 onTimestampChange={onHistoricalTimestampChange}
                 onApplyFilter={onApplyHistoricalFilter}
                 refreshing={historicalRefreshing}
+                occurrenceLoading={occurrenceLoading}
+                occurrenceError={occurrenceError}
                 viewMode={historicalViewMode}
                 desiredAnalysisTime={desiredAnalysisTime}
                 onDesiredAnalysisTimeChange={onDesiredAnalysisTimeChange}
+                showOccurrencesLoadInRealtime={!historicalMode && (showOccurrences ?? false) && occurrenceDataSource === 'api'}
               />
             </div>
           </>

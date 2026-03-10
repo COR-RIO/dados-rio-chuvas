@@ -8,8 +8,11 @@ import { InfluenceLegend } from './components/InfluenceLegend';
 import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
 import { RainDataTable, type SortField, type SortDirection } from './components/RainDataTable';
 import { findClosestTimestamp } from './utils/historicalTimestamp';
-import { OCCURRENCES } from './data/occurrences';
+import type { Occurrence } from './types/occurrence';
+import { loadStaticOccurrences } from './data/loadOccurrences';
 import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
+import { fetchOccurrencesForMap } from './services/ocorrenciasApi';
+import { fetchOcorrenciasAbertas } from './services/ocorrenciasAbertasApi';
 
 function App() {
   const [useMockDemo, setUseMockDemo] = useState(false);
@@ -217,59 +220,118 @@ function App() {
     if (historicalViewMode === 'instant') {
       pendingApplyTimeRef.current = desiredAnalysisTime || '00:00';
     }
-    // Atualiza intervalo "efetivo" usado para filtrar ocorrências,
-    // espelhando o mesmo comportamento do filtro histórico de chuva.
     setAppliedOccDateFrom(historicalDate);
     setAppliedOccTimeFrom(historicalTimeFrom);
     setAppliedOccDateTo(historicalDateTo);
     setAppliedOccTimeTo(historicalTimeTo);
-    // Aplicar os filtros pendentes de ocorrências
     setAppliedOccTextFilter(pendingOccTextFilter);
     setAppliedOccCategoryFilter(pendingOccCategoryFilter);
     setAppliedShowOccurrences(pendingShowOccurrences);
+    if (pendingShowOccurrences && !isHistoricalMode) {
+      setAbertasOccurrencesError(null);
+      setAbertasOccurrencesLoading(true);
+      fetchOcorrenciasAbertas()
+        .then(setAbertasOccurrences)
+        .catch((err) => {
+          setAbertasOccurrencesError(err?.message ?? 'Erro ao atualizar ocorrências abertas.');
+          setAbertasOccurrences([]);
+        })
+        .finally(() => setAbertasOccurrencesLoading(false));
+    }
+    if (pendingShowOccurrences && isHistoricalMode && occurrenceDataSource === 'api') {
+      setApiOccurrencesError(null);
+      setApiOccurrencesLoading(true);
+      const dateFrom = isHistoricalMode ? historicalDate : today;
+      const dateTo = isHistoricalMode ? historicalDateTo : today;
+      fetchOccurrencesForMap(dateFrom, dateTo)
+        .then((occs) => {
+          setApiOccurrences(occs);
+          setApiOccurrencesLoading(false);
+        })
+        .catch((err) => {
+          setApiOccurrencesError(err?.message ?? 'Erro ao carregar ocorrências da API');
+          setApiOccurrences(null);
+          setApiOccurrencesLoading(false);
+        });
+    } else if (!pendingShowOccurrences) {
+      setApiOccurrences(null);
+    }
     refresh();
   };
   const [pendingShowOccurrences, setPendingShowOccurrences] = useState(true);
   const [appliedShowOccurrences, setAppliedShowOccurrences] = useState(false);
+  const [occurrenceDataSource, setOccurrenceDataSource] = useState<'api' | 'planilha'>('planilha');
+  const [staticOccurrences, setStaticOccurrences] = useState<Occurrence[]>([]);
+  const [apiOccurrences, setApiOccurrences] = useState<Occurrence[] | null>(null);
+  const [abertasOccurrences, setAbertasOccurrences] = useState<Occurrence[]>([]);
+  const [apiOccurrencesLoading, setApiOccurrencesLoading] = useState(false);
+  const [abertasOccurrencesLoading, setAbertasOccurrencesLoading] = useState(false);
+  const [apiOccurrencesError, setApiOccurrencesError] = useState<string | null>(null);
+  const [abertasOccurrencesError, setAbertasOccurrencesError] = useState<string | null>(null);
   const [pendingOccTextFilter, setPendingOccTextFilter] = useState<string>('');
   const [appliedOccTextFilter, setAppliedOccTextFilter] = useState<string>('');
   const [pendingOccCategoryFilter, setPendingOccCategoryFilter] = useState<string[]>([]);
   const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[]>([]);
+
+  const [planilhaLoadError, setPlanilhaLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    if (occurrenceDataSource !== 'planilha') return;
+    setPlanilhaLoadError(null);
+    loadStaticOccurrences()
+      .then(setStaticOccurrences)
+      .catch((err) => {
+        console.warn('Planilha de ocorrências não carregada:', err);
+        setStaticOccurrences([]);
+        setPlanilhaLoadError('Planilha não carregou (arquivo muito grande). Use a fonte API.');
+      });
+  }, [occurrenceDataSource]);
+
+  useEffect(() => {
+    if (isHistoricalMode || !appliedShowOccurrences) return;
+    setAbertasOccurrencesError(null);
+    setAbertasOccurrencesLoading(true);
+    fetchOcorrenciasAbertas()
+      .then(setAbertasOccurrences)
+      .catch((err) => {
+        console.warn('Ocorrências abertas não carregadas:', err);
+        setAbertasOccurrences([]);
+        setAbertasOccurrencesError('Não foi possível carregar ocorrências abertas.');
+      })
+      .finally(() => setAbertasOccurrencesLoading(false));
+  }, [isHistoricalMode, appliedShowOccurrences]);
+
+  /** Em tempo real: ocorrências abertas (Simaa). No histórico: API ou planilha conforme seletor. */
+  const occurrenceSource: Occurrence[] = !isHistoricalMode
+    ? abertasOccurrences
+    : occurrenceDataSource === 'api'
+      ? (apiOccurrences ?? [])
+      : staticOccurrences;
   const availableOccCategories = useMemo(() => {
     const cats = new Set<string>();
-    OCCURRENCES.forEach((o) => {
+    occurrenceSource.forEach((o: Occurrence) => {
       if (o.pop) cats.add(o.pop);
     });
     return Array.from(cats).sort();
-  }, []);
+  }, [occurrenceSource]);
 
   const filteredOccurrences = (() => {
-    if (!OCCURRENCES.length) return [];
-    let occs: typeof OCCURRENCES = [] as any;
-    if (isHistoricalMode) {
+    if (!occurrenceSource.length) return [];
+    let occs: Occurrence[];
+    if (!isHistoricalMode) {
+      occs = occurrenceSource;
+    } else if (isHistoricalMode) {
       const dateFrom = appliedOccDateFrom ?? historicalDate;
       const timeFrom = appliedOccTimeFrom ?? historicalTimeFrom;
       const dateTo = appliedOccDateTo ?? historicalDateTo;
       const timeTo = appliedOccTimeTo ?? historicalTimeTo;
-      occs = filterOccurrencesByRange(
-        OCCURRENCES,
-        dateFrom,
-        timeFrom,
-        dateTo,
-        timeTo
-      );
+      occs = filterOccurrencesByRange(occurrenceSource, dateFrom, timeFrom, dateTo, timeTo);
     } else {
-      // Tempo real: mostra apenas as ocorrências do dia atual
-      occs = filterOccurrencesByRange(OCCURRENCES, today, '00:00', today, '23:59');
+      occs = filterOccurrencesByRange(occurrenceSource, today, '00:00', today, '23:59');
     }
-
-    // Aplicar filtro por categoria (POP)
     if (appliedOccCategoryFilter.length > 0) {
-      occs = occs.filter((o) => appliedOccCategoryFilter.includes(o.pop ?? ''));
+      occs = occs.filter((o: Occurrence) => appliedOccCategoryFilter.includes(o.pop ?? ''));
     }
-    // Aplicar filtro por texto (ex: "bolsão d'água")
-    const final = filterOccurrencesByText(occs, appliedOccTextFilter);
-    return final;
+    return filterOccurrencesByText(occs, appliedOccTextFilter);
   })();
 
   // Ocorrências na linha do tempo: começar zerado (quadro 0 = nenhuma) e ir preenchendo conforme o tempo avança
@@ -282,7 +344,7 @@ function App() {
     const ts = historicalTimeline[playingIndex];
     if (!ts) return [];
     const upTo = new Date(ts);
-    return filteredOccurrences.filter((o) => {
+    return filteredOccurrences.filter((o: Occurrence) => {
       const dt = o.data_hora_abertura ?? (o.data_abertura ? `${o.data_abertura} ${o.hora_abertura ?? '00:00'}` : null);
       if (!dt) return false;
       const d = new Date(dt);
@@ -324,9 +386,14 @@ function App() {
           onHistoricalViewModeChange={setHistoricalViewMode}
           onApplyHistoricalFilter={handleApplyHistorical}
           historicalRefreshing={refreshing}
+          occurrenceLoading={(!isHistoricalMode && abertasOccurrencesLoading) || (isHistoricalMode && occurrenceDataSource === 'api' && apiOccurrencesLoading)}
+          occurrenceError={!isHistoricalMode ? abertasOccurrencesError : (occurrenceDataSource === 'api' ? apiOccurrencesError : null)}
           occurrences={occurrencesForPlayback}
           showOccurrences={pendingShowOccurrences}
           onShowOccurrencesChange={setPendingShowOccurrences}
+          occurrenceDataSource={occurrenceDataSource}
+          onOccurrenceDataSourceChange={setOccurrenceDataSource}
+          planilhaLoadError={planilhaLoadError}
           appliedShowOccurrences={appliedShowOccurrences || (isPlaying && playbackMode !== 'rain')}
           occurrenceTextFilter={pendingOccTextFilter}
           onOccurrenceTextFilterChange={setPendingOccTextFilter}

@@ -158,6 +158,47 @@ export const OccurrencesToggle: React.FC<OccurrencesToggleProps> = ({ value, onC
   );
 };
 
+export type OccurrenceDataSource = 'api' | 'planilha';
+
+interface OccurrenceSourceSelectorProps {
+  value: OccurrenceDataSource;
+  onChange: (source: OccurrenceDataSource) => void;
+}
+
+/** Fonte dos dados de ocorrências no modo histórico: API Hexagon ou planilha. Em tempo real usa sempre ocorrências abertas (Simaa). */
+export const OccurrenceSourceSelector: React.FC<OccurrenceSourceSelectorProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="No histórico: de onde vêm os dados de ocorrências.">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Fonte (histórico)
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange('api')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === 'api' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Hexagon por período (login)"
+        >
+          API
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('planilha')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === 'planilha' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Arquivo estático"
+        >
+          Planilha
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const ResizableToggle: React.FC<ResizableToggleProps> = ({ value, onChange }) => {
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -381,11 +422,17 @@ interface HistoricalTimelineControlProps {
   onApplyFilter?: () => void;
   /** Exibe "Buscando..." ao lado do botão enquanto carrega */
   refreshing?: boolean;
+  /** Carregando ocorrências da API (quando "Mostrar ocorrências" + Aplicar) */
+  occurrenceLoading?: boolean;
+  /** Erro ao carregar ocorrências (ex.: falha de login na API) */
+  occurrenceError?: string | null;
   /** Quando "accumulated", mostra o intervalo em vez do slider de snapshot */
   viewMode?: 'instant' | 'accumulated';
   /** No modo instantâneo: horário desejado (HH:mm). Só aplicado ao clicar em Aplicar. */
   desiredAnalysisTime?: string;
   onDesiredAnalysisTimeChange?: (time: string) => void;
+  /** Em tempo real: mostrar botão para carregar ocorrências do dia (hoje) da API */
+  showOccurrencesLoadInRealtime?: boolean;
 }
 
 /** Retorna HH:mm a partir de um timestamp ISO. */
@@ -415,9 +462,12 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   onTimestampChange: _onTimestampChange,
   onApplyFilter,
   refreshing = false,
+  occurrenceLoading = false,
+  occurrenceError = null,
   viewMode = 'instant',
   desiredAnalysisTime,
   onDesiredAnalysisTimeChange,
+  showOccurrencesLoadInRealtime = false,
 }) => {
   const selectedIndex = selectedTimestamp ? timeline.indexOf(selectedTimestamp) : -1;
   const safeIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, timeline.length - 1);
@@ -538,20 +588,46 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
       )}
 
       {enabled && onApplyFilter && (
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onApplyFilter}
-            disabled={refreshing}
-            className="flex-1 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {refreshing ? 'Buscando…' : 'Aplicar'}
-          </button>
-          {refreshing && <span className="text-[10px] text-gray-500">Atualizando dados…</span>}
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onApplyFilter}
+              disabled={refreshing || occurrenceLoading}
+              className="flex-1 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {refreshing ? 'Buscando…' : occurrenceLoading ? 'Buscando ocorrências…' : 'Aplicar'}
+            </button>
+          </div>
+          {(refreshing || occurrenceLoading) && (
+            <span className="text-[10px] text-gray-500">
+              {refreshing && occurrenceLoading ? 'Dados e ocorrências…' : refreshing ? 'Atualizando dados…' : 'Carregando ocorrências da API…'}
+            </span>
+          )}
+          {occurrenceError && (
+            <p className="text-[10px] text-red-600 font-medium" role="alert">{occurrenceError}</p>
+          )}
         </div>
       )}
 
-      {!enabled && (
+      {!enabled && showOccurrencesLoadInRealtime && onApplyFilter && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          <p className="text-[10px] text-gray-500">Tempo real: carregar ocorrências de hoje da API.</p>
+          <button
+            type="button"
+            onClick={onApplyFilter}
+            disabled={refreshing || occurrenceLoading}
+            className="w-full rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {occurrenceLoading ? 'Carregando…' : 'Carregar ocorrências (hoje)'}
+          </button>
+          {occurrenceError && (
+            <p className="text-[10px] text-red-600 font-medium" role="alert">{occurrenceError}</p>
+          )}
+        </div>
+      )}
+
+      {!enabled && !showOccurrencesLoadInRealtime && (
         <div className="mt-2 text-[10px] text-gray-500">
           Ative o modo &quot;Histórico&quot; no topo para usar datas e acumulado.
         </div>

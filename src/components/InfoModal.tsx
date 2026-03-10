@@ -99,58 +99,6 @@ export const InfoModal: React.FC<InfoModalProps> = ({
             </div>
           </div>
 
-          {/* Legenda */}
-          <div>
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              Legenda de Chuva
-            </h3>
-            
-            {/* Mobile Legend - Stacked */}
-            <div className="block sm:hidden">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full bg-gray-200 border border-gray-300 flex-shrink-0"></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Bairros sem dados</span>
-                    <p className="text-xs text-gray-500">Áreas sem estações meteorológicas</p>
-                  </div>
-                </div>
-                {rainLevels.map((level, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{ backgroundColor: level.color }}></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800 capitalize">{level.name}</span>
-                    <p className="text-xs text-gray-500">{level.description}</p>
-                  </div>
-                </div>
-              ))}
-              </div>
-            </div>
-            
-            {/* Desktop Legend - Grid */}
-            <div className="hidden sm:block">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-4 h-4 rounded-full bg-gray-200 border border-gray-300 flex-shrink-0"></div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-800">Bairros sem dados</span>
-                    <p className="text-xs text-gray-500">Áreas sem estações meteorológicas</p>
-                  </div>
-                </div>
-                {rainLevels.map((level, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-4 h-4 rounded-full border border-white flex-shrink-0" style={{ backgroundColor: level.color }}></div>
-                    <div>
-                      <span className="text-sm font-medium text-gray-800 capitalize">{level.name}</span>
-                      <p className="text-xs text-gray-500">{level.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* Informações sobre os dados */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">

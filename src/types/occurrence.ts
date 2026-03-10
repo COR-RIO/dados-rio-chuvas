@@ -47,7 +47,10 @@ export interface Occurrence {
   ponto_rio_aguas: string | null;
   agencias_acionadas: string | null;
   agencia_principal: string | null;
+  /** Nível de criticidade: 1 = Muito alta, 2 = Alta, 3 = Média, 4 = Baixa (ver utils/criticidade.ts). Pode vir como label ou número da API. */
   criticidade: string | null;
   estagio: string | null;
+  /** Dados brutos da API de ocorrências (quando veio da API), com todos os campos mesmo vazios. */
+  rawApi?: Record<string, unknown>;
 }
 
