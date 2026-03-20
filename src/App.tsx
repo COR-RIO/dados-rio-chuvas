@@ -51,6 +51,9 @@ function App() {
     historicalTimeline,
     activeHistoricalTimestamp,
     totalStations,
+    lastFetchDurationMs,
+    lastRequestAt,
+    apiDataUnchangedSince,
     refresh,
   } = useRainData({
     useMock: useMockDemo,
@@ -199,6 +202,22 @@ function App() {
         return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
       })()
       : null;
+
+  const realtimeApiDiagnostic = !useMockDemo && !isHistoricalMode
+    ? (() => {
+        if (refreshing) return 'Atualizando dados da API...';
+        if (apiDataUnchangedSince && lastUpdate) {
+          return `API sem nova atualização desde ${lastUpdate.toLocaleTimeString('pt-BR')} (checagem a cada 5 min).`;
+        }
+        if (lastFetchDurationMs >= 15000) {
+          return `Resposta lenta na última atualização (~${Math.round(lastFetchDurationMs / 1000)}s).`;
+        }
+        if (lastRequestAt && lastFetchDurationMs > 0) {
+          return `Última checagem: ${lastRequestAt.toLocaleTimeString('pt-BR')} (${Math.round(lastFetchDurationMs / 1000)}s).`;
+        }
+        return null;
+      })()
+    : null;
 
   // Ao receber nova timeline após Aplicar no Instantâneo: definir timestamp pelo horário desejado e atualizar mapa/tabela com dados do GCP
   useEffect(() => {
@@ -419,7 +438,7 @@ function App() {
 
         <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
           <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
-            <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0 flex-shrink-0">
                 <h1 className={`text-xs sm:text-base lg:text-lg font-bold leading-tight ${headerTitleClass}`}>{titleLabel}</h1>
                 <div className={`mt-0.5 sm:mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs ${headerMetaClass}`}>
@@ -450,6 +469,14 @@ function App() {
                   )}
                   {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
                 </div>
+                {realtimeApiDiagnostic && (
+                  <p
+                    className={`mt-1 text-[10px] sm:text-xs ${isHighContrastMap ? 'text-sky-200' : 'text-sky-700'}`}
+                    title={realtimeApiDiagnostic}
+                  >
+                    {realtimeApiDiagnostic}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">

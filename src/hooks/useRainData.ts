@@ -52,6 +52,9 @@ export const useRainData = (
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [lastFetchDurationMs, setLastFetchDurationMs] = useState<number>(0);
+  const [lastRequestAt, setLastRequestAt] = useState<Date | null>(null);
+  const [apiDataUnchangedSince, setApiDataUnchangedSince] = useState<Date | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean>(true);
   const [historicalAvailable, setHistoricalAvailable] = useState<boolean>(false);
   const [dataSource, setDataSource] = useState<RainDataSource>('api');
@@ -60,6 +63,7 @@ export const useRainData = (
   const [stationsByTimestamp, setStationsByTimestamp] = useState<Record<string, RainStation[]>>({});
   const [totalStations, setTotalStations] = useState<number>(0);
   const inFlightRef = useRef(false);
+  const latestApiReadAtRef = useRef<number | null>(null);
   const hasLoadedRef = useRef(false);
   const loadDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
@@ -72,6 +76,8 @@ export const useRainData = (
   const loadData = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
+    const startedAt = Date.now();
+    setLastRequestAt(new Date(startedAt));
     try {
       if (!hasLoadedRef.current) {
         setLoading(true);
@@ -136,7 +142,19 @@ export const useRainData = (
 
       setStations(data);
       setTotalStations(data.length);
-      setLastUpdate(getLatestReadAt(data) ?? new Date());
+      const latestReadAt = getLatestReadAt(data) ?? new Date();
+      setLastUpdate(latestReadAt);
+      const latestReadAtMs = latestReadAt.getTime();
+      if (latestApiReadAtRef.current == null) {
+        latestApiReadAtRef.current = latestReadAtMs;
+        setApiDataUnchangedSince(null);
+      } else if (latestReadAtMs <= latestApiReadAtRef.current) {
+        // API respondeu, mas sem dado novo desde a última checagem.
+        setApiDataUnchangedSince((prev) => prev ?? new Date());
+      } else {
+        latestApiReadAtRef.current = latestReadAtMs;
+        setApiDataUnchangedSince(null);
+      }
       setApiAvailable(true);
       setDataSource('api');
       setHistoricalTimeline([]);
@@ -149,6 +167,7 @@ export const useRainData = (
       setApiAvailable(false);
       if (!hasLoadedRef.current) setStations([]);
     } finally {
+      setLastFetchDurationMs(Date.now() - startedAt);
       setLoading(false);
       setRefreshing(false);
       inFlightRef.current = false;
@@ -201,6 +220,9 @@ export const useRainData = (
     activeHistoricalTimestamp,
     stationsByTimestamp,
     totalStations,
+    lastFetchDurationMs,
+    lastRequestAt,
+    apiDataUnchangedSince,
     refresh
   };
 };
