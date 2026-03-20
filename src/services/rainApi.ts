@@ -3,6 +3,13 @@ import { RainStation } from '../types/rain';
 // URL da API da Prefeitura do Rio de Janeiro (via proxy para resolver CORS)
 const RIO_RAIN_API_URL = '/api/json/chuvas';
 
+function buildRainApiUrl(): string {
+  // Evita respostas cacheadas em proxy/CDN/browser.
+  const url = new URL(RIO_RAIN_API_URL, window.location.origin);
+  url.searchParams.set('_ts', String(Date.now()));
+  return `${url.pathname}${url.search}`;
+}
+
 // Interface para a resposta da API
 interface RioRainApiResponse {
   objects: Array<{
@@ -28,17 +35,21 @@ interface RioRainApiResponse {
 export const fetchRainData = async (): Promise<RainStation[]> => {
   try {
     console.log('Buscando dados de chuva em tempo real da Prefeitura do Rio...');
-    console.log('URL da API:', RIO_RAIN_API_URL);
+    const url = buildRainApiUrl();
+    console.log('URL da API:', url);
     
-    const response = await fetch(RIO_RAIN_API_URL, {
+    const response = await fetch(url, {
       method: 'GET',
       mode: 'cors',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
       // Adiciona cache busting para garantir dados atualizados
-      cache: 'no-cache'
+      cache: 'no-store'
     });
 
     console.log('Status da resposta:', response.status, response.statusText);
@@ -98,13 +109,16 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
 // Função para verificar se a API está disponível
 export const checkApiAvailability = async (): Promise<boolean> => {
   try {
-    const response = await fetch(RIO_RAIN_API_URL, {
+    const response = await fetch(buildRainApiUrl(), {
       method: 'GET',
       mode: 'cors',
       headers: {
         'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
-      cache: 'no-cache'
+      cache: 'no-store'
     });
     
     return response.ok;

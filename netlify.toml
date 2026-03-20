@@ -25,6 +25,14 @@
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
 
+# Evita cache no endpoint de chuva em tempo real
+[[headers]]
+  for = "/api/json/chuvas"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0"
+    Pragma = "no-cache"
+    Expires = "0"
+
 # Redirects para proxy da API
 [[redirects]]
   from = "/api/json/chuvas"
