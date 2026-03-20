@@ -133,3 +133,17 @@ export function importOccurrencesFromXlsx(filePath: string): Occurrence[] {
     .filter((occ) => occ.id_ocorrencia !== '');
 }
 
+/**
+ * Parseia um buffer XLSX (ex.: fetch de /planilhas/arquivo.xlsx)
+ * e retorna uma lista de ocorrências padronizadas.
+ * Uso: navegador/runtime com arquivos em public/.
+ */
+export function parseOccurrencesFromArrayBuffer(buffer: ArrayBuffer): Occurrence[] {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheet = getFirstWorksheet(workbook);
+  const rawRows = XLSX.utils.sheet_to_json<RawOccurrenceRow>(sheet, { defval: null });
+  return rawRows
+    .map(mapRowToOccurrence)
+    .filter((occ) => occ.id_ocorrencia !== '');
+}
+
