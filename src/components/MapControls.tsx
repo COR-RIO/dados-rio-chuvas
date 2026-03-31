@@ -748,7 +748,7 @@ export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) 
     <button
       type="button"
       onClick={handleFocus}
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1400] flex items-center gap-2 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors sm:bottom-3 min-w-0 max-w-[calc(100vw-2rem)]"
+      className="absolute top-24 left-1/2 z-[1400] flex min-w-0 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition-colors hover:bg-gray-50 active:bg-gray-100 sm:top-28"
       title="Ajustar vista para a cidade do Rio inteira"
     >
       <Map className="w-4 h-4 shrink-0" />
