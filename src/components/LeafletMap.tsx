@@ -165,7 +165,7 @@ const StationMarkers: React.FC<{
   stations: RainStation[];
   mapDataWindow?: MapDataWindow;
   showAccumulated?: boolean;
-}> = ({ stations, mapDataWindow = '1h', showAccumulated = false }) => {
+}> = ({ stations, mapDataWindow = 'both', showAccumulated = false }) => {
   return (
     <>
       {stations.map((station) => {
@@ -386,7 +386,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showSidebar, setShowSidebar] = useState(!isMobileInitial);
   const [showFiltersPanel, setShowFiltersPanel] = useState(!isMobileInitial);
   const [isMobileView, setIsMobileView] = useState(isMobileInitial);
-  const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('1h');
+  const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('both');
   const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   useEffect(() => {
@@ -497,8 +497,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <MapLayers value={mapType} onChange={onMapTypeChange} />
               <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
-              <OccurrencesToggle value={showOccurrences ?? true} onChange={onShowOccurrencesChange ?? (() => { })} />
-              {(showOccurrences ?? true) && (
+              <OccurrencesToggle value={showOccurrences ?? false} onChange={onShowOccurrencesChange ?? (() => { })} />
+              {(showOccurrences ?? false) && (
                 <>
                   {historicalMode && (
                     <>
@@ -704,7 +704,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           mapDataWindow={mapDataWindow}
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
-        <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? true) ? occurrences : undefined} />
+        <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
       </MapContainer>
 
       {/* Timeline Player - visible when data is loaded in historical mode */}

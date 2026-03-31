@@ -277,7 +277,7 @@ function App() {
     }
     refresh();
   };
-  const [pendingShowOccurrences, setPendingShowOccurrences] = useState(true);
+  const [pendingShowOccurrences, setPendingShowOccurrences] = useState(false);
   const [appliedShowOccurrences, setAppliedShowOccurrences] = useState(false);
   const [occurrenceDataSource, setOccurrenceDataSource] = useState<'api' | 'planilha'>('planilha');
   const [staticOccurrences, setStaticOccurrences] = useState<Occurrence[]>([]);
