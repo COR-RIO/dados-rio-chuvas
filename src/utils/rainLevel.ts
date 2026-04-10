@@ -34,31 +34,35 @@ export const getRainLevel = (rainfall: number): RainLevel => {
   return rainLevels[4];
 };
 
-/** Níveis para chuva acumulada no período (mm). Mesma paleta: Sem Chuva | Fraca | Moderada | Forte | Muito Forte. */
+/**
+ * Chuva acumulada no período (mm) — fraca / moderada / forte / muito forte (mesma paleta).
+ * Fraca: até 7 | Moderada: 7,1–16 | Forte: 16,1–26 | Muito forte: acima de 26
+ * Limites numéricos contínuos: (0,7], (7,16], (16,26], >26.
+ */
 export const accumulatedRainLevels: RainLevel[] = [
   { name: 'sem chuva', description: '0 mm', min: 0, max: 0, color: RAIN_LEVEL_PALETTE[0], bgColor: 'bg-gray-200' },
-  { name: 'fraca', description: '< 25,4 mm', min: 0.1, max: 25.39, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
-  { name: 'moderada', description: '25,4 – 47,0 mm', min: 25.4, max: 46.99, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
-  { name: 'forte', description: '47,0 – 69,2 mm', min: 47.0, max: 69.19, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },
-  { name: 'muito forte', description: '> 69,2 mm', min: 69.2, max: null, color: RAIN_LEVEL_PALETTE[4], bgColor: 'bg-blue-900' },
+  { name: 'fraca', description: 'até 7 mm', min: 0.01, max: 7, color: RAIN_LEVEL_PALETTE[1], bgColor: 'bg-blue-600' },
+  { name: 'moderada', description: '7,1 – 16 mm', min: 7.01, max: 16, color: RAIN_LEVEL_PALETTE[2], bgColor: 'bg-blue-500' },
+  { name: 'forte', description: '16,1 – 26 mm', min: 16.01, max: 26, color: RAIN_LEVEL_PALETTE[3], bgColor: 'bg-blue-700' },
+  { name: 'muito forte', description: '> 26 mm', min: 26.01, max: null, color: RAIN_LEVEL_PALETTE[4], bgColor: 'bg-blue-900' },
 ];
 
-/** Retorna nível e cor para chuva acumulada (mm) no período – critério Estágio 3. */
+/** Retorna nível e cor para chuva acumulada (mm) no período — fraca / moderada / forte / muito forte. */
 export const getAccumulatedRainLevel = (accumulatedMm: number): RainLevel => {
   const n = Number(accumulatedMm);
   if (n !== n || n <= 0) return accumulatedRainLevels[0];
-  if (n < 25.4) return accumulatedRainLevels[1];
-  if (n < 47.0) return accumulatedRainLevels[2];
-  if (n < 69.2) return accumulatedRainLevels[3];
+  if (n <= 7) return accumulatedRainLevels[1];
+  if (n <= 16) return accumulatedRainLevels[2];
+  if (n <= 26) return accumulatedRainLevels[3];
   return accumulatedRainLevels[4];
 };
 
-/** Converte mm acumulados em nível 0–4 para hexágonos – critério Estágio 3 (< 25,4 | 25,4–47 | 47–69,2 | > 69,2). */
+/** Converte mm acumulados em nível 0–4 para zonas/hexágonos (fraca…muito forte). */
 export function accumulatedMmToInfluenceLevel(mm: number): 0 | 1 | 2 | 3 | 4 {
   const n = Number(mm);
   if (n !== n || n <= 0) return 0;
-  if (n < 25.4) return 1;
-  if (n < 47.0) return 2;
-  if (n < 69.2) return 3;
+  if (n <= 7) return 1;
+  if (n <= 16) return 2;
+  if (n <= 26) return 3;
   return 4;
 }
