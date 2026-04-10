@@ -19,6 +19,7 @@ import {
   FitCityOnLoad,
   OccurrencesToggle,
   OccurrenceSourceSelector,
+  OccurrencePlanilhaUpload,
   OccurrenceFilters,
 } from './MapControls';
 import type { OccurrenceDataSource } from './MapControls';
@@ -82,6 +83,13 @@ interface LeafletMapProps {
   onOccurrenceDataSourceChange?: (source: OccurrenceDataSource) => void;
   /** Erro ao carregar planilha (ex.: arquivo muito grande) */
   planilhaLoadError?: string | null;
+  /** Upload manual de .xlsx (modo histórico + fonte planilha) */
+  onPlanilhaFileChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploadedPlanilhaFileName?: string | null;
+  onClearUploadedPlanilha?: () => void;
+  planilhaUploadError?: string | null;
+  planilhaGeocoding?: boolean;
+  planilhaGeocodeProgress?: string | null;
   /** Se as ocorrências devem realmente ser renderizadas (aplicado após clicar Aplicar) */
   appliedShowOccurrences?: boolean;
   /** Filtro de texto para ocorrências (pendente até clicar em Aplicar) */
@@ -358,6 +366,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   occurrenceDataSource = 'planilha',
   onOccurrenceDataSourceChange,
   planilhaLoadError = null,
+  onPlanilhaFileChange,
+  uploadedPlanilhaFileName = null,
+  onClearUploadedPlanilha,
+  planilhaUploadError = null,
+  planilhaGeocoding = false,
+  planilhaGeocodeProgress = null,
   appliedShowOccurrences,
   occurrenceTextFilter,
   onOccurrenceTextFilterChange,
@@ -508,6 +522,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                       />
                       {occurrenceDataSource === 'planilha' && planilhaLoadError && (
                         <p className="text-[10px] text-amber-700 font-medium" role="alert">{planilhaLoadError}</p>
+                      )}
+                      {occurrenceDataSource === 'planilha' && onPlanilhaFileChange && (
+                        <OccurrencePlanilhaUpload
+                          onFileChange={onPlanilhaFileChange}
+                          uploadedFileName={uploadedPlanilhaFileName}
+                          onClearUpload={onClearUploadedPlanilha ?? (() => {})}
+                          uploadError={planilhaUploadError}
+                          geocoding={planilhaGeocoding}
+                          geocodeProgress={planilhaGeocodeProgress}
+                        />
                       )}
                     </>
                   )}

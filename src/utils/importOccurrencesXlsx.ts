@@ -108,10 +108,12 @@ function mapRowToOccurrence(row: RawOccurrenceRow): Occurrence {
     pluviometro_id: toStringOrNull(row['Pluviômetro ID']),
     pluviometro_estacao: toStringOrNull(row['Pluviômetro Estação']),
     ponto_rio_aguas: toStringOrNull(row['Ponto Rio Águas']),
-    agencias_acionadas: toStringOrNull(row['Agências Acionadas']),
+    agencias_acionadas: toStringOrNull(row['Agências Acionadas'] ?? row['Agência(s)']),
     agencia_principal: toStringOrNull(row['Agência Principal']),
     criticidade: toStringOrNull(row['Criticidade']),
     estagio: toStringOrNull(row['Estágio']),
+    /** Preserva todas as colunas da planilha (incl. nomes não mapeados acima). */
+    rawApi: { ...(row as Record<string, unknown>) },
   };
 }
 

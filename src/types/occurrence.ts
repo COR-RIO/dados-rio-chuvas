@@ -1,5 +1,7 @@
 export interface RawOccurrenceRow {
   'Ocorrência'?: string | number;
+  /** Alias usado em exportações (ex.: Relação de Ocorrências) */
+  'Agência(s)'?: string;
   'Agências Acionadas'?: string;
   'Agência Principal'?: string;
   'Criticidade'?: string;
@@ -50,7 +52,7 @@ export interface Occurrence {
   /** Nível de criticidade: 1 = Muito alta, 2 = Alta, 3 = Média, 4 = Baixa (ver utils/criticidade.ts). Pode vir como label ou número da API. */
   criticidade: string | null;
   estagio: string | null;
-  /** Dados brutos da API de ocorrências (quando veio da API), com todos os campos mesmo vazios. */
+  /** Campos brutos: API Hexagon/Simaa ou linha completa da planilha Excel (todas as colunas da aba). */
   rawApi?: Record<string, unknown>;
 }
 

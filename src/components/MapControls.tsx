@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2 } from 'lucide-react';
+import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
@@ -190,11 +190,85 @@ export const OccurrenceSourceSelector: React.FC<OccurrenceSourceSelectorProps> =
           className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
             value === 'planilha' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
-          title="Arquivo estático"
+          title="Planilha do site ou arquivo .xlsx carregado"
         >
           Planilha
         </button>
       </div>
+    </div>
+  );
+};
+
+interface OccurrencePlanilhaUploadProps {
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploadedFileName: string | null;
+  onClearUpload: () => void;
+  uploadError: string | null;
+  geocoding: boolean;
+  geocodeProgress: string | null;
+}
+
+/** Carregar ocorrências a partir de um .xlsx (formato Relação de Ocorrências / Prefeitura). */
+export const OccurrencePlanilhaUpload: React.FC<OccurrencePlanilhaUploadProps> = ({
+  onFileChange,
+  uploadedFileName,
+  onClearUpload,
+  uploadError,
+  geocoding,
+  geocodeProgress,
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Substitui a planilha padrão do site pelos dados do arquivo.">
+        <Upload className="w-3.5 h-3.5 shrink-0" />
+        Arquivo Excel
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={onFileChange}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={geocoding}
+        className="w-full rounded border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+      >
+        {geocoding ? 'Processando…' : 'Carregar planilha (.xlsx)'}
+      </button>
+      {uploadedFileName && (
+        <div className="mt-1.5 flex items-start justify-between gap-1">
+          <span className="text-[10px] text-gray-700 break-words min-w-0" title={uploadedFileName}>
+            Em uso: {uploadedFileName}
+          </span>
+          <button
+            type="button"
+            onClick={onClearUpload}
+            disabled={geocoding}
+            className="shrink-0 p-0.5 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
+            title="Voltar à planilha padrão do site"
+            aria-label="Remover arquivo carregado"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {geocoding && (
+        <p className="text-[10px] text-blue-700 mt-1" aria-live="polite">
+          Buscando coordenadas no mapa…{geocodeProgress ? ` (${geocodeProgress})` : ''}
+        </p>
+      )}
+      {uploadError && (
+        <p className="text-[10px] text-red-600 font-medium mt-1" role="alert">
+          {uploadError}
+        </p>
+      )}
+      <p className="text-[9px] text-gray-500 mt-1.5 leading-snug">
+        Colunas esperadas: Ocorrência, Data/Hora abertura, Localização, etc. Sem latitude/longitude, o sistema tenta localizar pelo endereço (limite de buscas por carga).
+      </p>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
@@ -10,6 +10,8 @@ import { RainDataTable, type SortField, type SortDirection } from './components/
 import { findClosestTimestamp } from './utils/historicalTimestamp';
 import type { Occurrence } from './types/occurrence';
 import { loadStaticOccurrences } from './data/loadOccurrences';
+import { parseOccurrencesFromArrayBuffer } from './utils/importOccurrencesXlsx';
+import { enrichOccurrencesMissingCoords } from './utils/enrichOccurrencesGeocode';
 import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
 import { fetchOccurrencesForMap } from './services/ocorrenciasApi';
 import { fetchOcorrenciasAbertas } from './services/ocorrenciasAbertasApi';
@@ -293,6 +295,65 @@ function App() {
   const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[]>([]);
 
   const [planilhaLoadError, setPlanilhaLoadError] = useState<string | null>(null);
+  const [uploadedPlanilhaOccurrences, setUploadedPlanilhaOccurrences] = useState<Occurrence[] | null>(null);
+  const [uploadedPlanilhaFileName, setUploadedPlanilhaFileName] = useState<string | null>(null);
+  const [planilhaUploadError, setPlanilhaUploadError] = useState<string | null>(null);
+  const [planilhaGeocoding, setPlanilhaGeocoding] = useState(false);
+  const [planilhaGeocodeProgress, setPlanilhaGeocodeProgress] = useState<string | null>(null);
+
+  const handlePlanilhaFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const ok =
+      /\.xlsx$/i.test(file.name) ||
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (!ok) {
+      setPlanilhaUploadError('Use um arquivo .xlsx.');
+      return;
+    }
+    setPlanilhaUploadError(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const list = parseOccurrencesFromArrayBuffer(buf);
+      if (list.length === 0) {
+        setPlanilhaUploadError('Nenhuma ocorrência válida. Confira colunas (ex.: Ocorrência) e o formato.');
+        setUploadedPlanilhaOccurrences(null);
+        setUploadedPlanilhaFileName(null);
+        return;
+      }
+      setUploadedPlanilhaOccurrences(list);
+      setUploadedPlanilhaFileName(file.name);
+      const needGeo = list.some(
+        (o) => (o.latitude == null || o.longitude == null) && o.localizacao?.trim()
+      );
+      if (needGeo && import.meta.env.VITE_GEOCODE_OCORRENCIAS !== 'false') {
+        setPlanilhaGeocoding(true);
+        setPlanilhaGeocodeProgress('0/0');
+        const enriched = await enrichOccurrencesMissingCoords(list, {
+          onProgress: (done, total) => setPlanilhaGeocodeProgress(`${done}/${total}`),
+        });
+        setUploadedPlanilhaOccurrences(enriched);
+        setPlanilhaGeocodeProgress(null);
+        setPlanilhaGeocoding(false);
+      }
+    } catch (err) {
+      setPlanilhaUploadError(err instanceof Error ? err.message : 'Erro ao ler a planilha.');
+      setUploadedPlanilhaOccurrences(null);
+      setUploadedPlanilhaFileName(null);
+      setPlanilhaGeocoding(false);
+      setPlanilhaGeocodeProgress(null);
+    }
+  }, []);
+
+  const clearUploadedPlanilha = useCallback(() => {
+    setUploadedPlanilhaOccurrences(null);
+    setUploadedPlanilhaFileName(null);
+    setPlanilhaUploadError(null);
+    setPlanilhaGeocodeProgress(null);
+    setPlanilhaGeocoding(false);
+  }, []);
+
   useEffect(() => {
     if (occurrenceDataSource !== 'planilha') return;
     setPlanilhaLoadError(null);
@@ -319,12 +380,12 @@ function App() {
       .finally(() => setAbertasOccurrencesLoading(false));
   }, [isHistoricalMode, appliedShowOccurrences]);
 
-  /** Em tempo real: ocorrências abertas (Simaa). No histórico: API ou planilha conforme seletor. */
+  /** Em tempo real: ocorrências abertas (Simaa). No histórico: API ou planilha (arquivo do site ou .xlsx carregado). */
   const occurrenceSource: Occurrence[] = !isHistoricalMode
     ? abertasOccurrences
     : occurrenceDataSource === 'api'
       ? (apiOccurrences ?? [])
-      : staticOccurrences;
+      : (uploadedPlanilhaOccurrences ?? staticOccurrences);
   const availableOccCategories = useMemo(() => {
     const cats = new Set<string>();
     occurrenceSource.forEach((o: Occurrence) => {
@@ -413,6 +474,12 @@ function App() {
           occurrenceDataSource={occurrenceDataSource}
           onOccurrenceDataSourceChange={setOccurrenceDataSource}
           planilhaLoadError={planilhaLoadError}
+          onPlanilhaFileChange={handlePlanilhaFileChange}
+          uploadedPlanilhaFileName={uploadedPlanilhaFileName}
+          onClearUploadedPlanilha={clearUploadedPlanilha}
+          planilhaUploadError={planilhaUploadError}
+          planilhaGeocoding={planilhaGeocoding}
+          planilhaGeocodeProgress={planilhaGeocodeProgress}
           appliedShowOccurrences={appliedShowOccurrences || (isPlaying && playbackMode !== 'rain')}
           occurrenceTextFilter={pendingOccTextFilter}
           onOccurrenceTextFilterChange={setPendingOccTextFilter}

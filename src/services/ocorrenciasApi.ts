@@ -338,33 +338,61 @@ export async function fetchOccurrencesForMap(
 
   if (!GEOCODE_ENABLED) return list;
 
-  const { geocodeAddress, isGeocodeInCooldown } = await import('../utils/geocode');
+  const {
+    geocodeAddress,
+    isGeocodeInCooldown,
+    buildGeocodeQueryFromLocalizacao,
+    GEOCODE_OPTIONS_RIO,
+  } = await import('../utils/geocode');
   if (isGeocodeInCooldown()) return list;
 
   const delayMs = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-  const needGeocode = list.filter(
-    (occ) => (occ.latitude == null || occ.longitude == null) && occ.localizacao?.trim()
-  );
-  const uniqueAddresses = [...new Set(needGeocode.map((occ) => occ.localizacao!.trim()))];
-  const toFetch = uniqueAddresses.slice(0, MAX_GEOCODE_PER_LOAD);
-  const coordsByAddress = new Map<string, { lat: number; lng: number } | null>();
+  const needGeocode = list
+    .map((occ, index) => ({ occ, index }))
+    .filter(({ occ }) => (occ.latitude == null || occ.longitude == null) && occ.localizacao?.trim());
+
+  /** Mesmo critério da planilha: localização + bairro + Rio (texto único por combinação). */
+  const queryToIndices = new Map<string, number[]>();
+  const queryToBairro = new Map<string, string | null>();
+
+  for (const { occ, index } of needGeocode) {
+    const q = buildGeocodeQueryFromLocalizacao(occ.localizacao, occ.bairro);
+    if (!q) continue;
+    const arr = queryToIndices.get(q) ?? [];
+    arr.push(index);
+    queryToIndices.set(q, arr);
+    if (!queryToBairro.has(q)) queryToBairro.set(q, occ.bairro?.trim() ?? null);
+  }
+
+  const toFetch = [...queryToIndices.keys()].slice(0, MAX_GEOCODE_PER_LOAD);
+  const coordsByQuery = new Map<string, { lat: number; lng: number } | null>();
 
   for (let i = 0; i < toFetch.length; i++) {
     if (i > 0) await delayMs(GEOCODE_DELAY_MS);
     if (isGeocodeInCooldown()) break;
-    const addr = toFetch[i];
-    const coords = await geocodeAddress(addr);
-    coordsByAddress.set(addr, coords);
+    const primary = toFetch[i]!;
+    let coords = await geocodeAddress(primary, GEOCODE_OPTIONS_RIO);
+    if (!coords) {
+      const b = queryToBairro.get(primary);
+      if (b) {
+        await delayMs(400);
+        if (!isGeocodeInCooldown()) {
+          coords = await geocodeAddress(`${b}, Rio de Janeiro, RJ, Brasil`, GEOCODE_OPTIONS_RIO);
+        }
+      }
+    }
+    coordsByQuery.set(primary, coords);
   }
 
-  for (const occ of list) {
-    if (occ.latitude != null && occ.longitude != null) continue;
-    const addr = occ.localizacao?.trim();
-    if (!addr) continue;
-    const coords = coordsByAddress.get(addr) ?? null;
-    if (coords) {
-      occ.latitude = coords.lat;
-      occ.longitude = coords.lng;
+  for (const [primary, coords] of coordsByQuery) {
+    if (!coords) continue;
+    const indices = queryToIndices.get(primary) ?? [];
+    for (const idx of indices) {
+      const occ = list[idx];
+      if (occ && (occ.latitude == null || occ.longitude == null)) {
+        occ.latitude = coords.lat;
+        occ.longitude = coords.lng;
+      }
     }
   }
   return list;
