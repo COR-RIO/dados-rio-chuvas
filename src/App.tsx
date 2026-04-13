@@ -12,7 +12,10 @@ import type { Occurrence } from './types/occurrence';
 import { loadStaticOccurrences } from './data/loadOccurrences';
 import { parseOccurrencesFromArrayBuffer } from './utils/importOccurrencesXlsx';
 import { enrichOccurrencesMissingCoords } from './utils/enrichOccurrencesGeocode';
-import { filterOccurrencesByRange, filterOccurrencesByText } from './utils/occurrenceFilter';
+import {
+  filterOccurrencesByRange,
+  filterOccurrencesByText,
+} from './utils/occurrenceFilter';
 import { fetchOccurrencesForMap } from './services/ocorrenciasApi';
 import { fetchOcorrenciasAbertas } from './services/ocorrenciasAbertasApi';
 
@@ -391,7 +394,7 @@ function App() {
     occurrenceSource.forEach((o: Occurrence) => {
       if (o.pop) cats.add(o.pop);
     });
-    return Array.from(cats).sort();
+    return Array.from(cats).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [occurrenceSource]);
 
   const filteredOccurrences = (() => {
