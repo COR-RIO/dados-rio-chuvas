@@ -16,6 +16,39 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function getField<T = unknown>(row: RawOccurrenceRow, keys: string[]): T | null {
+  for (const key of keys) {
+    const value = row[key];
+    if (value != null && String(value).trim() !== '') {
+      return value as T;
+    }
+  }
+  return null;
+}
+
+function normalizeHeaderKey(key: string): string {
+  return key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function getFieldByAliases<T = unknown>(row: RawOccurrenceRow, aliases: string[]): T | null {
+  const direct = getField<T>(row, aliases);
+  if (direct != null) return direct;
+  const normalizedMap = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+    normalizedMap.set(normalizeHeaderKey(k), v);
+  }
+  for (const alias of aliases) {
+    const value = normalizedMap.get(normalizeHeaderKey(alias));
+    if (value != null && String(value).trim() !== '') return value as T;
+  }
+  return null;
+}
+
 function normalizeDate(value: unknown): string | null {
   if (value == null || value === '') return null;
   if (value instanceof Date) {
@@ -23,12 +56,17 @@ function normalizeDate(value: unknown): string | null {
   }
   const s = String(value).trim();
   if (!s) return null;
-  // Aceita apenas formatos seguros: DD/MM/YYYY ou YYYY-MM-DD
+  // Aceita apenas formatos seguros: DD/MM/YYYY, DD-MM-YYYY ou YYYY-MM-DD
   const isoLike = /^\d{4}-\d{2}-\d{2}$/;
   const brLike = /^\d{2}\/\d{2}\/\d{4}$/;
+  const brDashLike = /^\d{2}-\d{2}-\d{4}$/;
   if (isoLike.test(s)) return s;
   if (brLike.test(s)) {
     const [dd, mm, yyyy] = s.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  if (brDashLike.test(s)) {
+    const [dd, mm, yyyy] = s.split('-');
     return `${yyyy}-${mm}-${dd}`;
   }
   return null;
@@ -75,20 +113,59 @@ function normalizeDurationMinutes(value: unknown): number | null {
     }
   }
   const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
+  if (Number.isFinite(n)) return n;
+  // Formato comum em "Relação de Ocorrências": "0 D 00:08:00"
+  const dayTimeLike = /^(\d+)\s*D\s*(\d{1,2}):(\d{2})(?::(\d{2}))?$/i;
+  const dayTime = s.match(dayTimeLike);
+  if (dayTime) {
+    const days = Number(dayTime[1] ?? 0);
+    const hours = Number(dayTime[2] ?? 0);
+    const mins = Number(dayTime[3] ?? 0);
+    const secs = Number(dayTime[4] ?? 0);
+    if ([days, hours, mins, secs].every((x) => Number.isFinite(x))) {
+      return days * 24 * 60 + hours * 60 + mins + secs / 60;
+    }
+  }
+  return null;
+}
+
+function parseDateTimeParts(value: unknown): { date: string | null; time: string | null } {
+  if (value == null) return { date: null, time: null };
+  const s = String(value).trim();
+  if (!s) return { date: null, time: null };
+  const m = s.match(/^(\d{2}[/-]\d{2}[/-]\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)$/);
+  if (!m) return { date: normalizeDate(s), time: normalizeTime(s) };
+  return {
+    date: normalizeDate(m[1]),
+    time: normalizeTime(m[2]),
+  };
+}
+
+function parseLatLong(value: unknown): { latitude: number | null; longitude: number | null } {
+  const raw = toStringOrNull(value);
+  if (!raw) return { latitude: null, longitude: null };
+  const parts = raw.split(',').map((part) => part.trim());
+  if (parts.length < 2) return { latitude: null, longitude: null };
+  return {
+    latitude: toNumberOrNull(parts[0]),
+    longitude: toNumberOrNull(parts[1]),
+  };
 }
 
 function mapRowToOccurrence(row: RawOccurrenceRow): Occurrence {
-  const dataAbertura = normalizeDate(row['Data Abertura']);
-  const horaAbertura = normalizeTime(row['Hora Abertura']);
-  const dataEnc = normalizeDate(row['Data Encerramento']);
-  const horaEnc = normalizeTime(row['Hora Encerramento']);
+  const criacao = parseDateTimeParts(getFieldByAliases(row, ['Criação', 'Criacao']));
+  const finalizacao = parseDateTimeParts(getFieldByAliases(row, ['Finalização', 'Finalizacao']));
+  const dataAbertura = normalizeDate(getFieldByAliases(row, ['Data Abertura'])) ?? criacao.date;
+  const horaAbertura = normalizeTime(getFieldByAliases(row, ['Hora Abertura'])) ?? criacao.time;
+  const dataEnc = normalizeDate(getFieldByAliases(row, ['Data Encerramento'])) ?? finalizacao.date;
+  const horaEnc = normalizeTime(getFieldByAliases(row, ['Hora Encerramento'])) ?? finalizacao.time;
 
   const dataHoraAbertura = buildIsoDateTime(dataAbertura, horaAbertura);
   const dataHoraEncerramento = buildIsoDateTime(dataEnc, horaEnc);
+  const latLong = parseLatLong(getFieldByAliases(row, ['Lat/Long', 'Lat Long', 'Latitude/Longitude', 'Latitude Longitude']));
 
   return {
-    id_ocorrencia: toStringOrNull(row['Ocorrência']) ?? '',
+    id_ocorrencia: toStringOrNull(getFieldByAliases(row, ['Ocorrência', 'Ocorrencia', 'ID'])) ?? '',
     data_abertura: dataAbertura,
     hora_abertura: horaAbertura,
     data_hora_abertura: dataHoraAbertura,
@@ -96,22 +173,22 @@ function mapRowToOccurrence(row: RawOccurrenceRow): Occurrence {
     hora_encerramento: horaEnc,
     data_hora_encerramento: dataHoraEncerramento,
     duracao: normalizeDurationMinutes(row['Duração']),
-    pop: toStringOrNull(row.POP),
-    titulo: toStringOrNull(row['Título']),
-    localizacao: toStringOrNull(row['Localização']),
+    pop: toStringOrNull(getFieldByAliases(row, ['POP', 'Pop'])),
+    titulo: toStringOrNull(getFieldByAliases(row, ['Título', 'Titulo', ' Título '])),
+    localizacao: toStringOrNull(getFieldByAliases(row, ['Localização', 'Localizacao', 'Endereço', 'Endereco'])),
     bairro: toStringOrNull(row.Bairro),
     sentido: toStringOrNull(row.Sentido),
-    ap: toStringOrNull(row.AP),
-    hierarquia_viaria: toStringOrNull(row['Hierarquia Viária']),
-    latitude: toNumberOrNull(row.Latitude),
-    longitude: toNumberOrNull(row.Longitude),
-    pluviometro_id: toStringOrNull(row['Pluviômetro ID']),
-    pluviometro_estacao: toStringOrNull(row['Pluviômetro Estação']),
-    ponto_rio_aguas: toStringOrNull(row['Ponto Rio Águas']),
-    agencias_acionadas: toStringOrNull(row['Agências Acionadas'] ?? row['Agência(s)']),
-    agencia_principal: toStringOrNull(row['Agência Principal']),
-    criticidade: toStringOrNull(row['Criticidade']),
-    estagio: toStringOrNull(row['Estágio']),
+    ap: toStringOrNull(getFieldByAliases(row, ['AP', 'Ap'])),
+    hierarquia_viaria: toStringOrNull(getFieldByAliases(row, ['Hierarquia Viária', 'Hierarquia Viaria'])),
+    latitude: toNumberOrNull(row.Latitude) ?? latLong.latitude,
+    longitude: toNumberOrNull(row.Longitude) ?? latLong.longitude,
+    pluviometro_id: toStringOrNull(getFieldByAliases(row, ['Pluviômetro ID', 'Pluviometro ID'])),
+    pluviometro_estacao: toStringOrNull(getFieldByAliases(row, ['Pluviômetro Estação', 'Pluviometro Estacao'])),
+    ponto_rio_aguas: toStringOrNull(getFieldByAliases(row, ['Ponto Rio Águas', 'Ponto Rio Aguas'])),
+    agencias_acionadas: toStringOrNull(getFieldByAliases(row, ['Agências Acionadas', 'Agencias Acionadas', 'Agência(s)', 'Agencia(s)'])),
+    agencia_principal: toStringOrNull(getFieldByAliases(row, ['Agência Principal', 'Agencia Principal'])),
+    criticidade: toStringOrNull(getFieldByAliases(row, ['Criticidade', 'Criticidade  '])),
+    estagio: toStringOrNull(getFieldByAliases(row, ['Estágio', 'Estagio'])),
     /** Preserva todas as colunas da planilha (incl. nomes não mapeados acima). */
     rawApi: { ...(row as Record<string, unknown>) },
   };

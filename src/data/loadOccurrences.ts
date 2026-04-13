@@ -1,14 +1,38 @@
 import type { Occurrence } from '../types/occurrence';
 import { parseOccurrencesFromArrayBuffer } from '../utils/importOccurrencesXlsx';
 
-const configuredUrl =
-  (typeof import.meta !== 'undefined' &&
-    (import.meta.env?.VITE_OCORRENCIAS_PLANILHA_URL as string | undefined)?.trim()) ||
-  '/planilhas/ocorrencias.xlsx';
+const DEFAULT_URLS = [
+  '/planilhas/RelacaoOcorrenciasFinalizadas.xlsx',
+  '/planilhas/ocorrencias.xlsx',
+  '/planilhas/Ocorrencias.xlsx',
+  '/planilhas/planilha-ocorrencias.xlsx',
+];
+
+function normalizePlanilhaUrl(raw: string): string {
+  const v = raw.trim();
+  if (!v) return '';
+  if (v.startsWith('/')) return v;
+  if (v.toLowerCase().startsWith('planilhas/')) return `/${v}`;
+  return `/planilhas/${v}`;
+}
+
+function getConfiguredPlanilhaUrls(): string[] {
+  if (typeof import.meta === 'undefined') return [];
+  const single = (import.meta.env?.VITE_OCORRENCIAS_PLANILHA_URL as string | undefined) ?? '';
+  const multiple = (import.meta.env?.VITE_OCORRENCIAS_PLANILHA_URLS as string | undefined) ?? '';
+  const urls = [
+    ...multiple.split(','),
+    single,
+  ]
+    .map(normalizePlanilhaUrl)
+    .filter(Boolean);
+  return [...new Set(urls)];
+}
 
 const CANDIDATE_URLS = [
-  configuredUrl,
-].filter(Boolean);
+  ...getConfiguredPlanilhaUrls(),
+  ...DEFAULT_URLS,
+];
 
 /**
  * Carrega ocorrências da planilha (fonte "Planilha").

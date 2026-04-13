@@ -1,10 +1,14 @@
 export interface RawOccurrenceRow {
   'Ocorrência'?: string | number;
+  ID?: string | number;
+  'Criação'?: string | Date;
+  'Finalização'?: string | Date;
   /** Alias usado em exportações (ex.: Relação de Ocorrências) */
   'Agência(s)'?: string;
   'Agências Acionadas'?: string;
   'Agência Principal'?: string;
   'Criticidade'?: string;
+  'Criticidade  '?: string;
   'Estágio'?: string;
   'Data Abertura'?: string | Date;
   'Hora Abertura'?: string;
@@ -13,11 +17,14 @@ export interface RawOccurrenceRow {
   'Duração'?: string | number;
   POP?: string;
   'Título'?: string;
+  ' Título '?: string;
   'Localização'?: string;
+  'Endereço'?: string;
   Bairro?: string;
   Sentido?: string;
   AP?: string;
   'Hierarquia Viária'?: string;
+  'Lat/Long'?: string;
   Latitude?: number | string;
   Longitude?: number | string;
   'Pluviômetro ID'?: string | number;

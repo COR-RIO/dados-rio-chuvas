@@ -1,10 +1,25 @@
 import { join } from 'path';
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync } from 'fs';
 import { importOccurrencesFromXlsx } from '../src/utils/importOccurrencesXlsx';
 import type { Occurrence } from '../src/types/occurrence';
 
-// Caminho da planilha original de ocorrências
-const xlsxPath = join(__dirname, '..', 'PlanilhaDadosOcorrencia_20260227140958.xlsx');
+const cliArgPath = process.argv[2];
+const candidateNames = [
+  'RelacaoOcorrenciasFinalizadas.xlsx',
+  'RelacaodeOcorrencias.xlsx',
+  'PlanilhaDadosOcorrencia_20260227140958.xlsx',
+];
+const xlsxPath =
+  cliArgPath ||
+  candidateNames
+    .map((name) => join(__dirname, '..', name))
+    .find((p) => existsSync(p));
+
+if (!xlsxPath) {
+  throw new Error(
+    'Nenhuma planilha encontrada automaticamente. Informe o caminho: node scripts/import-ocorrencias.ts "C:/caminho/arquivo.xlsx"'
+  );
+}
 
 // Lê e normaliza as ocorrências a partir do XLSX
 const occurrences: Occurrence[] = importOccurrencesFromXlsx(xlsxPath);

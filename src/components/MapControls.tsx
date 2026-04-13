@@ -267,7 +267,7 @@ export const OccurrencePlanilhaUpload: React.FC<OccurrencePlanilhaUploadProps> =
         </p>
       )}
       <p className="text-[9px] text-gray-500 mt-1.5 leading-snug">
-        Colunas esperadas: Ocorrência, Data/Hora abertura, Localização, etc. Sem latitude/longitude, o sistema tenta localizar pelo endereço (limite de buscas por carga).
+        Use arquivo Excel .xlsx (nao .docx), preferencialmente no formato "Relacao de Ocorrencias Finalizadas" com Lat/Long.
       </p>
     </div>
   );
