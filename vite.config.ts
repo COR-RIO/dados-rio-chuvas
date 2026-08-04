@@ -35,6 +35,18 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/historical-rain/, '/.netlify/functions/historical-rain'),
       },
+      // Vento (REDEMET) em dev: proxy para a function no Netlify (esconde a API key)
+      '/api/redemet-wind': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/redemet-wind/, '/.netlify/functions/redemet-wind'),
+      },
+      // INMET (estações automáticas) – API pública, só evita CORS em dev
+      '/api/inmet': {
+        target: 'https://apitempo.inmet.gov.br',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/inmet/, ''),
+      },
       // API de chuvas em tempo real
       '/api': {
         target: 'https://websempre.rio.rj.gov.br',

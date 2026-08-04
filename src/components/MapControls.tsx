@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X } from 'lucide-react';
+import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
+import { WIND_LEVEL_PALETTE, WIND_CORRIDOR_LABELS, type CorridorSummary, type WindCorridor } from '../types/wind';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -73,6 +74,220 @@ export const HexagonLayerToggle: React.FC<HexagonLayerToggleProps> = ({ value, o
           Não
         </button>
       </div>
+    </div>
+  );
+};
+
+interface WindLayerToggleProps {
+  value: boolean;
+  onChange: (show: boolean) => void;
+}
+
+/** Controle para mostrar ou ocultar o cinturão de vento (INMET + REDEMET) no mapa. */
+export const WindLayerToggle: React.FC<WindLayerToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Estações regionais (INMET) e aeroportos (REDEMET) usados como cinturão de antecedência para rajadas de vento.">
+        <Wind className="w-3.5 h-3.5" />
+        Cinturão de vento
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Mostrar
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Ocultar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface WindLegendProps {
+  corridorSummary: Record<WindCorridor, CorridorSummary> | null;
+  loading?: boolean;
+  error?: string | null;
+}
+
+const WIND_LEVEL_LABELS_ORDERED: Array<{ value: 0 | 1 | 2 | 3 | 4; label: string }> = [
+  { value: 0, label: 'Calmo (<20 km/h)' },
+  { value: 1, label: 'Atenção (20–40 km/h)' },
+  { value: 2, label: 'Forte (40–60 km/h)' },
+  { value: 3, label: 'Muito forte (60–80 km/h)' },
+  { value: 4, label: 'Severo (80+ km/h)' },
+];
+
+const TREND_LABEL: Record<CorridorSummary['trend'], string> = {
+  subindo: '↑ subindo',
+  caindo: '↓ caindo',
+  estavel: '→ estável',
+};
+
+/** Legenda de níveis de rajada + resumo por corredor (maior rajada observada e tendência). */
+export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading = false, error = null }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-1.5 text-xs font-semibold text-gray-700">
+        <Wind className="w-3.5 h-3.5" />
+        Vento — níveis
+      </div>
+      <div className="flex flex-col gap-0.5 mb-2">
+        {WIND_LEVEL_LABELS_ORDERED.map(({ value, label }) => (
+          <div key={value} className="flex items-center gap-1.5">
+            <div
+              className="w-2.5 h-2.5 rounded flex-shrink-0 border border-white shadow-sm"
+              style={{ backgroundColor: WIND_LEVEL_PALETTE[value] }}
+            />
+            <span className="text-[9px] text-gray-700 truncate" title={label}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {loading && <p className="text-[10px] text-gray-500">Carregando corredores…</p>}
+      {error && !loading && <p className="text-[10px] text-red-600 font-medium">{error}</p>}
+
+      {corridorSummary && !loading && (
+        <div className="flex flex-col gap-1 border-t border-gray-200 pt-1.5">
+          {(Object.values(corridorSummary) as CorridorSummary[]).map((c) => (
+            <div key={c.corridor} className="text-[9px] text-gray-700 leading-snug">
+              <span className="font-semibold">{WIND_CORRIDOR_LABELS[c.corridor]}:</span>{' '}
+              {c.stationCount > 0 ? (
+                <>
+                  {c.maxGustKmh.toFixed(0)} km/h ({TREND_LABEL[c.trend]})
+                </>
+              ) : (
+                'sem dados'
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface RadarLayerToggleProps {
+  value: boolean;
+  onChange: (show: boolean) => void;
+}
+
+/** Controle para mostrar ou ocultar a camada de radar meteorológico (RainViewer) no mapa. */
+export const RadarLayerToggle: React.FC<RadarLayerToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Radar meteorológico público (RainViewer) — mostra chuva/instabilidade associada às rajadas, com frames passados.">
+        <Radar className="w-3.5 h-3.5" />
+        Radar (chuva/tempo)
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Mostrar
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Ocultar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+interface RadarTimeControlProps {
+  frameCount: number;
+  selectedIndex: number;
+  onSelectedIndexChange: (index: number) => void;
+  isPlaying: boolean;
+  onPlayingChange: (playing: boolean) => void;
+  /** Timestamp Unix (segundos) do frame selecionado, para exibir o horário. */
+  selectedTimeUnix: number | null;
+  loading?: boolean;
+  error?: string | null;
+}
+
+/** Controle para escolher/animar entre os frames passados do radar (últimas ~2h, a cada 10 min). */
+export const RadarTimeControl: React.FC<RadarTimeControlProps> = ({
+  frameCount,
+  selectedIndex,
+  onSelectedIndexChange,
+  isPlaying,
+  onPlayingChange,
+  selectedTimeUnix,
+  loading = false,
+  error = null,
+}) => {
+  const timeLabel = selectedTimeUnix
+    ? new Date(selectedTimeUnix * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : '--:--';
+  const isLatest = selectedIndex === frameCount - 1;
+
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <Radar className="w-3.5 h-3.5" />
+        Radar — tempo passado
+      </div>
+
+      {loading && <p className="text-[10px] text-gray-500">Carregando frames…</p>}
+      {error && !loading && <p className="text-[10px] text-red-600 font-medium">{error}</p>}
+
+      {frameCount > 0 && !loading && (
+        <>
+          <div className="flex items-center gap-2 mb-1.5">
+            <button
+              type="button"
+              onClick={() => onPlayingChange(!isPlaying)}
+              className="shrink-0 rounded bg-yellow-500 p-1.5 text-white hover:bg-yellow-600 transition-colors"
+              title={isPlaying ? 'Pausar' : 'Reproduzir últimos frames'}
+              aria-label={isPlaying ? 'Pausar' : 'Reproduzir'}
+            >
+              {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, frameCount - 1)}
+              step={1}
+              value={selectedIndex}
+              onChange={(e) => {
+                onPlayingChange(false);
+                onSelectedIndexChange(Number(e.target.value));
+              }}
+              className="flex-1 accent-yellow-500 cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-gray-500">
+            <span>~2h atrás</span>
+            <span className="font-semibold text-gray-700">
+              {timeLabel}
+              {isLatest ? ' (agora)' : ''}
+            </span>
+            <span>agora</span>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -5,9 +5,13 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X, Maximize2, Min
 import { RainStation } from '../types/rain';
 import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
+import { useWindData } from '../hooks/useWindData';
+import { useRadarFrames } from '../hooks/useRadarFrames';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
+import { WindBeltLayer } from './WindBeltLayer';
+import { RadarLayer } from './RadarLayer';
 import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
   MapLayers,
@@ -21,6 +25,10 @@ import {
   OccurrenceSourceSelector,
   OccurrencePlanilhaUpload,
   OccurrenceFilters,
+  WindLayerToggle,
+  WindLegend,
+  RadarLayerToggle,
+  RadarTimeControl,
 } from './MapControls';
 import type { OccurrenceDataSource } from './MapControls';
 import { OccurrenceTable } from './OccurrenceTable';
@@ -394,6 +402,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
+  const [showWind, setShowWind] = useState(false);
+  const windData = useWindData();
+  const [showRadar, setShowRadar] = useState(false);
+  const radarData = useRadarFrames();
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -511,6 +523,23 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <MapLayers value={mapType} onChange={onMapTypeChange} />
               <MapDataWindowToggle value={mapDataWindow} onChange={setMapDataWindow} />
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
+              <WindLayerToggle value={showWind} onChange={setShowWind} />
+              {showWind && (
+                <WindLegend corridorSummary={windData.corridorSummary} loading={windData.loading} error={windData.error} />
+              )}
+              <RadarLayerToggle value={showRadar} onChange={setShowRadar} />
+              {showRadar && (
+                <RadarTimeControl
+                  frameCount={radarData.frames.length}
+                  selectedIndex={radarData.selectedIndex}
+                  onSelectedIndexChange={radarData.setSelectedIndex}
+                  isPlaying={radarData.isPlaying}
+                  onPlayingChange={radarData.setIsPlaying}
+                  selectedTimeUnix={radarData.currentFrame?.time ?? null}
+                  loading={radarData.loading}
+                  error={radarData.error}
+                />
+              )}
               <OccurrencesToggle value={showOccurrences ?? false} onChange={onShowOccurrencesChange ?? (() => { })} />
               {(showOccurrences ?? false) && (
                 <>
@@ -710,6 +739,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           attribution={mapTypeConfig.attribution}
           url={mapTypeConfig.url}
         />
+        {showRadar && <RadarLayer tileUrl={radarData.tileUrl} />}
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
         {zonasData && (
@@ -729,6 +759,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
+        {showWind && <WindBeltLayer stations={windData.stations} />}
       </MapContainer>
 
       {/* Timeline Player - visible when data is loaded in historical mode */}

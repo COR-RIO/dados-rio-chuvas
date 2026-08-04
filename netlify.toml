@@ -47,6 +47,20 @@
   status = 200
   force = true
 
+# Vento em aeroportos (REDEMET via Netlify Function — esconde a API key)
+[[redirects]]
+  from = "/api/redemet-wind"
+  to = "/.netlify/functions/redemet-wind"
+  status = 200
+  force = true
+
+# Vento em estações automáticas (INMET) — proxy simples, API pública sem credenciais
+[[redirects]]
+  from = "/api/inmet/*"
+  to = "https://apitempo.inmet.gov.br/:splat"
+  status = 200
+  force = true
+
 # Fallback para SPA
 [[redirects]]
   from = "/*"
