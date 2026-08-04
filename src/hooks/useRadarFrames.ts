@@ -1,29 +1,64 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildRadarTileUrl, fetchRadarFrames, type RadarFrame } from '../services/rainviewerApi';
+import { useCallback, useEffect, useState } from 'react';
+import { fetchCorRadarFrames, type CorRadarId } from '../services/radarCorApi';
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // novo frame a cada ~10 min
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // novo frame a cada ~5 min
 const PLAYBACK_INTERVAL_MS = 700;
 
-export function useRadarFrames() {
-  const [host, setHost] = useState('');
-  const [frames, setFrames] = useState<RadarFrame[]>([]);
+/** Fontes de radar disponíveis: radares da Prefeitura do Rio (Mendanha/Sumaré). */
+export type RadarSourceId = CorRadarId;
+
+/** Frame unificado para a linha do tempo/reprodução. */
+export interface RadarFrameView {
+  /** Timestamp Unix (segundos) do frame. */
+  time: number;
+  /** URL completa da imagem PNG do frame. */
+  url: string;
+}
+
+/**
+ * Busca e controla os frames do radar de uma fonte escolhida.
+ * - 'mendanha' | 'sumare': radares da Prefeitura do Rio (imagens PNG com bounds).
+ * - null: desligado (não busca nada).
+ */
+export function useRadarFrames(source: RadarSourceId | null) {
+  const [frames, setFrames] = useState<RadarFrameView[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1); // -1 = último frame (mais recente)
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadFrames = useCallback(async () => {
-    const result = await fetchRadarFrames();
-    if (!result) {
+    if (!source) {
+      setFrames([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    setLoading(true);
+    const result = await fetchCorRadarFrames(source);
+    if (!result || result.frames.length === 0) {
       setError('Radar indisponível no momento');
+      setFrames([]);
       setLoading(false);
       return;
     }
-    setHost(result.host);
-    setFrames(result.past);
+    setFrames(
+      result.frames.map((f) => ({
+        time: Math.floor(new Date(f.timestamp).getTime() / 1000),
+        url: f.imageUrl,
+      })),
+    );
     setError(null);
     setLoading(false);
-  }, []);
+  }, [source]);
+
+  // Ao trocar de fonte, reinicia a linha do tempo no frame mais recente e já inicia a reprodução
+  // automaticamente (usuário não precisa clicar em play).
+  useEffect(() => {
+    setSelectedIndex(-1);
+    setIsPlaying(source !== null);
+  }, [source]);
 
   useEffect(() => {
     loadFrames();
@@ -44,9 +79,10 @@ export function useRadarFrames() {
 
   const effectiveIndex = selectedIndex < 0 ? frames.length - 1 : selectedIndex;
   const currentFrame = frames[effectiveIndex] ?? null;
-  const tileUrl = currentFrame && host ? buildRadarTileUrl(host, currentFrame) : null;
+  const currentImageUrl = currentFrame?.url ?? null;
 
   return {
+    source,
     frames,
     selectedIndex: effectiveIndex,
     setSelectedIndex,
@@ -55,6 +91,6 @@ export function useRadarFrames() {
     loading,
     error,
     currentFrame,
-    tileUrl,
+    currentImageUrl,
   };
 }

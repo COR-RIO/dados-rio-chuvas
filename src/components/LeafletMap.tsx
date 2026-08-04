@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Polygon, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X, Maximize2, Minimize2 } from 'lucide-react';
 import { RainStation } from '../types/rain';
 import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
-import { useRadarFrames } from '../hooks/useRadarFrames';
+import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
@@ -27,8 +27,9 @@ import {
   OccurrenceFilters,
   WindLayerToggle,
   WindLegend,
-  RadarLayerToggle,
+  RadarSourceControl,
   RadarTimeControl,
+  RadarMapLegend,
 } from './MapControls';
 import type { OccurrenceDataSource } from './MapControls';
 import { OccurrenceTable } from './OccurrenceTable';
@@ -404,8 +405,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showWind, setShowWind] = useState(false);
   const windData = useWindData();
-  const [showRadar, setShowRadar] = useState(false);
-  const radarData = useRadarFrames();
+  const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('sumare');
+  const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -527,8 +528,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               {showWind && (
                 <WindLegend corridorSummary={windData.corridorSummary} loading={windData.loading} error={windData.error} />
               )}
-              <RadarLayerToggle value={showRadar} onChange={setShowRadar} />
-              {showRadar && (
+              <RadarSourceControl value={radarSource} onChange={setRadarSource} />
+              {radarSource !== 'off' && (
                 <RadarTimeControl
                   frameCount={radarData.frames.length}
                   selectedIndex={radarData.selectedIndex}
@@ -734,12 +735,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         doubleClickZoom={true}
         dragging={true}
       >
+        {/* Entre tilePane (200) e overlayPane (400): radar fica acima do mapa base, mas abaixo
+            das zonas/bolinhas coloridas, para não encobrir a cor das áreas de abrangência. */}
+        <Pane name="radar-clouds" style={{ zIndex: 250 }} />
         <TileLayer
           key={mapType}
           attribution={mapTypeConfig.attribution}
           url={mapTypeConfig.url}
         />
-        {showRadar && <RadarLayer tileUrl={radarData.tileUrl} />}
+        {radarSource !== 'off' && (
+          <RadarLayer imageUrl={radarData.currentImageUrl} />
+        )}
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
         {zonasData && (
@@ -761,6 +767,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
         {showWind && <WindBeltLayer stations={windData.stations} />}
       </MapContainer>
+
+      {/* Timeline Player ocupa o mesmo espaço (rodapé central) quando em modo histórico — evita sobrepor. */}
+      {radarSource !== 'off' && !(historicalMode && historicalTimeline.length > 0) && (
+        <RadarMapLegend source={radarSource} />
+      )}
 
       {/* Timeline Player - visible when data is loaded in historical mode */}
       {historicalMode && historicalTimeline.length > 0 && onPlayPause && onPlayingIndexChange && onPlaybackModeChange && onPlaybackSpeedChange && (

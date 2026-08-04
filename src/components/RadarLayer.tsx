@@ -1,21 +1,29 @@
 import React from 'react';
-import { TileLayer } from 'react-leaflet';
+import { ImageOverlay } from 'react-leaflet';
+import { COR_RADAR_BOUNDS } from '../services/radarCorApi';
 
 interface RadarLayerProps {
-  tileUrl: string | null;
+  /** URL da imagem PNG do frame atual (radares COR Mendanha/Sumaré). */
+  imageUrl: string | null;
   opacity?: number;
 }
 
-/** Camada de radar meteorológico (RainViewer) — max zoom nativo 7, Leaflet amplia acima disso. */
-export const RadarLayer: React.FC<RadarLayerProps> = ({ tileUrl, opacity = 0.6 }) => {
-  if (!tileUrl) return null;
+/**
+ * Camada de radar meteorológico: imagem PNG do frame atual (Mendanha/Sumaré) sobreposta com bounds.
+ *
+ * Renderizada no pane 'radar-clouds' (zIndex 250, entre tilePane e overlayPane) para ficar
+ * acima do mapa base mas abaixo das zonas/bolinhas coloridas — assim as nuvens do radar não
+ * encobrem a cor das áreas de abrangência dos pluviômetros.
+ */
+export const RadarLayer: React.FC<RadarLayerProps> = ({ imageUrl, opacity = 0.6 }) => {
+  if (!imageUrl) return null;
   return (
-    <TileLayer
-      key={tileUrl}
-      url={tileUrl}
+    <ImageOverlay
+      key={imageUrl}
+      url={imageUrl}
+      bounds={COR_RADAR_BOUNDS}
       opacity={opacity}
-      maxNativeZoom={7}
-      zIndex={350}
+      pane="radar-clouds"
     />
   );
 };

@@ -3,6 +3,7 @@ import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
+import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
 import { WIND_LEVEL_PALETTE, WIND_CORRIDOR_LABELS, type CorridorSummary, type WindCorridor } from '../types/wind';
@@ -178,38 +179,40 @@ export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading
   );
 };
 
-interface RadarLayerToggleProps {
-  value: boolean;
-  onChange: (show: boolean) => void;
+interface RadarSourceControlProps {
+  value: RadarSourceId | 'off';
+  onChange: (source: RadarSourceId | 'off') => void;
 }
 
-/** Controle para mostrar ou ocultar a camada de radar meteorológico (RainViewer) no mapa. */
-export const RadarLayerToggle: React.FC<RadarLayerToggleProps> = ({ value, onChange }) => {
+/** Opções de fonte do radar (chuva/tempo). */
+const RADAR_SOURCE_OPTIONS: { id: RadarSourceId | 'off'; label: string; title: string }[] = [
+  { id: 'off', label: 'Ocultar', title: 'Esconder a camada de radar' },
+  { id: 'mendanha', label: 'Mendanha (INEA)', title: 'Radar do Mendanha — Prefeitura do Rio' },
+  { id: 'sumare', label: 'Sumaré (AlertaRio)', title: 'Radar do Sumaré — Prefeitura do Rio' },
+];
+
+/** Controle para escolher a fonte do radar: Mendanha ou Sumaré (Prefeitura do Rio). */
+export const RadarSourceControl: React.FC<RadarSourceControlProps> = ({ value, onChange }) => {
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
-      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Radar meteorológico público (RainViewer) — mostra chuva/instabilidade associada às rajadas, com frames passados.">
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
         <Radar className="w-3.5 h-3.5" />
         Radar (chuva/tempo)
       </div>
       <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={() => onChange(true)}
-          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
-            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Mostrar
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(false)}
-          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
-            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Ocultar
-        </button>
+        {RADAR_SOURCE_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            title={opt.title}
+            className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+              value === opt.id ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -227,7 +230,7 @@ interface RadarTimeControlProps {
   error?: string | null;
 }
 
-/** Controle para escolher/animar entre os frames passados do radar (últimas ~2h, a cada 10 min). */
+/** Controle para escolher/animar entre os frames passados do radar (Mendanha/Sumaré). */
 export const RadarTimeControl: React.FC<RadarTimeControlProps> = ({
   frameCount,
   selectedIndex,
@@ -279,7 +282,7 @@ export const RadarTimeControl: React.FC<RadarTimeControlProps> = ({
             />
           </div>
           <div className="flex items-center justify-between text-[10px] text-gray-500">
-            <span>~2h atrás</span>
+            <span>mais antigo</span>
             <span className="font-semibold text-gray-700">
               {timeLabel}
               {isLatest ? ' (agora)' : ''}
@@ -288,6 +291,77 @@ export const RadarTimeControl: React.FC<RadarTimeControlProps> = ({
           </div>
         </>
       )}
+    </div>
+  );
+};
+
+/**
+ * Escala de refletividade (dBZ), mesma paleta (0–75 dBZ, padrão NEXRAD) usada para Mendanha e
+ * Sumaré na plataforma-clima-gcp (github.com/matheusbnas/plataforma-clima-gcp) — mantém as duas
+ * ferramentas consistentes. 0 dBZ = preto (sem eco); a cor de 70 se estende até o topo (70+).
+ */
+const REFLECTIVITY_SCALE: { value: number; color: string }[] = [
+  { value: 0, color: '#000000' },
+  { value: 5, color: '#00E5FF' },
+  { value: 15, color: '#0077FF' },
+  { value: 25, color: '#00AA00' },
+  { value: 35, color: '#55FF00' },
+  { value: 45, color: '#FFFF00' },
+  { value: 50, color: '#FFAA00' },
+  { value: 55, color: '#FF5500' },
+  { value: 60, color: '#FF0000' },
+  { value: 65, color: '#CC00CC' },
+  { value: 70, color: '#800080' },
+];
+const REFLECTIVITY_MAX = 75;
+const REFLECTIVITY_GRADIENT = `linear-gradient(to right, ${REFLECTIVITY_SCALE.map(
+  ({ value, color }) => `${color} ${((value / REFLECTIVITY_MAX) * 100).toFixed(2)}%`
+).join(', ')}, ${REFLECTIVITY_SCALE[REFLECTIVITY_SCALE.length - 1].color} 100%)`;
+/** Ticks exibidos sob a barra (nem todo valor da escala, para não poluir um card pequeno). */
+const REFLECTIVITY_TICKS = [0, 15, 25, 35, 45, 55, 65, 75];
+
+const RADAR_SOURCE_LABELS: Record<RadarSourceId, string> = {
+  sumare: 'Sumaré (AlertaRio)',
+  mendanha: 'Mendanha (INEA)',
+};
+
+interface RadarMapLegendProps {
+  source: RadarSourceId;
+}
+
+/**
+ * Legenda do radar fixa sobre o mapa (canto inferior), independente do zoom/pan.
+ * A imagem do Sumaré traz uma legenda "REFLECTIVITY (dBZ)" desenhada dentro do próprio PNG,
+ * ancorada a coordenadas geográficas fixas perto de Resende — ao aproximar da cidade do Rio,
+ * esse trecho da imagem fica fora da área visível e a legenda "some" (e pode ficar atrás do
+ * painel de filtros, que é fixo na tela, não no mapa). Esta versão é HTML puro (não faz parte
+ * do raster), então continua visível em qualquer zoom/enquadramento.
+ */
+export const RadarMapLegend: React.FC<RadarMapLegendProps> = ({ source }) => {
+  return (
+    <div
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1400] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 max-w-[95vw]"
+      style={{ fontFamily: 'Arial, sans-serif' }}
+    >
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-700">
+          <Radar className="w-3 h-3" />
+          {RADAR_SOURCE_LABELS[source]} — Refletividade
+        </span>
+        <span className="text-[9px] text-gray-500">dBZ</span>
+      </div>
+      <div className="relative w-[260px] h-2.5 rounded" style={{ background: REFLECTIVITY_GRADIENT }} />
+      <div className="relative w-[260px] h-3 mt-0.5">
+        {REFLECTIVITY_TICKS.map((v) => (
+          <span
+            key={v}
+            className="absolute text-[8px] text-gray-600 -translate-x-1/2"
+            style={{ left: `${(v / REFLECTIVITY_MAX) * 100}%` }}
+          >
+            {v}
+          </span>
+        ))}
+      </div>
     </div>
   );
 };
