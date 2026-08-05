@@ -106,6 +106,8 @@ export interface CorridorSummary {
   level: WindLevel;
   trend: 'subindo' | 'estavel' | 'caindo';
   stationCount: number;
+  /** Estação real que reportou o maxGustKmh acima — o marcador do corredor é plotado aqui, não num ponto aproximado. */
+  station: Pick<WindStation, 'id' | 'name' | 'code' | 'source' | 'location'> | null;
 }
 
 /**

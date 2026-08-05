@@ -4,17 +4,20 @@ import L from 'leaflet';
 import type { WindStation } from '../types/wind';
 import { msToKmh, windDirectionToCardinal, windLevelFromGustKmh } from '../types/wind';
 
+// Triângulo simples (sem direção/VRB) — deliberadamente diferente do círculo dos pluviômetros
+// (LeafletMap.tsx) e da seta/pipa (direção conhecida), pra não confundir os dois símbolos no mapa.
+const NO_DIRECTION_PATH = 'M10 2 L18 17 L2 17 Z';
+const DIRECTION_ARROW_PATH = 'M10 1 L17 15 L10 11.5 L3 15 Z';
+
 function buildWindIcon(windDirectionDeg: number | null, color: string): L.DivIcon {
-  // Seta aponta para onde o vento sopra (direção meteorológica + 180°); sem direção = círculo simples.
+  // Seta aponta para onde o vento sopra (direção meteorológica + 180°); sem direção = triângulo parado.
   const rotation = windDirectionDeg == null ? 0 : (windDirectionDeg + 180) % 360;
-  const shape =
-    windDirectionDeg == null
-      ? `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.35);"></div>`
-      : `<div style="transform: rotate(${rotation}deg); width:22px; height:22px; display:flex; align-items:center; justify-content:center;">
-           <svg width="20" height="20" viewBox="0 0 20 20">
-             <path d="M10 1 L17 15 L10 11.5 L3 15 Z" fill="${color}" stroke="black" stroke-width="1.5" stroke-linejoin="round" />
-           </svg>
-         </div>`;
+  const path = windDirectionDeg == null ? NO_DIRECTION_PATH : DIRECTION_ARROW_PATH;
+  const shape = `<div style="transform: rotate(${rotation}deg); width:22px; height:22px; display:flex; align-items:center; justify-content:center;">
+       <svg width="20" height="20" viewBox="0 0 20 20">
+         <path d="${path}" fill="${color}" stroke="black" stroke-width="1.5" stroke-linejoin="round" />
+       </svg>
+     </div>`;
 
   return L.divIcon({
     className: 'custom-wind-icon',
@@ -63,8 +66,10 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations }) => {
                   </p>
                 )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Direção:</strong> {windDirectionToCardinal(station.windDirectionDeg)}
-                  {station.windDirectionDeg != null ? ` (${station.windDirectionDeg}°)` : ''}
+                  <strong>Direção:</strong>{' '}
+                  {station.windDirectionDeg != null
+                    ? `${windDirectionToCardinal(station.windDirectionDeg)} (${station.windDirectionDeg}°)`
+                    : 'Variável (VRB)'}
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Fonte:</strong> {station.source === 'inmet' ? 'INMET' : 'REDEMET'} ({station.code})
@@ -72,6 +77,21 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations }) => {
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Última atualização:</strong> {new Date(station.observedAt).toLocaleTimeString('pt-BR')}
                 </p>
+                {station.raw && (
+                  <p
+                    style={{
+                      margin: '8px 0 0 0',
+                      fontSize: '12px',
+                      color: '#555',
+                      fontFamily: 'monospace',
+                      wordBreak: 'break-all',
+                      borderTop: '1px solid #eee',
+                      paddingTop: '6px',
+                    }}
+                  >
+                    <strong>METAR:</strong> {station.raw}
+                  </p>
+                )}
               </div>
             </Popup>
           </Marker>

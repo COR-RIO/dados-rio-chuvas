@@ -23,6 +23,7 @@ function buildCorridorSummary(
         level: windLevelFromGustKmh(0),
         trend: 'estavel',
         stationCount: 0,
+        station: null,
       };
       continue;
     }
@@ -49,6 +50,13 @@ function buildCorridorSummary(
       level: windLevelFromGustKmh(maxGustKmh),
       trend,
       stationCount: corridorStations.length,
+      station: {
+        id: strongest.id,
+        name: strongest.name,
+        code: strongest.code,
+        source: strongest.source,
+        location: strongest.location,
+      },
     };
   }
 

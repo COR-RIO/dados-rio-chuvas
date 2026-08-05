@@ -5,7 +5,7 @@ import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, Al
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
-import { rainLevels } from '../utils/rainLevel';
+import { rainLevels, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
 import {
   WIND_CORRIDOR_LABELS,
   WIND_CATEGORY_LABELS,
@@ -190,8 +190,37 @@ export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
       <div className="flex items-center gap-1.5 mb-1.5 text-xs font-semibold text-gray-700">
         <Wind className="w-3.5 h-3.5" />
-        Vento — níveis
+        Vento — símbolos
       </div>
+      <div className="flex flex-col gap-1 mb-2">
+        <div className="flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 20 20" className="flex-shrink-0">
+            <path d="M10 1 L17 15 L10 11.5 L3 15 Z" fill="#7EC9E8" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+          <span className="text-[9px] text-gray-700">Seta: direção conhecida (aponta p/ onde sopra)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 20 20" className="flex-shrink-0">
+            <path d="M10 2 L18 17 L2 17 Z" fill="#7EC9E8" stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+          <span className="text-[9px] text-gray-700">Triângulo: vento sem direção definida (rajada variável)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 20 20" className="flex-shrink-0">
+            <path d="M10 2 L18 17 L2 17 Z" fill={RAIN_LEVEL_PALETTE[0]} stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+          <span className="text-[9px] text-gray-700">Triângulo cinza: corredor sem estação reportando</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div
+            className="w-3 h-3 rounded-full flex-shrink-0 border-2 border-white shadow-sm"
+            style={{ backgroundColor: '#7EC9E8' }}
+          />
+          <span className="text-[9px] text-gray-700">Bolinha: pluviômetro (chuva) — não é vento</span>
+        </div>
+      </div>
+
+      <div className="text-xs font-semibold text-gray-700 mb-1.5 border-t border-gray-200 pt-1.5">Vento — níveis</div>
       <div className="flex flex-col gap-0.5 mb-2">
         {WIND_CATEGORY_ORDER.map((category) => {
           const label = `${WIND_CATEGORY_LABELS[category]} (${WIND_CATEGORY_RANGES[category].kmh})`;

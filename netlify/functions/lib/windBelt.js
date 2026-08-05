@@ -5,11 +5,18 @@
 
 const WIND_BELT_CITIES = [
   { nameMatch: ['angra dos reis'], uf: 'RJ', corridor: 'costeiro', label: 'Angra dos Reis' },
-  { nameMatch: ['petropolis'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Petrópolis' },
+  // "Petrópolis" não existe como estação automática no INMET — Pico do Couto é a estação real
+  // mais próxima (fica dentro do município de Petrópolis, no topo da serra, BR-040 antiga).
+  // Confirmado contra /estacoes/T em 2026-08-05 (674 estações, nenhuma "PETROPOLIS" na lista).
+  { nameMatch: ['pico do couto'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Petrópolis (Pico do Couto)' },
   { nameMatch: ['juiz de fora'], uf: 'MG', corridor: 'norte-noroeste', label: 'Juiz de Fora' },
   { nameMatch: ['resende'], uf: 'RJ', corridor: 'oeste-sudoeste', label: 'Resende' },
   { nameMatch: ['valenca'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Valença' },
   { nameMatch: ['nova friburgo'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Nova Friburgo' },
+  // Trecho entre Petrópolis e a cidade do Rio (BR-040), descendo a serra — confirmado como
+  // estação automática real (CD_ESTACAO A603). "Magé"/"Guapimirim" foram checados e NÃO têm
+  // estação automática no INMET, por isso não entraram aqui.
+  { nameMatch: ['duque de caxias'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Duque de Caxias' },
   { nameMatch: ['sao paulo', 'mirante'], uf: 'SP', corridor: 'oeste-sudoeste', label: 'São Paulo' },
   { nameMatch: ['sao jose dos campos'], uf: 'SP', corridor: 'oeste-sudoeste', label: 'São José dos Campos' },
   { nameMatch: ['taubate'], uf: 'SP', corridor: 'oeste-sudoeste', label: 'Taubaté' },
