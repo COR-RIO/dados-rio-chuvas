@@ -406,7 +406,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showWind, setShowWind] = useState(true);
   const windData = useWindData();
-  const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('sumare');
+  const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;

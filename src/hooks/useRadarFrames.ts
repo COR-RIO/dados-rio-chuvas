@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchCorRadarFrames, type CorRadarId } from '../services/radarCorApi';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchCorRadarFrames, stripSumareLegend, type CorRadarId } from '../services/radarCorApi';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // novo frame a cada ~5 min
 const PLAYBACK_INTERVAL_MS = 700;
@@ -26,6 +26,9 @@ export function useRadarFrames(source: RadarSourceId | null) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Blob URLs criadas para recortar a legenda embutida no PNG do Sumaré (precisam ser
+  // revogadas manualmente ao trocar de frames/fonte, senão vazam memória).
+  const blobUrlsRef = useRef<string[]>([]);
 
   const loadFrames = useCallback(async () => {
     if (!source) {
@@ -43,15 +46,30 @@ export function useRadarFrames(source: RadarSourceId | null) {
       setLoading(false);
       return;
     }
+
+    const urls =
+      source === 'sumare'
+        ? await Promise.all(result.frames.map((f) => stripSumareLegend(f.imageUrl)))
+        : result.frames.map((f) => f.imageUrl);
+
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current = source === 'sumare' ? urls : [];
+
     setFrames(
-      result.frames.map((f) => ({
+      result.frames.map((f, i) => ({
         time: Math.floor(new Date(f.timestamp).getTime() / 1000),
-        url: f.imageUrl,
+        url: urls[i],
       })),
     );
     setError(null);
     setLoading(false);
   }, [source]);
+
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // Ao trocar de fonte, reinicia a linha do tempo no frame mais recente e já inicia a reprodução
   // automaticamente (usuário não precisa clicar em play).

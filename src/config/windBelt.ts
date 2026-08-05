@@ -49,6 +49,13 @@ export const WIND_BELT_AIRPORTS: WindBeltAirport[] = [
   { icao: 'SBSP', label: 'Congonhas', corridor: 'oeste-sudoeste', priority: 'alta', location: [-23.6261, -46.6564] },
   { icao: 'SBSJ', label: 'São José dos Campos', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-23.2283, -45.8642] },
   { icao: 'SBMT', label: 'Campo de Marte', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-23.5089, -46.6378] },
+  // Litoral — costa de SP até o litoral do RJ (oeste → leste). Códigos ICAO confirmados contra
+  // a API-REDEMET (aerodromos/info); localidades sem METAR (ex.: Ubatuba/SDUB) foram descartadas.
+  { icao: 'SBST', label: 'Santos/Guarujá', corridor: 'costeiro', priority: 'alta', location: [-23.9250, -46.2875] },
+  { icao: 'SDAG', label: 'Angra dos Reis', corridor: 'costeiro', priority: 'alta', location: [-22.9753, -44.3072] },
+  { icao: 'SBCB', label: 'Cabo Frio', corridor: 'costeiro', priority: 'alta', location: [-22.9217, -42.0742] },
+  { icao: 'SBME', label: 'Macaé', corridor: 'costeiro', priority: 'alta', location: [-22.3425, -41.7656] },
+  { icao: 'SBCP', label: 'Campos dos Goytacazes', corridor: 'costeiro', priority: 'alta', location: [-21.6983, -41.3017] },
   // Dentro do Rio — confirmação.
   { icao: 'SBGL', label: 'Galeão', corridor: 'interno', priority: 'alta', location: [-22.8099, -43.2506] },
   { icao: 'SBRJ', label: 'Santos Dumont', corridor: 'interno', priority: 'alta', location: [-22.9105, -43.1631] },

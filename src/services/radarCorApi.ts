@@ -102,6 +102,39 @@ export async function fetchCorRadarFrames(radar: CorRadarId): Promise<CorRadarDa
 }
 
 /**
+ * Retângulo (em pixels, imagem 1024x768) onde o radar Sumaré desenha a legenda
+ * "REFLECTIVITY (dBZ)" dentro do próprio PNG — posição fixa confirmada em vários frames.
+ * A legenda em HTML (RadarMapLegend) já cobre essa informação, então recortamos o trecho
+ * do raster para não sobrepor o mapa.
+ */
+const SUMARE_LEGEND_RECT = { x: 5, y: 233, width: 150, height: 261 };
+
+/**
+ * Baixa a imagem do radar Sumaré e apaga (torna transparente) a região onde o servidor
+ * desenha a legenda "REFLECTIVITY (dBZ)" embutida no PNG. Retorna uma blob URL própria
+ * para uso no ImageOverlay; em caso de falha, devolve a URL original sem recorte.
+ */
+export async function stripSumareLegend(imageUrl: string): Promise<string> {
+  try {
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return imageUrl;
+    ctx.drawImage(bitmap, 0, 0);
+    ctx.clearRect(SUMARE_LEGEND_RECT.x, SUMARE_LEGEND_RECT.y, SUMARE_LEGEND_RECT.width, SUMARE_LEGEND_RECT.height);
+    const outBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return outBlob ? URL.createObjectURL(outBlob) : imageUrl;
+  } catch (err) {
+    console.warn('Erro ao recortar legenda do radar Sumaré:', err);
+    return imageUrl;
+  }
+}
+
+/**
  * Bounds geográficos da cobertura do radar COR (sudoeste/nordeste em [lat, lng]),
  * usados pelo ImageOverlay do Leaflet para posicionar a imagem PNG sobre o mapa.
  */
