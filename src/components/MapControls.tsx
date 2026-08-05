@@ -6,7 +6,16 @@ import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewM
 import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels } from '../utils/rainLevel';
-import { WIND_LEVEL_PALETTE, WIND_CORRIDOR_LABELS, type CorridorSummary, type WindCorridor } from '../types/wind';
+import {
+  WIND_CORRIDOR_LABELS,
+  WIND_CATEGORY_LABELS,
+  WIND_CATEGORY_COLORS,
+  WIND_CATEGORY_RANGES,
+  WIND_CATEGORY_ORDER,
+  type CorridorSummary,
+  type WindCorridor,
+  type WindCategory,
+} from '../types/wind';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -116,19 +125,58 @@ export const WindLayerToggle: React.FC<WindLayerToggleProps> = ({ value, onChang
   );
 };
 
+interface WindCategoryFilterProps {
+  value: WindCategory[];
+  onChange: (categories: WindCategory[]) => void;
+}
+
+/** Filtro de marcadores de vento por intensidade (fraco/moderado/forte/muito forte, escala oficial). */
+export const WindCategoryFilter: React.FC<WindCategoryFilterProps> = ({ value, onChange }) => {
+  const handleToggle = (category: WindCategory) => {
+    if (value.includes(category)) {
+      onChange(value.filter((c) => c !== category));
+    } else {
+      onChange([...value, category]);
+    }
+  };
+
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+        <Wind className="w-3.5 h-3.5" />
+        Filtrar por intensidade
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {WIND_CATEGORY_ORDER.map((category) => (
+          <label key={category} className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={value.includes(category)}
+              onChange={() => handleToggle(category)}
+              className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white shadow-sm"
+                style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
+              />
+              <span className="flex flex-col">
+                <span className="text-xs text-gray-700 font-medium">{WIND_CATEGORY_LABELS[category]}</span>
+                <span className="text-[9px] text-gray-500">{WIND_CATEGORY_RANGES[category].kmh}</span>
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 interface WindLegendProps {
   corridorSummary: Record<WindCorridor, CorridorSummary> | null;
   loading?: boolean;
   error?: string | null;
 }
-
-const WIND_LEVEL_LABELS_ORDERED: Array<{ value: 0 | 1 | 2 | 3 | 4; label: string }> = [
-  { value: 0, label: 'Calmo (<20 km/h)' },
-  { value: 1, label: 'Atenção (20–40 km/h)' },
-  { value: 2, label: 'Forte (40–60 km/h)' },
-  { value: 3, label: 'Muito forte (60–80 km/h)' },
-  { value: 4, label: 'Severo (80+ km/h)' },
-];
 
 const TREND_LABEL: Record<CorridorSummary['trend'], string> = {
   subindo: '↑ subindo',
@@ -145,15 +193,18 @@ export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading
         Vento — níveis
       </div>
       <div className="flex flex-col gap-0.5 mb-2">
-        {WIND_LEVEL_LABELS_ORDERED.map(({ value, label }) => (
-          <div key={value} className="flex items-center gap-1.5">
-            <div
-              className="w-2.5 h-2.5 rounded flex-shrink-0 border border-white shadow-sm"
-              style={{ backgroundColor: WIND_LEVEL_PALETTE[value] }}
-            />
-            <span className="text-[9px] text-gray-700 truncate" title={label}>{label}</span>
-          </div>
-        ))}
+        {WIND_CATEGORY_ORDER.map((category) => {
+          const label = `${WIND_CATEGORY_LABELS[category]} (${WIND_CATEGORY_RANGES[category].kmh})`;
+          return (
+            <div key={category} className="flex items-center gap-1.5">
+              <div
+                className="w-2.5 h-2.5 rounded flex-shrink-0 border border-white shadow-sm"
+                style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
+              />
+              <span className="text-[9px] text-gray-700 truncate" title={label}>{label}</span>
+            </div>
+          );
+        })}
       </div>
 
       {loading && <p className="text-[10px] text-gray-500">Carregando corredores…</p>}

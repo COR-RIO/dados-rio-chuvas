@@ -12,7 +12,7 @@ function buildWindIcon(windDirectionDeg: number | null, color: string): L.DivIco
       ? `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.35);"></div>`
       : `<div style="transform: rotate(${rotation}deg); width:22px; height:22px; display:flex; align-items:center; justify-content:center;">
            <svg width="20" height="20" viewBox="0 0 20 20">
-             <path d="M10 1 L17 15 L10 11.5 L3 15 Z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round" />
+             <path d="M10 1 L17 15 L10 11.5 L3 15 Z" fill="${color}" stroke="black" stroke-width="1.5" stroke-linejoin="round" />
            </svg>
          </div>`;
 

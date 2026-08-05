@@ -25,7 +25,7 @@ function buildCorridorIcon(dominantDirectionDeg: number | null, color: string, h
       ? `<div style="width:20px;height:20px;border-radius:50%;background:${color};opacity:${opacity};border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`
       : `<div style="transform: rotate(${rotation}deg); opacity:${opacity}; width:32px; height:32px; display:flex; align-items:center; justify-content:center;">
            <svg width="30" height="30" viewBox="0 0 20 20">
-             <path d="M10 1 L18 16 L10 12.5 L2 16 Z" fill="${color}" stroke="white" stroke-width="1.8" stroke-linejoin="round" />
+             <path d="M10 1 L18 16 L10 12.5 L2 16 Z" fill="${color}" stroke="black" stroke-width="1.8" stroke-linejoin="round" />
            </svg>
          </div>`;
 

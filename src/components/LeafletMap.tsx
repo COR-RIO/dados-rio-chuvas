@@ -6,6 +6,7 @@ import { RainStation } from '../types/rain';
 import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
+import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
 import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
 import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
@@ -27,6 +28,7 @@ import {
   OccurrencePlanilhaUpload,
   OccurrenceFilters,
   WindLayerToggle,
+  WindCategoryFilter,
   WindLegend,
   RadarSourceControl,
   RadarTimeControl,
@@ -405,7 +407,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showWind, setShowWind] = useState(true);
+  const [windCategoryFilter, setWindCategoryFilter] = useState<WindCategory[]>([...WIND_CATEGORY_ORDER]);
   const windData = useWindData();
+  const filteredWindStations = windData.stations.filter((s) =>
+    windCategoryFilter.includes(windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs)))
+  );
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
@@ -527,7 +533,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               <InfluenceLinesToggle value={showInfluenceLines} onChange={setShowInfluenceLines} />
               <WindLayerToggle value={showWind} onChange={setShowWind} />
               {showWind && (
-                <WindLegend corridorSummary={windData.corridorSummary} loading={windData.loading} error={windData.error} />
+                <>
+                  <WindCategoryFilter value={windCategoryFilter} onChange={setWindCategoryFilter} />
+                  <WindLegend corridorSummary={windData.corridorSummary} loading={windData.loading} error={windData.error} />
+                </>
               )}
               <RadarSourceControl value={radarSource} onChange={setRadarSource} />
               {radarSource !== 'off' && (
@@ -766,7 +775,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
-        {showWind && <WindBeltLayer stations={windData.stations} />}
+        {showWind && <WindBeltLayer stations={filteredWindStations} />}
         {showWind && <WindCorridorLayer corridorSummary={windData.corridorSummary} />}
       </MapContainer>
 
