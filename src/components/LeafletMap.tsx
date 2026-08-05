@@ -403,7 +403,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
-  const [showWind, setShowWind] = useState(false);
+  const [showWind, setShowWind] = useState(true);
   const windData = useWindData();
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('sumare');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
