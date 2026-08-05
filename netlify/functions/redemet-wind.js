@@ -112,19 +112,20 @@ exports.handler = async (event) => {
   }
 
   const icao = (event.queryStringParameters || {}).icao;
-  if (!icao) {
+  if (!icao || !/^[A-Z0-9,]+$/i.test(icao)) {
     return {
       statusCode: 400,
       headers: CORS_HEADERS,
-      body: JSON.stringify({ success: false, error: 'Parâmetro icao é obrigatório' }),
+      body: JSON.stringify({ success: false, error: 'Parâmetro icao é obrigatório (códigos ICAO separados por vírgula)' }),
     };
   }
 
   try {
-    // Domínio e header X-Api-Key conforme orientação oficial do cadastro REDEMET (precedência
-    // sobre o query param ?api_key=, que também funciona como fallback).
-    const url = `https://api-redemet.decea.gov.br/mensagens/metar/${encodeURIComponent(icao)}`;
-    const response = await fetch(url, { headers: { Accept: 'application/json', 'X-Api-Key': apiKey } });
+    // Conforme doc oficial (ajuda.decea.mil.br/base-de-conhecimento/api-redemet-mensagem-metar):
+    // localidades vão no path separadas por vírgula (SEM url-encode, senão a API não separa os
+    // códigos) e a autenticação é via query param api_key — não há suporte a header X-Api-Key.
+    const url = `https://api-redemet.decea.mil.br/mensagens/metar/${icao.toUpperCase()}?api_key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
       return {
