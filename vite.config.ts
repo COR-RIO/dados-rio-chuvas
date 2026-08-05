@@ -47,6 +47,28 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/inmet/, ''),
       },
+      // API pública v1 (uso por outros projetos) em dev: proxy para as functions no Netlify.
+      // Ordem importa: rotas mais específicas antes das mais genéricas.
+      '/api/v1/rain/historical': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1\/rain\/historical/, '/.netlify/functions/historical-rain'),
+      },
+      '/api/v1/rain': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1\/rain/, '/.netlify/functions/v1-rain'),
+      },
+      '/api/v1/wind': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1\/wind/, '/.netlify/functions/v1-wind'),
+      },
+      '/api/v1/radar': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1\/radar/, '/.netlify/functions/v1-radar'),
+      },
       // API de chuvas em tempo real
       '/api': {
         target: 'https://websempre.rio.rj.gov.br',

@@ -61,6 +61,41 @@
   status = 200
   force = true
 
+# --- API pública v1 (uso por outros projetos) ---
+
+# Histórico de chuvas (alias estável para a mesma function de /api/historical-rain)
+[[redirects]]
+  from = "/api/v1/rain/historical"
+  to = "/.netlify/functions/historical-rain"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/rain"
+  to = "/.netlify/functions/v1-rain"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/wind"
+  to = "/.netlify/functions/v1-wind"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/radar"
+  to = "/.netlify/functions/v1-radar"
+  status = 200
+  force = true
+
+# Evita cache no endpoint de chuva v1 (tempo real)
+[[headers]]
+  for = "/api/v1/rain"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0"
+    Pragma = "no-cache"
+    Expires = "0"
+
 # Fallback para SPA
 [[redirects]]
   from = "/*"
