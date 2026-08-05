@@ -11,6 +11,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
 import { WindBeltLayer } from './WindBeltLayer';
+import { WindCorridorLayer } from './WindCorridorLayer';
 import { RadarLayer } from './RadarLayer';
 import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
@@ -766,6 +767,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
         {showWind && <WindBeltLayer stations={windData.stations} />}
+        {showWind && <WindCorridorLayer corridorSummary={windData.corridorSummary} />}
       </MapContainer>
 
       {/* Timeline Player ocupa o mesmo espaço (rodapé central) quando em modo histórico — evita sobrepor. */}

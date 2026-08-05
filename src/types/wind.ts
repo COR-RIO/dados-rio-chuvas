@@ -82,3 +82,15 @@ export interface CorridorSummary {
   trend: 'subindo' | 'estavel' | 'caindo';
   stationCount: number;
 }
+
+/**
+ * Ponto de referência visual de cada corredor no mapa (não é uma estação real — as estações que
+ * alimentam o corredor variam por fonte/disponibilidade). Aproximado a partir da geografia descrita
+ * em WIND_CORRIDOR_LABELS, para posicionar o símbolo do cinturão de vento mesmo sem estações ativas.
+ */
+export const WIND_CORRIDOR_LOCATIONS: Record<WindCorridor, [number, number]> = {
+  'oeste-sudoeste': [-23.0067, -44.3181], // Angra dos Reis — entrada do corredor São Paulo → Angra
+  'norte-noroeste': [-22.5049, -43.1789], // Petrópolis — entrada do corredor Juiz de Fora → Petrópolis
+  costeiro: [-23.2192, -44.7131], // Paraty — Costa Verde
+  interno: [-22.9068, -43.3702], // Centro do cinturão interno (aeroportos/estações do Rio)
+};
