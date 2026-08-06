@@ -260,6 +260,9 @@ const StationMarkers: React.FC<{
                   </p>
                 )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
+                  <strong>Chuva 5min:</strong> {m05.toFixed(1)} mm
+                </p>
+                <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Chuva 15min:</strong> {m15.toFixed(1)} mm
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>

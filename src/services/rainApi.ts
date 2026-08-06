@@ -1,13 +1,13 @@
 import { RainStation } from '../types/rain';
 
-// URL da API da Prefeitura do Rio de Janeiro (via proxy para resolver CORS)
+// URL da API da Prefeitura do Rio de Janeiro (via Netlify Function com cache curto de 20s na
+// borda — ver netlify/functions/rain-realtime.js). URL estável de propósito: variar a query
+// string (ex.: cache-busting com timestamp) faria cada pedido "furar" o cache da borda e voltar
+// a martelar o servidor lento da Prefeitura a cada carregamento, que era o problema original.
 const RIO_RAIN_API_URL = '/api/json/chuvas';
 
 function buildRainApiUrl(): string {
-  // Evita respostas cacheadas em proxy/CDN/browser.
-  const url = new URL(RIO_RAIN_API_URL, window.location.origin);
-  url.searchParams.set('_ts', String(Date.now()));
-  return `${url.pathname}${url.search}`;
+  return RIO_RAIN_API_URL;
 }
 
 // Interface para a resposta da API
@@ -38,18 +38,13 @@ export const fetchRainData = async (): Promise<RainStation[]> => {
     const url = buildRainApiUrl();
     console.log('URL da API:', url);
     
+    // Sem headers/opções anti-cache: o proxy (rain-realtime.js) já cacheia por 20s na borda
+    // (dado suficientemente "tempo real" pra estações que reportam a cada 5-15min) — deixar o
+    // browser/CDN reaproveitar essa resposta é o que torna carregamentos repetidos rápidos.
     const response = await fetch(url, {
       method: 'GET',
       mode: 'cors',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-      // Adiciona cache busting para garantir dados atualizados
-      cache: 'no-store'
+      headers: { Accept: 'application/json' },
     });
 
     console.log('Status da resposta:', response.status, response.statusText);
