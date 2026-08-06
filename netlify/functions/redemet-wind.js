@@ -28,12 +28,47 @@ const DATE_PARAM_RE = /^\d{10}$/;
 
 const KT_TO_MS = 0.514444;
 
+// A API-REDEMET pagina: page_tam máximo aceito é 200 (valores maiores são rejeitados com
+// "Tamanho da página maior que a permitida!!!", confirmado por teste manual contra o servidor
+// real) — e o total pode passar disso fácil numa consulta histórica com várias localidades (ex.:
+// 15 aeroportos num dia = 291 registros, 2 páginas). Sem paginar, estações inteiras podem cair
+// inteiramente na página 2 e sumir do resultado sem nenhum erro visível (foi o caso de SBSC).
+const REDEMET_PAGE_SIZE = 200;
+const REDEMET_MAX_PAGES = 20; // proteção contra loop longo/abuso — cobre até ~4000 registros
+
 function extractMetarRecords(json) {
   const candidates = [json?.data?.data, json?.data, json?.mensagens, json];
   for (const c of candidates) {
     if (Array.isArray(c)) return c;
   }
   return [];
+}
+
+/** Busca todas as páginas de uma consulta REDEMET, concatenando os registros. */
+async function fetchAllRedemetPages(baseUrl) {
+  const firstResponse = await fetch(`${baseUrl}&page_tam=${REDEMET_PAGE_SIZE}&page=1`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!firstResponse.ok) {
+    return { records: [], response: firstResponse };
+  }
+
+  const firstJson = await firstResponse.json();
+  const records = [...extractMetarRecords(firstJson)];
+  const lastPage = Number(firstJson?.data?.last_page) || 1;
+  const pagesToFetch = Math.min(lastPage, REDEMET_MAX_PAGES);
+
+  for (let page = 2; page <= pagesToFetch; page++) {
+    const pageResponse = await fetch(`${baseUrl}&page_tam=${REDEMET_PAGE_SIZE}&page=${page}`, {
+      headers: { Accept: 'application/json' },
+    });
+    // Preferir resultado parcial a falhar a consulta inteira por causa de uma página.
+    if (!pageResponse.ok) continue;
+    const pageJson = await pageResponse.json();
+    records.push(...extractMetarRecords(pageJson));
+  }
+
+  return { records, response: firstResponse };
 }
 
 function extractRawText(record) {
@@ -147,8 +182,8 @@ exports.handler = async (event) => {
     // data_ini/data_fim (YYYYMMDDHH) habilitam consulta histórica (API-REDEMET tem dados desde
     // 2003; confirmado por teste manual contra o servidor real).
     const dateQuery = isHistoryRequest ? `&data_ini=${dataIni}&data_fim=${dataFim}` : '';
-    const url = `https://api-redemet.decea.mil.br/mensagens/metar/${icao.toUpperCase()}?api_key=${encodeURIComponent(apiKey)}${dateQuery}`;
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    const baseUrl = `https://api-redemet.decea.mil.br/mensagens/metar/${icao.toUpperCase()}?api_key=${encodeURIComponent(apiKey)}${dateQuery}`;
+    const { records, response } = await fetchAllRedemetPages(baseUrl);
 
     if (!response.ok) {
       return {
@@ -157,9 +192,6 @@ exports.handler = async (event) => {
         body: JSON.stringify({ success: false, error: `REDEMET retornou ${response.status}` }),
       };
     }
-
-    const json = await response.json();
-    const records = extractMetarRecords(json);
 
     const stations = records
       .map((record) => {
