@@ -186,3 +186,75 @@ export async function fetchInmetWindObservations(): Promise<WindStation[]> {
     .map((r) => r.value)
     .filter((v): v is WindStation => v != null);
 }
+
+/** Busca TODAS as observações com vento válido de uma estação num intervalo de datas (histórico). */
+async function fetchWindObservationsInRange(
+  code: string,
+  dateFromIso: string,
+  dateToIso: string
+): Promise<InmetObservation[]> {
+  const url = `${INMET_BASE}/token/estacao/${dateOnly(new Date(dateFromIso))}/${dateOnly(new Date(dateToIso))}/${code}/${INMET_TOKEN}`;
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`INMET estacao ${code} retornou ${response.status}`);
+
+  const text = await response.text();
+  if (text === 'CHAVE INVÁLIDA!') throw new Error('VITE_INMET_TOKEN inválido');
+
+  const records: InmetObservation[] = JSON.parse(text);
+  if (!Array.isArray(records)) return [];
+  return records.filter((r) => toFiniteNumber(r.VEN_VEL) != null);
+}
+
+/**
+ * Série histórica de vento das estações do cinturão (INMET), no intervalo [dateFromIso, dateToIso].
+ * Mesmo endpoint de fetchLatestWindObservation, só que devolvendo todas as leituras do período em
+ * vez de só a mais recente — use pickWindStationsAtTimestamp (src/utils/windHistory.ts) para
+ * escolher a leitura de cada estação num instante específico da linha do tempo.
+ */
+export async function fetchInmetWindHistory(dateFromIso: string, dateToIso: string): Promise<WindStation[]> {
+  if (!INMET_TOKEN) {
+    console.warn('INMET não configurado (defina VITE_INMET_TOKEN) — ver docs/WIND_SETUP.md');
+    return [];
+  }
+
+  let stationList: InmetStationListItem[];
+  try {
+    stationList = await fetchStationList();
+  } catch (err) {
+    console.warn('Erro ao buscar lista de estações INMET:', err);
+    return [];
+  }
+
+  const matched = matchBeltStations(stationList);
+
+  const results = await Promise.allSettled(
+    matched.map(async (m): Promise<WindStation[]> => {
+      const observations = await fetchWindObservationsInRange(m.code, dateFromIso, dateToIso);
+      return observations
+        .map((obs): WindStation | null => {
+          const windSpeedMs = toFiniteNumber(obs.VEN_VEL);
+          if (windSpeedMs == null) return null;
+          const observedAt = toObservedAtIso(obs);
+          return {
+            // Inclui observedAt no id: histórico traz várias leituras por estação, então o
+            // código sozinho não identifica um registro único.
+            id: `inmet-${m.code}-${observedAt}`,
+            name: m.city.label,
+            source: 'inmet',
+            code: m.code,
+            corridor: m.city.corridor,
+            location: m.location,
+            observedAt,
+            windSpeedMs,
+            windGustMs: toFiniteNumber(obs.VEN_RAJ),
+            windDirectionDeg: toFiniteNumber(obs.VEN_DIR),
+          };
+        })
+        .filter((s): s is WindStation => s != null);
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<WindStation[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value);
+}

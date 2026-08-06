@@ -8,6 +8,9 @@
  *
  * Query params:
  * - icao: lista de códigos ICAO separados por vírgula (ex.: SBGL,SBRJ,SBGR)
+ * - data_ini, data_fim (opcionais): intervalo histórico no formato YYYYMMDDHH (hora UTC), igual
+ *   ao aceito nativamente pela API-REDEMET. Sem esses parâmetros, devolve o METAR mais recente
+ *   (comportamento "ao vivo" original).
  */
 
 const CORS_HEADERS = {
@@ -16,7 +19,12 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
 };
 
-const CACHE_CONTROL_SUCCESS = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
+// Ao vivo: cache curto, o METAR muda a cada ~1h. Histórico (data_ini/data_fim): dado passado é
+// imutável, cache bem mais longo evita gastar cota da API-REDEMET a cada replay do debriefing.
+const CACHE_CONTROL_LIVE = 'public, max-age=300, s-maxage=300, stale-while-revalidate=60';
+const CACHE_CONTROL_HISTORY = 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=3600';
+
+const DATE_PARAM_RE = /^\d{10}$/;
 
 const KT_TO_MS = 0.514444;
 
@@ -111,7 +119,8 @@ exports.handler = async (event) => {
     };
   }
 
-  const icao = (event.queryStringParameters || {}).icao;
+  const params = event.queryStringParameters || {};
+  const icao = params.icao;
   if (!icao || !/^[A-Z0-9,]+$/i.test(icao)) {
     return {
       statusCode: 400,
@@ -120,11 +129,25 @@ exports.handler = async (event) => {
     };
   }
 
+  const dataIni = params.data_ini;
+  const dataFim = params.data_fim;
+  const isHistoryRequest = Boolean(dataIni || dataFim);
+  if (isHistoryRequest && (!DATE_PARAM_RE.test(dataIni || '') || !DATE_PARAM_RE.test(dataFim || ''))) {
+    return {
+      statusCode: 400,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ success: false, error: 'data_ini/data_fim devem estar no formato YYYYMMDDHH' }),
+    };
+  }
+
   try {
     // Conforme doc oficial (ajuda.decea.mil.br/base-de-conhecimento/api-redemet-mensagem-metar):
     // localidades vão no path separadas por vírgula (SEM url-encode, senão a API não separa os
     // códigos) e a autenticação é via query param api_key — não há suporte a header X-Api-Key.
-    const url = `https://api-redemet.decea.mil.br/mensagens/metar/${icao.toUpperCase()}?api_key=${encodeURIComponent(apiKey)}`;
+    // data_ini/data_fim (YYYYMMDDHH) habilitam consulta histórica (API-REDEMET tem dados desde
+    // 2003; confirmado por teste manual contra o servidor real).
+    const dateQuery = isHistoryRequest ? `&data_ini=${dataIni}&data_fim=${dataFim}` : '';
+    const url = `https://api-redemet.decea.mil.br/mensagens/metar/${icao.toUpperCase()}?api_key=${encodeURIComponent(apiKey)}${dateQuery}`;
     const response = await fetch(url, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
@@ -157,7 +180,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: { ...CORS_HEADERS, 'Cache-Control': CACHE_CONTROL_SUCCESS },
+      headers: { ...CORS_HEADERS, 'Cache-Control': isHistoryRequest ? CACHE_CONTROL_HISTORY : CACHE_CONTROL_LIVE },
       body: JSON.stringify({ success: true, data: stations }),
     };
   } catch (err) {

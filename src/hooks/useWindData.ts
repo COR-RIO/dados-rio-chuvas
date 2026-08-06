@@ -4,10 +4,11 @@ import { msToKmh, windLevelFromGustKmh } from '../types/wind';
 import { fetchInmetWindObservations } from '../services/inmetWindApi';
 import { fetchRedemetWind } from '../services/redemetWindApi';
 
-const CORRIDORS: WindCorridor[] = ['oeste-sudoeste', 'norte-noroeste', 'costeiro', 'interno'];
+export const CORRIDORS: WindCorridor[] = ['oeste-sudoeste', 'norte-noroeste', 'costeiro', 'interno'];
 const DEFAULT_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 min — INMET é horário, METAR muda a cada ~1h
 
-function buildCorridorSummary(
+/** Exportado para reaproveitar no playback histórico (useHistoricalWindData). */
+export function buildCorridorSummary(
   stations: WindStation[],
   previousMaxByCorridor: Partial<Record<WindCorridor, number>>
 ): Record<WindCorridor, CorridorSummary> {

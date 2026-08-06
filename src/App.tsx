@@ -294,8 +294,8 @@ function App() {
   const [abertasOccurrencesError, setAbertasOccurrencesError] = useState<string | null>(null);
   const [pendingOccTextFilter, setPendingOccTextFilter] = useState<string>('');
   const [appliedOccTextFilter, setAppliedOccTextFilter] = useState<string>('');
-  const [pendingOccCategoryFilter, setPendingOccCategoryFilter] = useState<string[]>([]);
-  const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[]>([]);
+  const [pendingOccCategoryFilter, setPendingOccCategoryFilter] = useState<string[] | null>(null);
+  const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[] | null>(null);
 
   const [planilhaLoadError, setPlanilhaLoadError] = useState<string | null>(null);
   const [uploadedPlanilhaOccurrences, setUploadedPlanilhaOccurrences] = useState<Occurrence[] | null>(null);
@@ -411,7 +411,9 @@ function App() {
     } else {
       occs = filterOccurrencesByRange(occurrenceSource, today, '00:00', today, '23:59');
     }
-    if (appliedOccCategoryFilter.length > 0) {
+    // null = sem filtro (mostra tudo); array (mesmo vazio) = seleção explícita do usuário —
+    // ver OccurrenceFilters (MapControls.tsx) para o "Selecionar todos"/"Desselecionar todos".
+    if (appliedOccCategoryFilter != null) {
       occs = occs.filter((o: Occurrence) => appliedOccCategoryFilter.includes(o.pop ?? ''));
     }
     return filterOccurrencesByText(occs, appliedOccTextFilter);

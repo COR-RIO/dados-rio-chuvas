@@ -1213,8 +1213,9 @@ export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) 
 interface OccurrenceFiltersProps {
   textFilter: string;
   onTextFilterChange: (text: string) => void;
-  categoryFilter: string[];
-  onCategoryFilterChange: (categories: string[]) => void;
+  /** null = sem filtro (mostra todas as categorias); array (mesmo vazio) = seleção explícita. */
+  categoryFilter: string[] | null;
+  onCategoryFilterChange: (categories: string[] | null) => void;
   availableCategories: string[];
 }
 
@@ -1226,12 +1227,23 @@ export const OccurrenceFilters: React.FC<OccurrenceFiltersProps> = ({
   onCategoryFilterChange,
   availableCategories,
 }) => {
+  // null = nenhuma categoria foi desmarcada ainda -> tudo conta como selecionado.
+  const isSelected = (category: string) => categoryFilter === null || categoryFilter.includes(category);
+  const allSelected = categoryFilter === null || categoryFilter.length === availableCategories.length;
+
   const handleCategoryToggle = (category: string) => {
-    if (categoryFilter.includes(category)) {
-      onCategoryFilterChange(categoryFilter.filter((c) => c !== category));
+    const current = categoryFilter ?? availableCategories;
+    if (current.includes(category)) {
+      onCategoryFilterChange(current.filter((c) => c !== category));
     } else {
-      onCategoryFilterChange([...categoryFilter, category]);
+      onCategoryFilterChange([...current, category]);
     }
+  };
+
+  // Alterna entre "tudo selecionado" (null) e "nada selecionado" (array vazio) — desmarcar o
+  // mestre também desmarca todo mundo, e vice-versa.
+  const handleToggleAll = () => {
+    onCategoryFilterChange(allSelected ? [] : null);
   };
 
   return (
@@ -1257,12 +1269,23 @@ export const OccurrenceFilters: React.FC<OccurrenceFiltersProps> = ({
         {availableCategories.length > 0 && (
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-600 font-medium">Categorias (POP):</label>
+            <label className="flex items-center gap-2 cursor-pointer border-b border-gray-100 pb-1 mb-0.5">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={handleToggleAll}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-xs text-gray-700 font-medium">
+                {allSelected ? 'Desselecionar todos' : 'Selecionar todos'}
+              </span>
+            </label>
             <div className="flex flex-col gap-1 max-h-[150px] overflow-y-auto pr-1">
               {availableCategories.map((category) => (
                 <label key={category} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={categoryFilter.includes(category)}
+                    checked={isSelected(category)}
                     onChange={() => handleCategoryToggle(category)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />

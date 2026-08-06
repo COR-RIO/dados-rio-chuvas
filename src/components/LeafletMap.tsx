@@ -6,6 +6,7 @@ import { RainStation } from '../types/rain';
 import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
+import { useHistoricalWindData } from '../hooks/useHistoricalWindData';
 import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
 import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
 import { getRainLevel } from '../utils/rainLevel';
@@ -105,9 +106,10 @@ interface LeafletMapProps {
   /** Filtro de texto para ocorrências (pendente até clicar em Aplicar) */
   occurrenceTextFilter?: string;
   onOccurrenceTextFilterChange?: (text: string) => void;
-  /** Filtro de categorias para ocorrências (pendente até clicar em Aplicar) */
-  occurrenceCategoryFilter?: string[];
-  onOccurrenceCategoryFilterChange?: (categories: string[]) => void;
+  /** Filtro de categorias para ocorrências (pendente até clicar em Aplicar). null = sem filtro
+   * (mostra todas); array (mesmo vazio) = seleção explícita do usuário. */
+  occurrenceCategoryFilter?: string[] | null;
+  onOccurrenceCategoryFilterChange?: (categories: string[] | null) => void;
   /** Categorias disponíveis para filtro de ocorrências */
   availableOccurrenceCategories?: string[];
   // --- Timeline Player ---
@@ -186,6 +188,14 @@ const RAIN_LEGEND_SHORT: Array<{ label: string; color: string }> = [
   { label: 'Forte', color: RAIN_LEVEL_PALETTE[3] },
   { label: 'Muito forte', color: RAIN_LEVEL_PALETTE[4] },
 ];
+
+/** Combina data (YYYY-MM-DD) + horário (HH:mm) locais num ISO 8601 (UTC), pra consultar séries
+ * históricas de vento (METAR/INMET reportam em UTC). */
+function localDateTimeToIso(dateYmd: string, timeHm: string): string {
+  const [y, m, d] = dateYmd.split('-').map(Number);
+  const [h, min] = timeHm.split(':').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, h ?? 0, min ?? 0, 0).toISOString();
+}
 
 // Componente para criar marcadores das estações
 const StationMarkers: React.FC<{
@@ -280,16 +290,18 @@ const StationMarkers: React.FC<{
   );
 };
 
-const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrences }) => {
-  if (!occurrences || !occurrences.length) return null;
+// Vermelho = aberta; verde = resolvida/encerrada (data_hora_encerramento preenchida).
+const OPEN_OCCURRENCE_COLOR = '#ef4444';
+const CLOSED_OCCURRENCE_COLOR = '#22c55e';
 
-  const occurrenceIcon = L.divIcon({
+function buildOccurrenceIcon(isClosed: boolean): L.DivIcon {
+  return L.divIcon({
     className: 'custom-occurrence-icon',
     html: `
       <div style="
         width: 14px;
         height: 14px;
-        background-color: #ef4444;
+        background-color: ${isClosed ? CLOSED_OCCURRENCE_COLOR : OPEN_OCCURRENCE_COLOR};
         border: 2px solid white;
         border-radius: 50%;
         box-shadow: 0 1px 3px rgba(0,0,0,0.35);
@@ -298,6 +310,10 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
     iconSize: [14, 14],
     iconAnchor: [7, 7],
   });
+}
+
+const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrences }) => {
+  if (!occurrences || !occurrences.length) return null;
 
   return (
     <>
@@ -308,17 +324,18 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
           (occ.data_abertura && occ.hora_abertura
             ? `${occ.data_abertura} ${occ.hora_abertura}`
             : occ.data_abertura ?? null);
+        const isClosed = Boolean(occ.data_hora_encerramento);
 
         return (
           <Marker
             key={`${occ.id_ocorrencia}-${index}`}
             position={[occ.latitude, occ.longitude]}
-            icon={occurrenceIcon}
+            icon={buildOccurrenceIcon(isClosed)}
           >
             <Popup>
               <div style={{ padding: '10px', fontFamily: 'Arial, sans-serif', minWidth: '220px' }}>
-                <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#b91c1c', fontWeight: 700 }}>
-                  Ocorrência {occ.id_ocorrencia}
+                <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', color: isClosed ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+                  Ocorrência {occ.id_ocorrencia} {isClosed ? '(resolvida)' : ''}
                 </h3>
                 {occ.titulo && (
                   <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#111827', fontWeight: 600 }}>
@@ -328,6 +345,11 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
                 {dt && (
                   <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
                     <strong>Data/hora:</strong> {dt}
+                  </p>
+                )}
+                {occ.data_hora_encerramento && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#15803d' }}>
+                    <strong>Encerrada em:</strong> {occ.data_hora_encerramento}
                   </p>
                 )}
                 {occ.bairro && (
@@ -423,7 +445,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showWind, setShowWind] = useState(true);
   const [windCategoryFilter, setWindCategoryFilter] = useState<WindCategory[]>([...WIND_CATEGORY_ORDER]);
   const windData = useWindData();
-  const filteredWindStations = windData.stations.filter((s) =>
+  const historicalWindData = useHistoricalWindData();
+  // No histórico, o vento passa a acompanhar o instante selecionado na linha do tempo (em vez do
+  // vento atual) — usa a série buscada em fetchHistoricalWindRange (disparada ao clicar Aplicar).
+  const activeWindData = historicalMode
+    ? historicalWindData.getFrame(selectedHistoricalTimestamp)
+    : { stations: windData.stations, corridorSummary: windData.corridorSummary };
+  const filteredWindStations = activeWindData.stations.filter((s) =>
     windCategoryFilter.includes(windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs)))
   );
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
@@ -469,8 +497,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       onHistoricalDateToChange(historicalDate);
     }
   }, [historicalViewMode, historicalDate, historicalDateTo, onHistoricalDateToChange]);
+  // Espelha o filtro de ocorrências: "somente ocorrências" também precisa esconder a chuva
+  // (bolinhas + zonas), senão o filtro "Chuva/Ocorrências/Ambos" da linha do tempo não faz nada.
+  const stationsAfterPlaybackFilter = playbackMode === 'occurrences' ? [] : stations;
   const displayStations =
-    (historicalViewMode === 'accumulated') ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
+    (historicalViewMode === 'accumulated')
+      ? stationsAfterPlaybackFilter
+      : stationsAfterPlaybackFilter.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   // Bairros/zonas NÃO bloqueiam mais o mapa: tiles, chuva, vento e radar já toleram esses dados
   // ausentes (ZoneRainLayer/BairroPolygons só renderizam quando `data &&`, FitCityOnLoad/
@@ -478,6 +511,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   // externo (ArcGIS da Prefeitura) responder é o que deixava o carregamento inicial lento.
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
+
+  // Dispara a busca do histórico de vento junto do "Aplicar" já existente (mesmo botão que
+  // aplica o período pra chuva/ocorrências) — sem UI nova pra aprender. onApplyHistoricalFilter
+  // também é reaproveitado pelo botão "Carregar ocorrências (hoje)" em tempo real (mesmo prop,
+  // dentro de HistoricalTimelineControl) — por isso só busca vento quando de fato em histórico.
+  const handleApplyHistoricalFilter = () => {
+    if (historicalMode) {
+      const fromIso = localDateTimeToIso(historicalDate, historicalTimeFrom);
+      const toIso = localDateTimeToIso(historicalDateTo ?? historicalDate, historicalTimeTo);
+      historicalWindData.fetchRange(fromIso, toIso);
+    }
+    onApplyHistoricalFilter?.();
+  };
 
   return (
     <div ref={mapContainerRef} className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
@@ -541,7 +587,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               {showWind && (
                 <>
                   <WindCategoryFilter value={windCategoryFilter} onChange={setWindCategoryFilter} />
-                  <WindLegend corridorSummary={windData.corridorSummary} loading={windData.loading} error={windData.error} />
+                  <WindLegend
+                    corridorSummary={activeWindData.corridorSummary}
+                    loading={historicalMode ? historicalWindData.loading : windData.loading}
+                    error={historicalMode ? historicalWindData.error : windData.error}
+                  />
                 </>
               )}
               <RadarSourceControl value={radarSource} onChange={setRadarSource} />
@@ -587,7 +637,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   <OccurrenceFilters
                   textFilter={occurrenceTextFilter ?? ''}
                   onTextFilterChange={onOccurrenceTextFilterChange ?? (() => { })}
-                  categoryFilter={occurrenceCategoryFilter ?? []}
+                  categoryFilter={occurrenceCategoryFilter ?? null}
                   onCategoryFilterChange={onOccurrenceCategoryFilterChange ?? (() => { })}
                   availableCategories={availableOccurrenceCategories ?? []}
                 />
@@ -609,14 +659,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 timeline={historicalTimeline}
                 selectedTimestamp={selectedHistoricalTimestamp}
                 onTimestampChange={onHistoricalTimestampChange}
-                onApplyFilter={onApplyHistoricalFilter}
+                onApplyFilter={handleApplyHistoricalFilter}
                 refreshing={historicalRefreshing}
                 occurrenceLoading={occurrenceLoading}
                 occurrenceError={occurrenceError}
                 viewMode={historicalViewMode}
                 desiredAnalysisTime={desiredAnalysisTime}
                 onDesiredAnalysisTimeChange={onDesiredAnalysisTimeChange}
-                showOccurrencesLoadInRealtime={!historicalMode && (showOccurrences ?? false) && occurrenceDataSource === 'api'}
+                // occurrenceDataSource só importa no histórico (API GCP vs planilha); em tempo
+                // real a fonte é sempre "ocorrências abertas" (Simaa) — checar occurrenceDataSource
+                // aqui escondia esse botão pra sempre, já que o padrão é 'planilha'.
+                showOccurrencesLoadInRealtime={!historicalMode && (showOccurrences ?? false)}
               />
             </div>
           </>
@@ -781,7 +834,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
-        {showWind && <WindBeltLayer stations={filteredWindStations} corridorSummary={windData.corridorSummary} />}
+        {showWind && <WindBeltLayer stations={filteredWindStations} corridorSummary={activeWindData.corridorSummary} />}
       </MapContainer>
 
       {/* Legenda de chuva discreta, sempre visível (telão do COR não tem quem clique em
