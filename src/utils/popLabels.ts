@@ -2,24 +2,63 @@
  * Dicionário código PoP → nome descritivo (AgencyEventTypeCode do Simaa, ex.: "POP23").
  *
  * A API de ocorrências abertas (tempo real) só devolve o código, sem nome (confirmado contra o
- * servidor real do Simaa — ver src/services/ocorrenciasAbertasApi.ts). Preencha conforme a tabela
- * oficial do COR (existe em outro sistema interno, ainda não temos aqui) — só os códigos abaixo,
- * na ordem que já apareceu no mapa até agora, ficam como exemplo de formato:
- *
- * export const POP_LABELS: Record<string, string> = {
- *   POP08: 'Nome real aqui',
- *   POP10: 'Nome real aqui',
- *   POP11: 'Nome real aqui',
- *   POP15: 'Nome real aqui',
- *   POP19: 'Nome real aqui',
- *   POP21: 'Nome real aqui',
- *   POP23: 'Nome real aqui',
- *   POP33: 'Nome real aqui',
- * };
- *
- * Deixado vazio de propósito — nenhum valor abaixo foi inventado.
+ * servidor real do Simaa — ver src/services/ocorrenciasAbertasApi.ts). Tabela oficial do COR.
  */
-export const POP_LABELS: Record<string, string> = {};
+export const POP_LABELS: Record<string, string> = {
+  POP01: 'ACIDENTE SEM VITIMA',
+  POP02: 'ACIDENTE COM VITIMA',
+  POP03: 'ACIDENTE COM OBITO',
+  POP04: 'INCENDIO EM VEICULO',
+  POP05: 'BOLSAO DE AGUA EM VIA',
+  POP06: 'MANIFESTACAO EM LOCAL PUBLICO',
+  POP07: 'INCENDIO EM IMOVEL',
+  POP08: 'SINAIS DE TRANSITO COM MAU FUNCIONAMENTO',
+  POP09: 'REINTEGRACAO DE POSSE',
+  POP10: 'QUEDA DE ARVORE',
+  POP11: 'QUEDA DE POSTE',
+  POP12: 'ACIDENTE COM QUEDA DE CARGA',
+  POP13: 'INCENDIO NO ENTORNO DE VIAS PUBLICAS',
+  POP14: 'INCENDIO DENTRO DE TUNEIS',
+  POP15: 'VAZAMENTO DE AGUA E ESGOTO',
+  POP16: 'FALTA CRITICA DE ENERGIA OU APAGAO',
+  POP17: 'IMPLOSAO',
+  POP18: 'ESCAPAMENTO DE GAS',
+  POP19: 'EVENTO NAO PROGRAMADO',
+  POP20: 'ATROPELAMENTO',
+  POP21: 'AFUNDAMENTO DE PISTA OU BURACO NA VIA',
+  POP22: 'ABALROAMENTO',
+  POP23: 'OBRA/MANUTENÇÃO EM LOCAL PUBLICO',
+  POP24: 'OPERACAO POLICIAL',
+  POP25: 'ACIONAMENTO DE SIRENES',
+  POP26: 'ALAGAMENTO',
+  POP27: 'ENCHENTE OU INUNDACAO',
+  POP28: 'LAMINA DE AGUA',
+  POP29: 'ACIDENTE AMBIENTAL',
+  POP30: 'INCIDENTE COM BUEIRO',
+  POP31: 'QUEDA DE ARVORE SOBRE FIACAO',
+  POP32: 'RESIDUOS NA VIA',
+  POP33: 'INCENDIO EM VEGETACAO',
+  POP34: 'DESLIZAMENTO',
+  POP35: 'QUEDA DE ESTRUTURA DE ALVENARIA',
+  POP36: 'RESGATE OU REMOCAO DE ANIMAIS TERRESTRES E AEREOS',
+  POP37: 'REMOCAO DE ANIMAIS MORTOS NA AREIA',
+  POP38: 'RESGATE DE ANIMAL MARINHO PRESO EM REDE OU ENCALHADO',
+  POP39: 'ANIMAL EM LOCAL PUBLICO',
+  POP40: 'QUEDA DE CARGA VIVA DE GRANDE PORTE',
+  POP41: 'QUEDA DE CARGA VIVA DE PEQUENO PORTE',
+  POP42: 'PROTOCOLO DE VIA',
+  POP43: 'PROTOCOLO DE CICLOVIA',
+  POP44: 'ENGUICO NA VIA',
+  POP45: 'PROTOCOLO DE CALOR - NC2',
+  POP46: 'PROTOCOLO DE CALOR - NC3',
+  POP47: 'PROTOCOLO DE CALOR - NC4',
+  POP48: 'PROTOCOLO DE CALOR - NC5',
+  POP49: 'PROTOCOLO DE PARQUES',
+  POP50: 'OCORRENCIA EM PARQUE AEROPORTUARIO',
+  POP51: 'INTERRUPÇÃO PARCIAL OU TOTAL DE MODAL DE TRANSPORTE',
+  POP52: 'FIAÇÃO PARTIDA/ARREADA',
+  POP53: 'RESSACA/MARÉ ALTA',
+};
 
 /** Nome descritivo do código PoP, com fallback pro próprio código quando ainda não mapeado. */
 export function getPopLabel(code: string | null | undefined): string {
