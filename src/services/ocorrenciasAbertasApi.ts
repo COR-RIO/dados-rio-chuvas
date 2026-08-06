@@ -8,10 +8,9 @@
 import type { Occurrence } from '../types/occurrence';
 import { getCriticidadeLabel } from '../utils/criticidade';
 
-const SIMAA_URL =
-  typeof import.meta !== 'undefined' && import.meta.env?.DEV
-    ? '/api/ocorrencias-abertas/ocorrencias'
-    : 'https://apisimaa.computei.srv.br/ocorrencias';
+// Proxy relativo (dev: vite.config.ts; produção: redirect no netlify.toml) — evita CORS ao
+// chamar apisimaa.computei.srv.br direto do browser.
+const SIMAA_URL = '/api/ocorrencias-abertas/ocorrencias';
 
 interface SimaaItem {
   EventId: string;

@@ -376,8 +376,11 @@ function App() {
     setPlanilhaGeocoding(false);
   }, []);
 
+  // staticOccurrences só é usado no modo histórico com fonte "planilha" (ver occurrenceSource
+  // abaixo) — sem o filtro isHistoricalMode aqui, todo carregamento da página (mesmo em tempo
+  // real, o modo padrão) baixava e parseava a planilha de ~10MB à toa.
   useEffect(() => {
-    if (occurrenceDataSource !== 'planilha') return;
+    if (occurrenceDataSource !== 'planilha' || !isHistoricalMode) return;
     setPlanilhaLoadError(null);
     loadStaticOccurrences()
       .then(setStaticOccurrences)
@@ -386,7 +389,7 @@ function App() {
         setStaticOccurrences([]);
         setPlanilhaLoadError('Planilha não carregou (arquivo muito grande). Use a fonte API.');
       });
-  }, [occurrenceDataSource]);
+  }, [occurrenceDataSource, isHistoricalMode]);
 
   useEffect(() => {
     if (isHistoricalMode || !appliedShowOccurrences) return;

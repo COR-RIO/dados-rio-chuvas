@@ -63,6 +63,15 @@
   status = 200
   force = true
 
+# Ocorrências abertas em tempo real (Simaa) — proxy simples, API pública sem credenciais.
+# Sem isso, o browser chamava apisimaa.computei.srv.br direto em produção e era bloqueado por CORS
+# (só funcionava em dev, via proxy do Vite em vite.config.ts).
+[[redirects]]
+  from = "/api/ocorrencias-abertas/*"
+  to = "https://apisimaa.computei.srv.br/:splat"
+  status = 200
+  force = true
+
 # --- API pública v1 (uso por outros projetos) ---
 
 # Histórico de chuvas (alias estável para a mesma function de /api/historical-rain)
