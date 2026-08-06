@@ -284,6 +284,25 @@ function App() {
   };
   const [pendingShowOccurrences, setPendingShowOccurrences] = useState(false);
   const [appliedShowOccurrences, setAppliedShowOccurrences] = useState(false);
+  // Em tempo real a fonte é sempre a API (Simaa) — nada a ver com o painel "Histórico (GCP)", que
+  // é sobre o período de chuva via BigQuery. Por isso o toggle já aplica na hora, sem precisar do
+  // botão "Carregar ocorrências (hoje)" (que continua existindo só como atualização manual). No
+  // histórico mantém o fluxo de "Aplicar" (período de chuva e ocorrências são aplicados juntos).
+  const handleShowOccurrencesChange = (show: boolean) => {
+    setPendingShowOccurrences(show);
+    if (!isHistoricalMode) {
+      setAppliedShowOccurrences(show);
+    }
+  };
+  // Mesmo raciocínio: texto/categoria também aplicam na hora em tempo real (sem "Aplicar").
+  const handleOccTextFilterChange = (text: string) => {
+    setPendingOccTextFilter(text);
+    if (!isHistoricalMode) setAppliedOccTextFilter(text);
+  };
+  const handleOccCategoryFilterChange = (categories: string[] | null) => {
+    setPendingOccCategoryFilter(categories);
+    if (!isHistoricalMode) setAppliedOccCategoryFilter(categories);
+  };
   const [occurrenceDataSource, setOccurrenceDataSource] = useState<'api' | 'planilha'>('planilha');
   const [staticOccurrences, setStaticOccurrences] = useState<Occurrence[]>([]);
   const [apiOccurrences, setApiOccurrences] = useState<Occurrence[] | null>(null);
@@ -419,11 +438,15 @@ function App() {
     return filterOccurrencesByText(occs, appliedOccTextFilter);
   })();
 
-  // Ocorrências na linha do tempo: começar zerado (quadro 0 = nenhuma) e ir preenchendo conforme o tempo avança
+  // Ocorrências na linha do tempo: começar zerado (quadro 0 = nenhuma) e ir preenchendo conforme o tempo avança.
+  // playbackMode só deve valer durante o playback histórico ativo (onde o seletor Chuva/Ocorrências/
+  // Ambos aparece) — é estado solto que fica "grudado" no último valor escolhido, então checar isso
+  // ANTES de saber se está em playback histórico faria "Chuva" selecionada uma vez no histórico
+  // continuar escondendo ocorrências pra sempre, até em tempo real.
   const occurrencesForPlayback = useMemo(() => {
-    if (playbackMode === 'rain') return [];
     const isHistoricalWithTimeline = isHistoricalMode && historicalTimeline.length > 0;
     if (!isHistoricalWithTimeline) return filteredOccurrences;
+    if (playbackMode === 'rain') return [];
     // No primeiro quadro (início do período): nenhuma ocorrência, mapa "zerado"
     if (playingIndex === 0) return [];
     const ts = historicalTimeline[playingIndex];
@@ -475,7 +498,7 @@ function App() {
           occurrenceError={!isHistoricalMode ? abertasOccurrencesError : (occurrenceDataSource === 'api' ? apiOccurrencesError : null)}
           occurrences={occurrencesForPlayback}
           showOccurrences={pendingShowOccurrences}
-          onShowOccurrencesChange={setPendingShowOccurrences}
+          onShowOccurrencesChange={handleShowOccurrencesChange}
           occurrenceDataSource={occurrenceDataSource}
           onOccurrenceDataSourceChange={setOccurrenceDataSource}
           planilhaLoadError={planilhaLoadError}
@@ -487,9 +510,9 @@ function App() {
           planilhaGeocodeProgress={planilhaGeocodeProgress}
           appliedShowOccurrences={appliedShowOccurrences || (isPlaying && playbackMode !== 'rain')}
           occurrenceTextFilter={pendingOccTextFilter}
-          onOccurrenceTextFilterChange={setPendingOccTextFilter}
+          onOccurrenceTextFilterChange={handleOccTextFilterChange}
           occurrenceCategoryFilter={pendingOccCategoryFilter}
-          onOccurrenceCategoryFilterChange={setPendingOccCategoryFilter}
+          onOccurrenceCategoryFilterChange={handleOccCategoryFilterChange}
           availableOccurrenceCategories={availableOccCategories}
           isPlaying={isPlaying}
           playingIndex={playingIndex}

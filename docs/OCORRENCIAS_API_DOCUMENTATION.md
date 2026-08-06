@@ -4,8 +4,8 @@
 
 | Modo       | Fonte  | URL / Uso |
 |-----------|--------|------------|
-| **Tempo real** | Simaa  | https://apisimaa.computei.srv.br/ocorrencias — ocorrências abertas, sem login (usado automaticamente). |
-| **Histórico** | Hexagon | http://35.199.126.236:8085/api — por período (data início/fim), exige login; ver abaixo. |
+| **Tempo real** | Simaa  | https://apisimaa.computei.srv.br/ocorrencias — ocorrências abertas, sem login, pública (usada automaticamente). |
+| **Histórico** | Hexagon | API interna/confidencial (IP direto), exige login; ver abaixo. |
 
 ---
 
@@ -15,22 +15,31 @@
 
 A API Hexagon é usada **apenas no modo histórico** para buscar ocorrências por intervalo de datas. Em tempo real o app usa a API Simaa.
 
-- **URL Base**: http://35.199.126.236:8085/api
-- **Swagger/UI**: http://35.199.126.236:8085/api/swagger/index.html
-- **Credenciais**: configurar no `.env` (copiar de `.env.example`):
-  - `VITE_OCORRENCIAS_API_USERNAME` (ex.: `usernaem_here`)
-  - `VITE_OCORRENCIAS_API_PASSWORD` (ex.: `@password_here`)
-  - `VITE_OCORRENCIAS_API_BASE_URL` (opcional; padrão: `http://35.199.126.236:8085/api`)
+**Importante — arquitetura de segurança**: essa API é interna/confidencial (IP direto, exige login).
+O app **não fala com ela diretamente do navegador**. O cliente (`src/services/ocorrenciasApi.ts`)
+chama uma Netlify Function própria (`netlify/functions/ocorrencias-hexagon.js`), que faz login e
+busca **no servidor** — IP, usuário e senha nunca chegam ao bundle JS público. (Antes essas
+credenciais viviam em variáveis `VITE_*`, que o Vite embute no bundle do navegador por definição —
+qualquer visitante podia extraí-las pelo DevTools. Corrigido.)
 
-## Fluxo de Uso (passo a passo)
+- **Credenciais**: configurar no Netlify (nunca em `VITE_*` — copiar de `.env.example`):
+  - `OCORRENCIAS_API_BASE_URL`
+  - `OCORRENCIAS_API_USERNAME`
+  - `OCORRENCIAS_API_PASSWORD`
+- **Endpoint que o cliente chama**: `/api/ocorrencias-hexagon?inicio=DD-MM-YYYY&fim=DD-MM-YYYY&page=N&pageSize=N` (mesma origem — sem CORS, sem credenciais expostas).
 
-### 1. Obter o token (POST /api/login)
+## Fluxo de Uso (passo a passo, dentro da Netlify Function)
 
-No Swagger (ou em qualquer cliente HTTP), envie:
+As duas chamadas abaixo (`login` e `StatusDasOcorrencias`) acontecem **dentro de
+`netlify/functions/ocorrencias-hexagon.js`**, no servidor — não no navegador. Documentado aqui pra
+quem for mexer na function ou testar a API Hexagon diretamente (ex.: via Swagger/Postman, com as
+credenciais reais que só existem no servidor de deploy).
+
+### 1. Obter o token (POST {OCORRENCIAS_API_BASE_URL}/login)
 
 **Request**
 - **Método**: `POST`
-- **URL**: `http://35.199.126.236:8085/api/login`
+- **URL**: `{OCORRENCIAS_API_BASE_URL}/login`
 - **Headers**: `Content-Type: application/json`
 - **Request body**:
 ```json
@@ -54,7 +63,7 @@ O `accessToken` deve ser usado no próximo passo. O `expirationTime` indica até
 
 **Request**
 - **Método**: `GET`
-- **URL**: `http://35.199.126.236:8085/api/Ocorrencias/StatusDasOcorrencias/{dataInicio}/{dataFim}`
+- **URL**: `{OCORRENCIAS_API_BASE_URL}/Ocorrencias/StatusDasOcorrencias/{dataInicio}/{dataFim}`
 - **Headers**: `Authorization: Bearer {accessToken}` (token obtido no passo 1)
 - **Parâmetros de path** (obrigatórios):
   - `dataInicio`: data inicial no formato **DD-MM-YYYY** (ex: `09-02-2026`)
@@ -62,9 +71,6 @@ O `accessToken` deve ser usado no próximo passo. O `expirationTime` indica até
 - **Query** (opcionais):
   - `page`: número da página (ex: `1`)
   - `pageSize`: itens por página (ex: `50`)
-
-**Exemplo de URL**:  
-`http://35.199.126.236:8085/api/Ocorrencias/StatusDasOcorrencias/09-02-2026/10-02-2026?page=1&pageSize=50`
 
 **Response body (estrutura)**
 ```json
@@ -121,17 +127,9 @@ Serviço principal que implementa a comunicação com a API.
 
 **Funções Disponíveis:**
 
-#### `loginOcorrenciasAPI(): Promise<string | null>`
-Faz login na API e obtém um token de autenticação.
-- Retorna o token ou `null` em caso de erro
-- Implementa cache automático de token (válido por 50 minutos)
-
-```typescript
-const token = await loginOcorrenciasAPI();
-if (!token) {
-  console.error('Falha na autenticação');
-}
-```
+Login e token não existem mais no cliente — ver "Fluxo de Uso" acima. O serviço só monta a URL da
+Netlify Function (`/api/ocorrencias-hexagon`) e faz `fetch`, sem `Authorization` header nem lógica
+de autenticação (isso tudo migrou pra `netlify/functions/ocorrencias-hexagon.js`).
 
 #### `fetchOcorrenciasByDate(dataInicio, dataFim, page?, pageSize?): Promise<OcorrenciaStatus[]>`
 Busca ocorrências de um período específico com paginação.
@@ -169,14 +167,6 @@ const todasOcorrencias = await fetchAllOcorrenciasByDate(
   '2026-01-31'
 );
 console.log(`Total: ${todasOcorrencias.length} ocorrências`);
-```
-
-#### `clearTokenCache(): void`
-Limpa o token em cache, forçando um novo login na próxima requisição.
-
-```typescript
-clearTokenCache();
-// Próxima chamada fará login novamente
 ```
 
 ### 2. Hook React (`src/hooks/useOcorrenciasData.ts`)
@@ -350,22 +340,14 @@ export function OcorrenciasWidget() {
 
 ## Autenticação e Token
 
-A autenticação é feita automaticamente:
+Tudo isso acontece dentro de `netlify/functions/ocorrencias-hexagon.js`, no servidor — o cliente
+não vê token, usuário nem senha:
 
-1. **Primeiro acesso**: Faz login e obtém token
-2. **Cache**: Token é armazenado por 50 minutos
-3. **Requisições subsequentes**: Usa token em cache, sem fazer novo login
-4. **Expiração**: Após 50 minutos, faz novo login automaticamente
-
-### Forçar novo login
-
-```typescript
-import { clearTokenCache, fetchOcorrenciasByDate } from './src/services/ocorrenciasApi';
-
-// Limpar cache forçar novo login
-clearTokenCache();
-await fetchOcorrenciasByDate('2026-01-01', '2026-01-01');
-```
+1. **Primeiro acesso**: a function faz login e obtém token
+2. **Cache**: token guardado em memória (melhor esforço — containers "quentes" reaproveitam; um
+   cold start simplesmente refaz login)
+3. **Requisições subsequentes**: usa o token em cache quando disponível
+4. **401 inesperado**: a function refaz login uma vez e tenta de novo antes de desistir
 
 ## Formato de Datas
 
@@ -423,29 +405,28 @@ Consulte o arquivo [OCORRENCIAS_API_EXAMPLES.ts](./OCORRENCIAS_API_EXAMPLES.ts) 
 
 ## Documentação da API
 
-Para mais detalhes sobre os endpoints disponíveis e estrutura de resposta:
-- Acesse: http://35.199.126.236:8085/api/swagger/index.html
+O Swagger/UI da API Hexagon é interno (mesmo IP confidencial do `OCORRENCIAS_API_BASE_URL`) — não
+repetido aqui de propósito. Peça o link a quem forneceu as credenciais, se precisar consultar os
+endpoints diretamente.
 
 ## Troubleshooting
 
 ### API Hexagon (histórico) "não está indo"
-- A Hexagon (http://35.199.126.236:8085) é usada **só no modo histórico** quando a fonte "API" está selecionada.
+- A Hexagon é usada **só no modo histórico** quando a fonte "API" está selecionada.
 - Em **tempo real** o app usa sempre a **Simaa** (https://apisimaa.computei.srv.br/ocorrencias); não é preciso configurar nada.
-- Para o histórico com Hexagon: confira no `.env` as variáveis `VITE_OCORRENCIAS_API_USERNAME` e `VITE_OCORRENCIAS_API_PASSWORD`, reinicie o servidor (`npm run dev`) e teste no Swagger se o login e o endpoint de ocorrências respondem.
-- Em desenvolvimento o Vite faz proxy de `/api/ocorrencias` para o servidor Hexagon; se aparecer erro de rede, verifique se o servidor está acessível.
+- Para o histórico com Hexagon: confira no Netlify (Site settings → Environment variables) se `OCORRENCIAS_API_BASE_URL`, `OCORRENCIAS_API_USERNAME` e `OCORRENCIAS_API_PASSWORD` estão definidas — **sem** prefixo `VITE_`. Redeploy após alterar.
+- Em desenvolvimento local, `vite.config.ts` faz proxy de `/api/ocorrencias-hexagon` para a function já publicada (`VITE_HISTORICAL_RAIN_PROXY`, padrão `chovendo-agora.netlify.app`) — não precisa rodar `netlify dev` nem ter as credenciais localmente.
 
-### "Token não retornado pela API"
-- Verificar credenciais no `.env` (VITE_OCORRENCIAS_API_USERNAME e VITE_OCORRENCIAS_API_PASSWORD)
-- Conferir se a API está acessível (http://35.199.126.236:8085)
-- Verificar console do navegador para mensagens de erro
+### "Token não retornado pela API" / erro 401
+- Verificar as três variáveis no Netlify (não `VITE_*`) e fazer redeploy.
+- Ver os logs da function `ocorrencias-hexagon` no painel do Netlify (Functions → ocorrencias-hexagon → Logs) — os erros de login/fetch aparecem lá, não mais no console do navegador.
 
 ### "Erro ao buscar ocorrências" (histórico)
-- Verificar se as datas estão no formato correto (a API espera DD-MM-YYYY no path)
+- Verificar se as datas estão no formato correto (a function espera `inicio`/`fim` em DD-MM-YYYY)
 - Conferir se o período tem dados disponíveis
-- Tentar limpar o cache: `clearTokenCache()`
 
 ### CORS Error
-- Em dev o proxy do Vite (`/api/ocorrencias` → Hexagon) evita CORS. Se ainda falhar, confira `vite.config.ts`.
+- Não deveria mais acontecer: o cliente só chama `/api/ocorrencias-hexagon` (mesma origem); a function é quem fala com a Hexagon, do servidor.
 
 ## Integração Futura
 

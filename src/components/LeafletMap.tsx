@@ -505,7 +505,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   }, [historicalViewMode, historicalDate, historicalDateTo, onHistoricalDateToChange]);
   // Espelha o filtro de ocorrências: "somente ocorrências" também precisa esconder a chuva
   // (bolinhas + zonas), senão o filtro "Chuva/Ocorrências/Ambos" da linha do tempo não faz nada.
-  const stationsAfterPlaybackFilter = playbackMode === 'occurrences' ? [] : stations;
+  // Só vale durante o playback histórico ativo (onde o seletor aparece) — playbackMode é estado
+  // solto no React e fica "grudado" no último valor escolhido; sem essa guarda, esconder chuva
+  // no histórico continuaria escondendo em tempo real depois, mesmo sem o seletor visível.
+  const isHistoricalPlayback = historicalMode && historicalTimeline.length > 0;
+  const stationsAfterPlaybackFilter = isHistoricalPlayback && playbackMode === 'occurrences' ? [] : stations;
   const displayStations =
     (historicalViewMode === 'accumulated')
       ? stationsAfterPlaybackFilter

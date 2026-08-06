@@ -212,13 +212,6 @@ export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading
           </svg>
           <span className="text-[9px] text-gray-700">Triângulo cinza: corredor sem estação reportando</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-3 rounded-full flex-shrink-0 border-2 border-white shadow-sm"
-            style={{ backgroundColor: '#7EC9E8' }}
-          />
-          <span className="text-[9px] text-gray-700">Bolinha: pluviômetro (chuva) — não é vento</span>
-        </div>
       </div>
 
       <div className="text-xs font-semibold text-gray-700 mb-1.5 border-t border-gray-200 pt-1.5">Vento — níveis</div>

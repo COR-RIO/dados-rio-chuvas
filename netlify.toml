@@ -48,6 +48,14 @@
   status = 200
   force = true
 
+# Ocorrências históricas (API Hexagon) via Netlify Function — esconde IP/usuário/senha, que antes
+# ficavam em variáveis VITE_* (embutidas no bundle público). Ver netlify/functions/ocorrencias-hexagon.js.
+[[redirects]]
+  from = "/api/ocorrencias-hexagon"
+  to = "/.netlify/functions/ocorrencias-hexagon"
+  status = 200
+  force = true
+
 # Vento em estações automáticas (INMET) — proxy simples, API pública sem credenciais
 [[redirects]]
   from = "/api/inmet/*"

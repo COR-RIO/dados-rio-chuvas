@@ -1,28 +1,15 @@
 // API Hexagon – Ocorrências (somente modo HISTÓRICO)
-// Documentação: http://35.199.126.236:8085/api/swagger/index.html
-// Credenciais em .env: VITE_OCORRENCIAS_API_USERNAME, VITE_OCORRENCIAS_API_PASSWORD
+//
+// Login e busca acontecem numa Netlify Function server-side (ver
+// netlify/functions/ocorrencias-hexagon.js) — IP/usuário/senha nunca chegam ao bundle do
+// cliente. Antes, essas credenciais viviam em VITE_OCORRENCIAS_API_* (client-side por definição
+// do Vite: tudo prefixado VITE_ é embutido no JS público), então ficavam visíveis a qualquer
+// visitante via DevTools. Configuração agora fica em OCORRENCIAS_API_BASE_URL/_USERNAME/_PASSWORD
+// (sem VITE_) nas variáveis de ambiente do Netlify — ver .env.example.
 
 import type { Occurrence } from '../types/occurrence';
 
-// Em desenvolvimento usa o proxy do Vite para evitar CORS; em produção usa a URL do .env ou fallback
-const API_BASE_URL =
-  import.meta.env.DEV
-    ? '/api/ocorrencias'
-    : (import.meta.env.VITE_OCORRENCIAS_API_BASE_URL ?? 'http://35.199.126.236:8085/api');
-const API_USERNAME = import.meta.env.VITE_OCORRENCIAS_API_USERNAME ?? '';
-const API_PASSWORD = import.meta.env.VITE_OCORRENCIAS_API_PASSWORD ?? '';
-
-// Tipos para a API
-interface LoginRequest {
-  userName: string;
-  password: string;
-}
-
-interface LoginResponse {
-  accessToken: string;
-  expirationTime?: string; // ISO 8601, ex: "2026-03-09T12:55:50Z"
-  [key: string]: any;
-}
+const PROXY_URL = '/api/ocorrencias-hexagon';
 
 export interface OcorrenciaStatus {
   id: string;
@@ -51,75 +38,6 @@ interface OcorrenciasResponse {
   [key: string]: any;
 }
 
-// Armazenar token em memória com expiração
-let cachedToken: {
-  token: string;
-  expiresAt: number;
-} | null = null;
-
-/**
- * Faz login na API e obtém um token de autenticação
- */
-export async function loginOcorrenciasAPI(): Promise<string | null> {
-  try {
-    if (!API_USERNAME.trim() || !API_PASSWORD) {
-      throw new Error(
-        'Credenciais da API de ocorrências não configuradas. Defina VITE_OCORRENCIAS_API_USERNAME e VITE_OCORRENCIAS_API_PASSWORD no arquivo .env (copie de .env.example).'
-      );
-    }
-
-    // Verificar se token em cache ainda é válido
-    if (cachedToken && cachedToken.expiresAt > Date.now()) {
-      return cachedToken.token;
-    }
-
-    const loginData: LoginRequest = {
-      userName: API_USERNAME.trim(),
-      password: API_PASSWORD,
-    };
-
-    const response = await fetch(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(loginData),
-    });
-
-    if (response.status === 401) {
-      throw new Error(
-        'Login recusado (401). Verifique usuário e senha no .env (VITE_OCORRENCIAS_API_USERNAME e VITE_OCORRENCIAS_API_PASSWORD) e reinicie o servidor (npm run dev).'
-      );
-    }
-    if (!response.ok) {
-      console.error('Erro ao fazer login na API de Ocorrências:', response.status);
-      return null;
-    }
-
-    const data: LoginResponse = await response.json();
-    
-    const token = data.accessToken ?? data.token;
-    if (!token) {
-      console.error('Token não retornado pela API de Ocorrências');
-      return null;
-    }
-
-    // Usar expirationTime da API se existir, senão cache de 50 minutos
-    let expiresAt: number;
-    if (data.expirationTime) {
-      expiresAt = new Date(data.expirationTime).getTime() - 60 * 1000; // 1 min antes
-    } else {
-      expiresAt = Date.now() + 50 * 60 * 1000;
-    }
-    cachedToken = { token, expiresAt };
-
-    return token;
-  } catch (err) {
-    console.error('Erro ao autenticar na API de Ocorrências:', err);
-    return null;
-  }
-}
-
 /**
  * Formata data para o padrão esperado pela API (DD-MM-YYYY)
  */
@@ -132,17 +50,12 @@ function formatDateForAPI(date: Date | string): string {
   return `${day}-${month}-${year}`;
 }
 
-/** Monta a URL do endpoint de ocorrências (funciona com base relativa em dev ou absoluta em prod). */
+/** Monta a URL da Netlify Function proxy (login/senha ficam só no servidor, ver arquivo acima). */
 function buildStatusUrl(inicio: string, fim: string, page: number, pageSize: number): string {
-  const path = `${API_BASE_URL}/Ocorrencias/StatusDasOcorrencias/${inicio}/${fim}`;
-  if (path.startsWith('http')) {
-    const url = new URL(path);
-    url.searchParams.set('page', String(page));
-    url.searchParams.set('pageSize', String(pageSize));
-    return url.toString();
-  }
   const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
-  const url = new URL(path, base);
+  const url = new URL(PROXY_URL, base);
+  url.searchParams.set('inicio', inicio);
+  url.searchParams.set('fim', fim);
   url.searchParams.set('page', String(page));
   url.searchParams.set('pageSize', String(pageSize));
   return url.toString();
@@ -162,13 +75,6 @@ export async function fetchOcorrenciasByDate(
   pageSize: number = 50
 ): Promise<OcorrenciaStatus[]> {
   try {
-    // Fazer login para obter token
-    const token = await loginOcorrenciasAPI();
-    if (!token) {
-      console.error('Não foi possível obter token de autenticação');
-      return [];
-    }
-
     const inicio = formatDateForAPI(dataInicio);
     const fim = formatDateForAPI(dataFim);
     if (!inicio || !fim) {
@@ -177,13 +83,7 @@ export async function fetchOcorrenciasByDate(
     }
 
     const urlStr = buildStatusUrl(inicio, fim, page, pageSize);
-    const response = await fetch(urlStr, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-    });
+    const response = await fetch(urlStr, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
       console.error('Erro ao buscar ocorrências:', response.status);
@@ -204,20 +104,13 @@ export async function fetchOcorrenciasByDate(
 /**
  * Busca todas as ocorrências de um período, paginando automaticamente.
  * Usada apenas no modo histórico (API Hexagon). Em tempo real use a API Simaa (ocorrenciasAbertasApi).
- * @throws Quando login falha ou a API retorna erro (ex.: 401, 500) para a primeira página
+ * @throws Quando a function/API retorna erro (ex.: 401, 500) para a primeira página
  */
 export async function fetchAllOcorrenciasByDate(
   dataInicio: string | Date,
   dataFim: string | Date,
   pageSize: number = 50
 ): Promise<OcorrenciaStatus[]> {
-  const token = await loginOcorrenciasAPI();
-  if (!token) {
-    throw new Error(
-      'Não foi possível obter token da API Hexagon. Verifique VITE_OCORRENCIAS_API_USERNAME e VITE_OCORRENCIAS_API_PASSWORD no .env e reinicie o servidor (npm run dev).'
-    );
-  }
-
   const inicio = formatDateForAPI(dataInicio);
   const fim = formatDateForAPI(dataFim);
   if (!inicio || !fim) {
@@ -230,18 +123,13 @@ export async function fetchAllOcorrenciasByDate(
 
   while (hasMore) {
     const urlStr = buildStatusUrl(inicio, fim, page, pageSize);
-    const response = await fetch(urlStr, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-    });
+    const response = await fetch(urlStr, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
+      const body = await response.json().catch(() => null);
       const msg =
         page === 1
-          ? `API Hexagon (histórico) retornou ${response.status}. Verifique credenciais no .env e se o servidor está acessível (http://35.199.126.236:8085).`
+          ? `API de ocorrências (histórico) indisponível: ${body?.error ?? response.status}. Verifique OCORRENCIAS_API_BASE_URL/_USERNAME/_PASSWORD no Netlify.`
           : `Erro ao buscar página ${page}.`;
       throw new Error(msg);
     }
@@ -263,13 +151,6 @@ export async function fetchAllOcorrenciasByDate(
     }
 
   return allOcorrencias;
-}
-
-/**
- * Limpar o token em cache (útil para forçar novo login)
- */
-export function clearTokenCache(): void {
-  cachedToken = null;
 }
 
 /** Converte item da API (StatusDasOcorrencias) para o tipo Occurrence do app. Preserva todos os campos em rawApi. */

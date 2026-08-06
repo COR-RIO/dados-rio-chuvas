@@ -23,11 +23,13 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/ocorrencias-abertas/, ''),
       },
-      // API de ocorrências (Hexagon) – evita CORS em dev; path mais específico que /api
-      '/api/ocorrencias': {
-        target: 'http://35.199.126.236:8085',
+      // Ocorrências históricas (Hexagon) em dev: proxy para a function no Netlify (esconde
+      // IP/usuário/senha — ver netlify/functions/ocorrencias-hexagon.js). Rota específica antes
+      // do catch-all /api-ocorrencias-abertas acima e do genérico /api abaixo.
+      '/api/ocorrencias-hexagon': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ocorrencias/, '/api'),
+        rewrite: (path) => path.replace(/^\/api\/ocorrencias-hexagon/, '/.netlify/functions/ocorrencias-hexagon'),
       },
       // GCP: em dev, proxy para a function no Netlify (caminho direto evita HTML)
       '/api/historical-rain': {
