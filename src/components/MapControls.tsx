@@ -6,6 +6,7 @@ import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewM
 import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
+import { getPopLabel } from '../utils/popLabels';
 import {
   WIND_CORRIDOR_LABELS,
   WIND_CATEGORY_LABELS,
@@ -1289,7 +1290,9 @@ export const OccurrenceFilters: React.FC<OccurrenceFiltersProps> = ({
                     onChange={() => handleCategoryToggle(category)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-xs text-gray-700 text-ellipsis overflow-hidden">{category}</span>
+                  <span className="text-xs text-gray-700 text-ellipsis overflow-hidden" title={category}>
+                    {getPopLabel(category)}
+                  </span>
                 </label>
               ))}
             </div>

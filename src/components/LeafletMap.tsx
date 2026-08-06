@@ -38,6 +38,7 @@ import { OccurrenceTable } from './OccurrenceTable';
 import { MAP_TYPES, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import { getAccumulatedRainLevel, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
 import { getCriticidadeLabel } from '../utils/criticidade';
+import { getPopLabel } from '../utils/popLabels';
 import { TimelinePlayerControl } from './MapControls/TimelinePlayerControl';
 import 'leaflet/dist/leaflet.css';
 
@@ -340,6 +341,11 @@ const OccurrenceMarkers: React.FC<{ occurrences?: Occurrence[] }> = ({ occurrenc
                 {occ.titulo && (
                   <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#111827', fontWeight: 600 }}>
                     {occ.titulo}
+                  </p>
+                )}
+                {occ.pop && (
+                  <p style={{ margin: '2px 0', fontSize: '12px', color: '#4b5563' }}>
+                    <strong>Categoria:</strong> {getPopLabel(occ.pop)}
                   </p>
                 )}
                 {dt && (

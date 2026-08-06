@@ -1,6 +1,5 @@
 // API Hexagon – Ocorrências (somente modo HISTÓRICO)
 // Documentação: http://35.199.126.236:8085/api/swagger/index.html
-// Em tempo real o app usa a API Simaa (ocorrenciasAbertasApi.ts): https://apisimaa.computei.srv.br/ocorrencias
 // Credenciais em .env: VITE_OCORRENCIAS_API_USERNAME, VITE_OCORRENCIAS_API_PASSWORD
 
 import type { Occurrence } from '../types/occurrence';
