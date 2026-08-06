@@ -8,11 +8,9 @@ import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
 import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
 import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
-import { LoadingSpinner } from './LoadingSpinner';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
 import { WindBeltLayer } from './WindBeltLayer';
-import { WindCorridorLayer } from './WindCorridorLayer';
 import { RadarLayer } from './RadarLayer';
 import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
@@ -180,6 +178,15 @@ const BairroPolygons: React.FC<{ bairrosData: any; showHexagons: boolean }> = ({
 // Cor da bolinha por nível de influência 0-4 (mesma paleta: 15 min, 1h e acumulado)
 const INFLUENCE_COLORS = RAIN_LEVEL_PALETTE;
 
+// Legenda compacta de chuva (mesma paleta em qualquer critério — só os limites mudam).
+const RAIN_LEGEND_SHORT: Array<{ label: string; color: string }> = [
+  { label: 'Sem chuva', color: RAIN_LEVEL_PALETTE[0] },
+  { label: 'Fraca', color: RAIN_LEVEL_PALETTE[1] },
+  { label: 'Moderada', color: RAIN_LEVEL_PALETTE[2] },
+  { label: 'Forte', color: RAIN_LEVEL_PALETTE[3] },
+  { label: 'Muito forte', color: RAIN_LEVEL_PALETTE[4] },
+];
+
 // Componente para criar marcadores das estações
 const StationMarkers: React.FC<{
   stations: RainStation[];
@@ -191,6 +198,7 @@ const StationMarkers: React.FC<{
       {stations.map((station) => {
         const oneHourRain = Math.max(0, station.data.h01 ?? 0);
         const m15 = Math.max(0, station.data.m15 ?? 0);
+        const m05 = Math.max(0, station.data.m05 ?? 0);
         const acc = station.accumulated;
         const useAccumulated = showAccumulated && acc;
         const accumulatedMm = useAccumulated ? acc.mm_accumulated : 0;
@@ -198,6 +206,9 @@ const StationMarkers: React.FC<{
         let rainLevel: { color: string; name: string };
         if (useAccumulated) {
           rainLevel = getAccumulatedRainLevel(accumulatedMm);
+        } else if (mapDataWindow === '5min') {
+          const level = m05 <= 0 ? 0 : m05 < 0.42 ? 1 : m05 <= 2.08 ? 2 : m05 <= 4.17 ? 3 : 4;
+          rainLevel = { color: INFLUENCE_COLORS[level as 0 | 1 | 2 | 3 | 4], name: ['Sem chuva', 'Fraca', 'Moderada', 'Forte', 'Muito forte'][level] };
         } else if (mapDataWindow === '15min') {
           const level = m15 <= 0 ? 0 : m15 < 1.25 ? 1 : m15 <= 6.25 ? 2 : m15 <= 12.5 ? 3 : 4;
           rainLevel = { color: INFLUENCE_COLORS[level as 0 | 1 | 2 | 3 | 4], name: ['Sem chuva', 'Fraca', 'Moderada', 'Forte', 'Muito forte'][level] };
@@ -458,38 +469,30 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const displayStations =
     (historicalViewMode === 'accumulated') ? stations : stations.map((s) => ({ ...s, accumulated: undefined }));
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
+  // Bairros/zonas NÃO bloqueiam mais o mapa: tiles, chuva, vento e radar já toleram esses dados
+  // ausentes (ZoneRainLayer/BairroPolygons só renderizam quando `data &&`, FitCityOnLoad/
+  // FocusCityButton ignoram boundsData nulo). Bloquear tudo atrás de um spinner até um GeoJSON
+  // externo (ArcGIS da Prefeitura) responder é o que deixava o carregamento inicial lento.
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
 
-  if (loadingAny) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
-        <div className="text-center bg-white/90 rounded-xl border border-red-100 px-6 py-4 shadow-sm">
-          <p className="text-red-600 font-medium mb-2">Erro ao carregar mapa</p>
-          <p className="text-gray-500 text-sm">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!bairrosData && !zonasData) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
-        <p className="text-gray-500">Nenhum dado geográfico disponível</p>
-      </div>
-    );
-  }
-
   return (
     <div ref={mapContainerRef} className="relative w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden">
+      {/* Pequeno indicador, não bloqueia o mapa (tiles/chuva/vento já aparecem imediatamente).
+          Some sozinho quando bairros/zonas terminam de carregar em segundo plano. */}
+      {(loadingAny || error) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1500] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 flex items-center gap-2 pointer-events-none">
+          {loadingAny ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shrink-0" />
+              Carregando bairros e zonas…
+            </>
+          ) : (
+            <span className="text-amber-700">Zonas pluviométricas indisponíveis no momento</span>
+          )}
+        </div>
+      )}
+
       {isMobileView && (showFiltersPanel || showSidebar) && (
         <button
           type="button"
@@ -763,7 +766,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             zonasData={zonasData}
             stations={displayStations}
             mapType={mapType}
-            timeWindow={mapDataWindow === '1h' ? '1h' : '15min'}
+            timeWindow={mapDataWindow === '1h' ? '1h' : mapDataWindow === '5min' ? '5min' : '15min'}
             showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
             showInfluenceLines={showInfluenceLines}
           />
@@ -775,9 +778,33 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
-        {showWind && <WindBeltLayer stations={filteredWindStations} />}
-        {showWind && <WindCorridorLayer corridorSummary={windData.corridorSummary} />}
+        {showWind && <WindBeltLayer stations={filteredWindStations} corridorSummary={windData.corridorSummary} />}
       </MapContainer>
+
+      {/* Legenda de chuva discreta, sempre visível (telão do COR não tem quem clique em
+          "Mostrar filtros"/"Mostrar legenda") — uma tira só, empilhada acima da legenda do radar,
+          longe dos painéis laterais (que ocupam quase a altura toda quando abertos). Mesma paleta
+          vale pra 15min/1h/acumulado (só os limites mudam), então o rótulo indica o critério ativo. */}
+      <div
+        className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[1400] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-2.5 py-1.5 flex items-center gap-2 max-w-[95vw] overflow-x-auto"
+        style={{ fontFamily: 'Arial, sans-serif' }}
+      >
+        <span className="text-[10px] font-semibold text-gray-700 shrink-0 whitespace-nowrap">
+          {historicalMode && historicalViewMode === 'accumulated' && hasAccumulated
+            ? 'Acumulado:'
+            : mapDataWindow === '5min'
+              ? 'Chuva (5min):'
+              : mapDataWindow === '15min'
+                ? 'Chuva (15min):'
+                : 'Chuva (1h):'}
+        </span>
+        {RAIN_LEGEND_SHORT.map(({ label, color }) => (
+          <span key={label} className="flex items-center gap-1 shrink-0" title={label}>
+            <span className="w-2.5 h-2.5 rounded-full border border-white shadow-sm shrink-0" style={{ backgroundColor: color }} />
+            <span className="text-[9px] text-gray-600 whitespace-nowrap">{label}</span>
+          </span>
+        ))}
+      </div>
 
       {/* Timeline Player ocupa o mesmo espaço (rodapé central) quando em modo histórico — evita sobrepor. */}
       {radarSource !== 'off' && !(historicalMode && historicalTimeline.length > 0) && (

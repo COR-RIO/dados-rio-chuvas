@@ -1,5 +1,5 @@
-/** Dados exibidos no mapa: só 15min, só 1h, ou ambas as camadas */
-export type MapDataWindow = '15min' | '1h' | 'both';
+/** Dados exibidos no mapa: 5min, 15min, 1h, ou ambas as camadas (zonas 15min + bolinhas 1h) */
+export type MapDataWindow = '5min' | '15min' | '1h' | 'both';
 
 /** No modo histórico: mostrar snapshot no horário ou acumulado no período */
 export type HistoricalViewMode = 'instant' | 'accumulated';

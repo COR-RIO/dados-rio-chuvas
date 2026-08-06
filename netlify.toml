@@ -25,18 +25,12 @@
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
 
-# Evita cache no endpoint de chuva em tempo real
-[[headers]]
-  for = "/api/json/chuvas"
-  [headers.values]
-    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0"
-    Pragma = "no-cache"
-    Expires = "0"
-
-# Redirects para proxy da API
+# Chuva em tempo real: proxy com cache curto na borda (20s) em vez de redirect direto sem
+# cache — evita que todo carregamento de página espere do zero a resposta lenta da Prefeitura.
+# Ver netlify/functions/rain-realtime.js para o porquê.
 [[redirects]]
   from = "/api/json/chuvas"
-  to = "https://websempre.rio.rj.gov.br/json/chuvas"
+  to = "/.netlify/functions/rain-realtime"
   status = 200
   force = true
 
@@ -87,14 +81,6 @@
   to = "/.netlify/functions/v1-radar"
   status = 200
   force = true
-
-# Evita cache no endpoint de chuva v1 (tempo real)
-[[headers]]
-  for = "/api/v1/rain"
-  [headers.values]
-    Cache-Control = "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0"
-    Pragma = "no-cache"
-    Expires = "0"
 
 # Fallback para SPA
 [[redirects]]

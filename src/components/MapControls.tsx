@@ -688,6 +688,16 @@ export const MapDataWindowToggle: React.FC<MapDataWindowToggleProps> = ({ value,
       <div className="flex flex-col gap-1">
         <button
           type="button"
+          onClick={() => onChange('5min')}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value === '5min' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+          title="Zonas e bolinhas pelo acumulado de 5 min — granularidade mais fina para tomada de decisão em operação"
+        >
+          5 min
+        </button>
+        <button
+          type="button"
           onClick={() => onChange('15min')}
           className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
             value === '15min' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

@@ -19,6 +19,10 @@ const NO_STORE_HEADERS = {
   Expires: '0',
 };
 
+// Estações reportam a cada 5-15 min; cache curto na borda evita martelar o servidor (lento) da
+// Prefeitura a cada chamada de consumidores externos desta API pública.
+const CACHE_HEADERS = { 'Cache-Control': 'public, max-age=20, s-maxage=20, stale-while-revalidate=40' };
+
 const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
 
 exports.handler = async (event) => {
@@ -35,10 +39,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const response = await fetch(`${RIO_RAIN_API_URL}?_ts=${Date.now()}`, {
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    });
+    const response = await fetch(RIO_RAIN_API_URL, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
       return {
@@ -74,7 +75,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: { ...CORS_HEADERS, ...NO_STORE_HEADERS },
+      headers: { ...CORS_HEADERS, ...CACHE_HEADERS },
       body: JSON.stringify({
         success: true,
         fetchedAt: new Date().toISOString(),

@@ -1,8 +1,14 @@
 import React from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import type { WindStation } from '../types/wind';
-import { msToKmh, windDirectionToCardinal, windLevelFromGustKmh } from '../types/wind';
+import type { WindStation, WindCorridor, CorridorSummary } from '../types/wind';
+import { msToKmh, windDirectionToCardinal, windLevelFromGustKmh, WIND_CORRIDOR_LABELS } from '../types/wind';
+
+const TREND_LABEL: Record<CorridorSummary['trend'], string> = {
+  subindo: '↑ subindo',
+  caindo: '↓ caindo',
+  estavel: '→ estável',
+};
 
 // Triângulo simples (sem direção/VRB) — deliberadamente diferente do círculo dos pluviômetros
 // (LeafletMap.tsx) e da seta/pipa (direção conhecida), pra não confundir os dois símbolos no mapa.
@@ -29,9 +35,12 @@ function buildWindIcon(windDirectionDeg: number | null, color: string): L.DivIco
 
 interface WindBeltLayerProps {
   stations: WindStation[];
+  /** Resumo por corredor (useWindData) — mostra contexto (corredor + tendência) no popup real,
+   * em vez de um marcador de resumo separado (confundia com as setas reais da REDEMET/INMET). */
+  corridorSummary?: Record<WindCorridor, CorridorSummary> | null;
 }
 
-export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations }) => {
+export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridorSummary }) => {
   return (
     <>
       {stations.map((station) => {
@@ -39,6 +48,8 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations }) => {
         const speedKmh = msToKmh(station.windSpeedMs);
         const level = windLevelFromGustKmh(gustKmh);
         const icon = buildWindIcon(station.windDirectionDeg, level.color);
+        const corridor = corridorSummary?.[station.corridor];
+        const isCorridorWorstCase = corridor?.station?.id === station.id;
 
         return (
           <Marker key={station.id} position={station.location} icon={icon}>
@@ -70,6 +81,16 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations }) => {
                   {station.windDirectionDeg != null
                     ? `${windDirectionToCardinal(station.windDirectionDeg)} (${station.windDirectionDeg}°)`
                     : 'Variável (VRB)'}
+                </p>
+                <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
+                  <strong>Corredor:</strong> {WIND_CORRIDOR_LABELS[station.corridor]}
+                  {corridor && corridor.stationCount > 0 && (
+                    <>
+                      {' — '}
+                      {TREND_LABEL[corridor.trend]}
+                      {isCorridorWorstCase ? ' (pior caso do corredor)' : ''}
+                    </>
+                  )}
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Fonte:</strong> {station.source === 'inmet' ? 'INMET' : 'REDEMET'} ({station.code})

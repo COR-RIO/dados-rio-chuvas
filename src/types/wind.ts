@@ -106,18 +106,7 @@ export interface CorridorSummary {
   level: WindLevel;
   trend: 'subindo' | 'estavel' | 'caindo';
   stationCount: number;
-  /** Estação real que reportou o maxGustKmh acima — o marcador do corredor é plotado aqui, não num ponto aproximado. */
+  /** Estação real que reportou o maxGustKmh acima — dá contexto de corredor no popup dessa
+   * estação (WindBeltLayer), em vez de um marcador de resumo à parte. */
   station: Pick<WindStation, 'id' | 'name' | 'code' | 'source' | 'location'> | null;
 }
-
-/**
- * Ponto de referência visual de cada corredor no mapa (não é uma estação real — as estações que
- * alimentam o corredor variam por fonte/disponibilidade). Aproximado a partir da geografia descrita
- * em WIND_CORRIDOR_LABELS, para posicionar o símbolo do cinturão de vento mesmo sem estações ativas.
- */
-export const WIND_CORRIDOR_LOCATIONS: Record<WindCorridor, [number, number]> = {
-  'oeste-sudoeste': [-23.0067, -44.3181], // Angra dos Reis — entrada do corredor São Paulo → Angra
-  'norte-noroeste': [-22.5049, -43.1789], // Petrópolis — entrada do corredor Juiz de Fora → Petrópolis
-  costeiro: [-23.2192, -44.7131], // Paraty — Costa Verde
-  interno: [-22.9068, -43.3702], // Centro do cinturão interno (aeroportos/estações do Rio)
-};

@@ -4,13 +4,13 @@ import type { RainStation } from '../types/rain';
 import type { ZonaPluvFeature, ZonasPluvCollection } from '../services/citiesApi';
 import type { MapTypeId } from './mapControlTypes';
 import { findStationForZone } from '../utils/zoneStationMatch';
-import { rainfallToInfluenceLevel15min, rainfallToInfluenceLevel1h } from '../types/alertaRio';
+import { rainfallToInfluenceLevel5min, rainfallToInfluenceLevel15min, rainfallToInfluenceLevel1h } from '../types/alertaRio';
 import type { InfluenceLevelValue } from '../types/alertaRio';
 import { accumulatedMmToInfluenceLevel } from '../utils/rainLevel';
 import { getInfluenceColor } from '../utils/influenceTheme';
 import { getHexOverlayTuning } from '../utils/influenceTheme';
 
-export type ZoneTimeWindow = '15min' | '1h';
+export type ZoneTimeWindow = '5min' | '15min' | '1h';
 
 interface ZoneRainLayerProps {
   /** Zonas do data/zonas-pluviometricas.geojson (33 estações) */
@@ -80,6 +80,8 @@ export const ZoneRainLayer: React.FC<ZoneRainLayerProps> = ({
           level = accumulatedMmToInfluenceLevel(station.accumulated.mm_accumulated);
         } else if (timeWindow === '1h') {
           level = rainfallToInfluenceLevel1h(station.data.h01 ?? 0);
+        } else if (timeWindow === '5min') {
+          level = rainfallToInfluenceLevel5min(station.data.m05 ?? 0);
         } else {
           level = rainfallToInfluenceLevel15min(station.data.m15 ?? 0);
         }

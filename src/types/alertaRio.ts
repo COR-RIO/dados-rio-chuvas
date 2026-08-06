@@ -52,6 +52,20 @@ export function rainfallToInfluenceLevel15min(mm15: number): InfluenceLevelValue
 }
 
 /**
+ * Converte chuva em 5 min (mm/5min) para nível de influência 0-4.
+ * Mesma área de abrangência/critério oficial do 15min, só que escalado pela janela (1h ÷ 12,
+ * igual ao 15min = 1h ÷ 4): Sem chuva 0 | Fraca <0,42 | Moderada 0,42–2,08 | Forte 2,08–4,17 | Muito forte >4,17
+ */
+export function rainfallToInfluenceLevel5min(mm05: number): InfluenceLevelValue {
+  const n = Number(mm05);
+  if (n !== n || n <= 0) return 0;
+  if (n < 0.42) return 1;
+  if (n <= 2.08) return 2;
+  if (n <= 4.17) return 3;
+  return 4;
+}
+
+/**
  * Converte chuva em 1 hora (mm/h) para nível de influência 0-4.
  * Critério oficial 1h: Sem chuva 0 | Fraca <5 | Moderada 5–25 | Forte 25,1–50 | Muito forte >50 (Termos Meteorológicos)
  */
