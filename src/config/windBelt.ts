@@ -52,10 +52,17 @@ export interface WindBeltAirport {
 export const WIND_BELT_AIRPORTS: WindBeltAirport[] = [
   // Fora do Rio — cinturão de antecedência.
   { icao: 'SBJF', label: 'Juiz de Fora', corridor: 'norte-noroeste', priority: 'alta', location: [-21.7924, -43.3853] },
+  // Zona da Mata (mesma cidade de SBJF, aeródromo distinto) e Barbacena — reforço do corredor
+  // norte-noroeste, mesma direção de aproximação (Juiz de Fora → Petrópolis).
+  { icao: 'SBZM', label: 'Juiz de Fora (Zona da Mata)', corridor: 'norte-noroeste', priority: 'opcional', location: [-21.5131, -43.1731] },
+  { icao: 'SBBQ', label: 'Barbacena', corridor: 'norte-noroeste', priority: 'opcional', location: [-21.2669, -43.7608] },
   { icao: 'SBGR', label: 'Guarulhos', corridor: 'oeste-sudoeste', priority: 'alta', location: [-23.4356, -46.4731] },
   { icao: 'SBSP', label: 'Congonhas', corridor: 'oeste-sudoeste', priority: 'alta', location: [-23.6261, -46.6564] },
   { icao: 'SBSJ', label: 'São José dos Campos', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-23.2283, -45.8642] },
   { icao: 'SBMT', label: 'Campo de Marte', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-23.5089, -46.6378] },
+  // Vale do Paraíba (SP), entre São José dos Campos e a divisa com o RJ — mesmo corredor.
+  { icao: 'SBTA', label: 'Taubaté', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-23.0400, -45.5158] },
+  { icao: 'SBGW', label: 'Guaratinguetá', corridor: 'oeste-sudoeste', priority: 'opcional', location: [-22.7914, -45.2047] },
   // Litoral — costa de SP até o litoral do RJ (oeste → leste). Códigos ICAO confirmados contra
   // a API-REDEMET (aerodromos/info); localidades sem METAR (ex.: Ubatuba/SDUB) foram descartadas.
   { icao: 'SBST', label: 'Santos/Guarujá', corridor: 'costeiro', priority: 'alta', location: [-23.9250, -46.2875] },
