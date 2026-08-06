@@ -8,13 +8,10 @@ import { getInfluenceLegendItems } from '../utils/influenceTheme';
 import { rainLevels, RAIN_LEVEL_PALETTE } from '../utils/rainLevel';
 import { getPopLabel } from '../utils/popLabels';
 import {
-  WIND_CORRIDOR_LABELS,
   WIND_CATEGORY_LABELS,
   WIND_CATEGORY_COLORS,
   WIND_CATEGORY_RANGES,
   WIND_CATEGORY_ORDER,
-  type CorridorSummary,
-  type WindCorridor,
   type WindCategory,
 } from '../types/wind';
 
@@ -157,10 +154,9 @@ export const WindCategoryFilter: React.FC<WindCategoryFilterProps> = ({ value, o
               className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <span className="flex items-center gap-1.5 min-w-0">
-              <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white shadow-sm"
-                style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
-              />
+              <svg width="12" height="12" viewBox="0 0 20 20" className="flex-shrink-0">
+                <path d="M10 1 L17 15 L10 11.5 L3 15 Z" fill={WIND_CATEGORY_COLORS[category]} stroke="black" strokeWidth="1.5" strokeLinejoin="round" />
+              </svg>
               <span className="flex flex-col">
                 <span className="text-xs text-gray-700 font-medium">{WIND_CATEGORY_LABELS[category]}</span>
                 <span className="text-[9px] text-gray-500">{WIND_CATEGORY_RANGES[category].kmh}</span>
@@ -174,19 +170,13 @@ export const WindCategoryFilter: React.FC<WindCategoryFilterProps> = ({ value, o
 };
 
 interface WindLegendProps {
-  corridorSummary: Record<WindCorridor, CorridorSummary> | null;
   loading?: boolean;
   error?: string | null;
 }
 
-const TREND_LABEL: Record<CorridorSummary['trend'], string> = {
-  subindo: '↑ subindo',
-  caindo: '↓ caindo',
-  estavel: '→ estável',
-};
-
-/** Legenda de níveis de rajada + resumo por corredor (maior rajada observada e tendência). */
-export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading = false, error = null }) => {
+/** Legenda dos símbolos de vento (seta/triângulo) + status de carregamento. Níveis por cor e
+ * resumo por corredor saíram daqui — já aparecem no popup da estação real ao clicar no marcador. */
+export const WindLegend: React.FC<WindLegendProps> = ({ loading = false, error = null }) => {
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
       <div className="flex items-center gap-1.5 mb-1.5 text-xs font-semibold text-gray-700">
@@ -214,41 +204,15 @@ export const WindLegend: React.FC<WindLegendProps> = ({ corridorSummary, loading
         </div>
       </div>
 
-      <div className="text-xs font-semibold text-gray-700 mb-1.5 border-t border-gray-200 pt-1.5">Vento — níveis</div>
-      <div className="flex flex-col gap-0.5 mb-2">
-        {WIND_CATEGORY_ORDER.map((category) => {
-          const label = `${WIND_CATEGORY_LABELS[category]} (${WIND_CATEGORY_RANGES[category].kmh})`;
-          return (
-            <div key={category} className="flex items-center gap-1.5">
-              <div
-                className="w-2.5 h-2.5 rounded flex-shrink-0 border border-white shadow-sm"
-                style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
-              />
-              <span className="text-[9px] text-gray-700 truncate" title={label}>{label}</span>
-            </div>
-          );
-        })}
-      </div>
+      {/* "Vento — níveis" (cor por intensidade) removido de propósito: já dá pra ver ao clicar
+          num marcador de vento real no mapa (WindBeltLayer mostra nível + cor no popup) — manter
+          aqui também era duplicar a mesma informação estática, sem dado ao vivo nenhum. */}
 
-      {loading && <p className="text-[10px] text-gray-500">Carregando corredores…</p>}
+      {/* Resumo por corredor (km/h + tendência) removido pelo mesmo motivo: já aparece no popup
+          da estação real (WindBeltLayer: "Corredor: X — tendência"), ao clicar no marcador que
+          reportou aquele valor. Fica só o indicador de carregamento/erro do vento como um todo. */}
+      {loading && <p className="text-[10px] text-gray-500">Carregando vento…</p>}
       {error && !loading && <p className="text-[10px] text-red-600 font-medium">{error}</p>}
-
-      {corridorSummary && !loading && (
-        <div className="flex flex-col gap-1 border-t border-gray-200 pt-1.5">
-          {(Object.values(corridorSummary) as CorridorSummary[]).map((c) => (
-            <div key={c.corridor} className="text-[9px] text-gray-700 leading-snug">
-              <span className="font-semibold">{WIND_CORRIDOR_LABELS[c.corridor]}:</span>{' '}
-              {c.stationCount > 0 ? (
-                <>
-                  {c.maxGustKmh.toFixed(0)} km/h ({TREND_LABEL[c.trend]})
-                </>
-              ) : (
-                'sem dados'
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

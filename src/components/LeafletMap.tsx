@@ -598,7 +598,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 <>
                   <WindCategoryFilter value={windCategoryFilter} onChange={setWindCategoryFilter} />
                   <WindLegend
-                    corridorSummary={activeWindData.corridorSummary}
                     loading={historicalMode ? historicalWindData.loading : windData.loading}
                     error={historicalMode ? historicalWindData.error : windData.error}
                   />
