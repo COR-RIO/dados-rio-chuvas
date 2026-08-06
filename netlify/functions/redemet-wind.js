@@ -76,6 +76,12 @@ function extractRawText(record) {
   return record?.mens || record?.message || record?.metar || record?.raw || '';
 }
 
+/** METAR = relatório de rotina; SPECI = relatório especial, só emitido quando há mudança
+ * significativa nas condições — é o sinal usado para disparar alerta automático de vento. */
+function extractMessageType(rawText) {
+  return /^SPECI\b/i.test((rawText || '').trim()) ? 'SPECI' : 'METAR';
+}
+
 function extractIcao(record, rawText) {
   // id_localidade é o campo real da API-REDEMET (confirmado contra o servidor); icao/localidade
   // ficam como fallback caso o formato mude.
@@ -205,6 +211,7 @@ exports.handler = async (event) => {
           windSpeedMs: wind.windSpeedMs,
           windGustMs: wind.windGustMs,
           windDirectionDeg: wind.windDirectionDeg,
+          messageType: extractMessageType(rawText),
           raw: rawText,
         };
       })

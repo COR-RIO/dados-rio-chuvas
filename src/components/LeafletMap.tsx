@@ -8,6 +8,11 @@ import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
 import { useHistoricalWindData } from '../hooks/useHistoricalWindData';
 import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
+import type { MapAlert } from '../types/mapAlert';
+import { detectZoneConcentration } from '../utils/rainZoneAlerts';
+import type { RainMacroZone } from '../config/rainZones';
+import { MapAutoFocus } from './MapAutoFocus';
+import { AlertBanner } from './AlertBanner';
 import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
@@ -514,6 +519,49 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     (historicalViewMode === 'accumulated')
       ? stationsAfterPlaybackFilter
       : stationsAfterPlaybackFilter.map((s) => ({ ...s, accumulated: undefined }));
+
+  // Alertas automáticos: vento forte/muito-forte via SPECI (useWindData) e concentração de chuva
+  // muito forte numa mesma macrorregião (detectZoneConcentration) — cada um dispara uma vez por
+  // mudança de sinal (ver comentários nos respectivos arquivos). MapAutoFocus move a câmera
+  // sozinho só se o mapa estiver ocioso; AlertBanner sempre mostra a notificação.
+  const [mapAlerts, setMapAlerts] = useState<MapAlert[]>([]);
+  const previousAlertedZonesRef = useRef<Set<RainMacroZone>>(new Set());
+
+  useEffect(() => {
+    if (!windData.windAlerts.length) return;
+    const newAlerts: MapAlert[] = windData.windAlerts.map((s) => {
+      const category = windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs));
+      return {
+        id: `vento-${s.code}-${s.observedAt}`,
+        kind: 'vento',
+        label: `Vento ${category === 'muito-forte' ? 'muito forte' : 'forte'} em ${s.name} (${s.code})`,
+        location: s.location,
+        points: null,
+        createdAt: new Date().toISOString(),
+      };
+    });
+    setMapAlerts((prev) => [...prev, ...newAlerts].slice(-20));
+  }, [windData.windAlerts]);
+
+  useEffect(() => {
+    const rainForAlerts = isHistoricalPlayback && playbackMode === 'occurrences' ? [] : stations;
+    const zoneAlerts = detectZoneConcentration(rainForAlerts, previousAlertedZonesRef.current);
+    if (!zoneAlerts.length) return;
+    const newAlerts: MapAlert[] = zoneAlerts.map((z) => ({
+      id: `chuva-${z.zone}-${Date.now()}`,
+      kind: 'chuva',
+      label: `Concentração de chuva muito forte na ${z.label} (${z.stationCount} estações)`,
+      location: null,
+      points: z.points,
+      createdAt: new Date().toISOString(),
+    }));
+    setMapAlerts((prev) => [...prev, ...newAlerts].slice(-20));
+  }, [stations, isHistoricalPlayback, playbackMode]);
+
+  const handleDismissAlert = (id: string) => {
+    setMapAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   // Bairros/zonas NÃO bloqueiam mais o mapa: tiles, chuva, vento e radar já toleram esses dados
   // ausentes (ZoneRainLayer/BairroPolygons só renderizam quando `data &&`, FitCityOnLoad/
@@ -826,6 +874,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         )}
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />
+        <MapAutoFocus alerts={mapAlerts} />
+        <AlertBanner alerts={mapAlerts} onDismiss={handleDismissAlert} />
         {zonasData && (
           <ZoneRainLayer
             zonasData={zonasData}

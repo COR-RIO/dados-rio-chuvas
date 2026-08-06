@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CorridorSummary, WindCorridor, WindStation } from '../types/wind';
-import { msToKmh, windLevelFromGustKmh } from '../types/wind';
+import { msToKmh, windCategoryFromSpeedKmh, windLevelFromGustKmh } from '../types/wind';
 import { fetchInmetWindObservations } from '../services/inmetWindApi';
 import { fetchRedemetWind } from '../services/redemetWindApi';
 
@@ -64,14 +64,35 @@ export function buildCorridorSummary(
   return summary;
 }
 
+/** Estação em vento forte/muito-forte cujo METAR mais recente é um SPECI (relatório especial —
+ * só emitido quando há mudança significativa). Dispara o alerta automático de vento. */
+export function findWindAlerts(
+  stations: WindStation[],
+  alertedStationKeys: Set<string>
+): WindStation[] {
+  const alerts = stations.filter((s) => {
+    const category = windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs));
+    const key = `${s.code}-${s.observedAt}`;
+    return (
+      s.messageType === 'SPECI' &&
+      (category === 'forte' || category === 'muito-forte') &&
+      !alertedStationKeys.has(key)
+    );
+  });
+  alerts.forEach((s) => alertedStationKeys.add(`${s.code}-${s.observedAt}`));
+  return alerts;
+}
+
 export function useWindData(refreshInterval: number = DEFAULT_REFRESH_INTERVAL_MS) {
   const [stations, setStations] = useState<WindStation[]>([]);
   const [corridorSummary, setCorridorSummary] = useState<Record<WindCorridor, CorridorSummary> | null>(null);
+  const [windAlerts, setWindAlerts] = useState<WindStation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const inFlightRef = useRef(false);
   const previousMaxByCorridorRef = useRef<Partial<Record<WindCorridor, number>>>({});
+  const alertedStationKeysRef = useRef<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -94,6 +115,7 @@ export function useWindData(refreshInterval: number = DEFAULT_REFRESH_INTERVAL_M
       previousMaxByCorridorRef.current = Object.fromEntries(
         CORRIDORS.map((c) => [c, summary[c].maxGustKmh])
       );
+      setWindAlerts(findWindAlerts(combined, alertedStationKeysRef.current));
       setLastUpdate(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados de vento');
@@ -109,5 +131,5 @@ export function useWindData(refreshInterval: number = DEFAULT_REFRESH_INTERVAL_M
     return () => clearInterval(interval);
   }, [loadData, refreshInterval]);
 
-  return { stations, corridorSummary, loading, error, lastUpdate, refresh: loadData };
+  return { stations, corridorSummary, windAlerts, loading, error, lastUpdate, refresh: loadData };
 }

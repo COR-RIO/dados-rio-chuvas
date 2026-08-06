@@ -9,6 +9,7 @@ interface RedemetWindRecord {
   windSpeedMs: number;
   windGustMs: number | null;
   windDirectionDeg: number | null;
+  messageType?: 'METAR' | 'SPECI';
   raw?: string;
 }
 
@@ -38,6 +39,7 @@ function mapRecordsToStations(records: RedemetWindRecord[]): WindStation[] {
         windSpeedMs: record.windSpeedMs,
         windGustMs: record.windGustMs,
         windDirectionDeg: record.windDirectionDeg,
+        messageType: record.messageType,
         raw: record.raw,
       };
     })
@@ -65,9 +67,25 @@ async function fetchRedemetWindRecords(extraQuery: string): Promise<WindStation[
   return mapRecordsToStations(json.data);
 }
 
+/** Mantém só a leitura mais recente por ICAO. A consulta "ao vivo" pode devolver mais de um
+ * METAR/SPECI recente para a mesma estação (ex.: SPECI intercalado com o METAR de rotina) — sem
+ * isso, cada leitura extra virava uma seta a mais empilhada na mesma coordenada (confirmado em
+ * SBSC/Santa Cruz: duas setas idênticas sobrepostas). */
+function dedupeLatestPerIcao(stations: WindStation[]): WindStation[] {
+  const latestByIcao = new Map<string, WindStation>();
+  for (const station of stations) {
+    const current = latestByIcao.get(station.code);
+    if (!current || new Date(station.observedAt).getTime() > new Date(current.observedAt).getTime()) {
+      latestByIcao.set(station.code, station);
+    }
+  }
+  return Array.from(latestByIcao.values());
+}
+
 /** Vento (METAR) nos aeroportos do cinturão, via Netlify Function (esconde a API key). */
 export async function fetchRedemetWind(): Promise<WindStation[]> {
-  return fetchRedemetWindRecords('');
+  const stations = await fetchRedemetWindRecords('');
+  return dedupeLatestPerIcao(stations);
 }
 
 /** Converte um ISO 8601 para o formato YYYYMMDDHH (hora UTC) exigido pela API-REDEMET. */

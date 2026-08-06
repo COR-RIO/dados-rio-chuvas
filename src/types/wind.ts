@@ -27,6 +27,9 @@ export interface WindStation {
   windGustMs: number | null;
   /** Direção em graus (0-360), null quando variável ou indisponível. */
   windDirectionDeg: number | null;
+  /** Tipo do METAR (REDEMET only) — SPECI é relatório especial, emitido só quando há mudança
+   * significativa nas condições; é o sinal usado para disparar alerta automático de vento. */
+  messageType?: 'METAR' | 'SPECI';
   /** Mensagem/registro bruto de origem (METAR, linha do INMET), para depuração no popup. */
   raw?: string;
 }
