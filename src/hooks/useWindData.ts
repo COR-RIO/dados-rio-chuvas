@@ -5,7 +5,11 @@ import { fetchInmetWindObservations } from '../services/inmetWindApi';
 import { fetchRedemetWind } from '../services/redemetWindApi';
 
 export const CORRIDORS: WindCorridor[] = ['oeste-sudoeste', 'norte-noroeste', 'costeiro', 'interno'];
-const DEFAULT_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 min — INMET é horário, METAR muda a cada ~1h
+// 5 min — igual à chuva (App.tsx: useRainData refreshInterval=300000). O cache da function
+// (redemet-wind.js) também é 5 min, então bate certinho; e com SPECI entrando na leitura de
+// anomalia, vale a pena checar mais rápido que o antigo 10 min (METAR de rotina é horário, mas
+// SPECI pode aparecer bem antes disso quando há mudança significativa).
+const DEFAULT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 /** Exportado para reaproveitar no playback histórico (useHistoricalWindData). */
 export function buildCorridorSummary(
