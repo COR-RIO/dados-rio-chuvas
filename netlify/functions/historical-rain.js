@@ -211,21 +211,50 @@ function buildQuery(params) {
   const table = process.env.BIGQUERY_TABLE || 'pluviometricos';
   const fullTable = `\`${projectId}.${dataset}.${table}\``;
 
-  const limit = Math.min(Number(params.limit) || 1000, 10000);
-  const dateFrom = params.dateFrom || params.date_from;
-  const dateTo = params.dateTo || params.date_to;
+  // 35.000 cobre com folga os ~28.000 registros de 3 dias (grão real de 5 min x 33 estações —
+  // ver MAX_RANGE_DAYS abaixo); testado contra o BigQuery real, payload fica em ~4,5MB, abaixo do
+  // limite de resposta do Netlify (~6MB).
+  const limit = Math.min(Number(params.limit) || 1000, 35000);
   const sort = String(params.sort || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
   const station = params.stationId || params.station;
+
+  const isDateOnly = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+  const toUtcDate = (value) => {
+    if (!value) return null;
+    const str = String(value).trim();
+    const iso = isDateOnly(str) ? `${str}T00:00:00Z` : `${str.replace(' ', 'T')}Z`;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  // Máximo de 3 dias por consulta: o grão real da tabela é 5 min (confirmado contra o BigQuery,
+  // não 15 min como uma primeira estimativa assumiu) — 33 estações x 5min x 3 dias = ~28.000
+  // registros, ~4,5MB de resposta. Períodos maiores (ex.: 1 mês) cortavam silenciosamente nos
+  // primeiros dias sem erro nenhum — decidido manter o limite curto em vez de reescrever a
+  // consulta pra agregação no servidor.
+  const MAX_RANGE_DAYS = 3;
+  const dateFrom = params.dateFrom || params.date_from;
+  let dateTo = params.dateTo || params.date_to;
+  const fromDate = toUtcDate(dateFrom);
+  const toDate = toUtcDate(dateTo);
+  if (fromDate && toDate) {
+    const maxToMs = fromDate.getTime() + MAX_RANGE_DAYS * 24 * 60 * 60 * 1000;
+    if (toDate.getTime() > maxToMs) {
+      const clamped = new Date(maxToMs);
+      dateTo = isDateOnly(dateTo) ? clamped.toISOString().slice(0, 10) : clamped.toISOString().replace('T', ' ').slice(0, 19);
+    }
+  }
 
   // Ajuste os nomes das colunas conforme seu schema no BigQuery
   const dateCol = process.env.BIGQUERY_DATE_COLUMN || 'dia';
   const stationIdCol = process.env.BIGQUERY_STATION_ID_COLUMN || 'estacao_id';
   const stationNameCol = process.env.BIGQUERY_STATION_NAME_COLUMN || 'estacao';
-  // Colunas: dia, dia_original, utc_offset, m05, m15, h01, h24, h96, estacao, estacao_id
+  // Colunas: dia, dia_original, m05, m15, h01, h24, h96, estacao, estacao_id — utc_offset saiu
+  // do padrão (nunca foi lido pelo cliente, só ocupava espaço na resposta; dia_original já traz
+  // o offset embutido na própria string, usado por parseDiaOriginalNimbus no cliente).
   const selectColumns = (process.env.BIGQUERY_SELECT_COLUMNS || [
     '`' + dateCol + '` AS dia',
     'dia_original',
-    'utc_offset',
     'm05',
     'm15',
     'h01',
@@ -236,7 +265,6 @@ function buildQuery(params) {
   ].join(', ')).trim();
 
   const safe = (s) => String(s).replace(/'/g, "''");
-  const isDateOnly = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
 
   let where = [];
   if (dateFrom) {

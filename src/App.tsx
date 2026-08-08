@@ -377,10 +377,11 @@ function App() {
   }, []);
 
   // staticOccurrences só é usado no modo histórico com fonte "planilha" (ver occurrenceSource
-  // abaixo) — sem o filtro isHistoricalMode aqui, todo carregamento da página (mesmo em tempo
-  // real, o modo padrão) baixava e parseava a planilha de ~10MB à toa.
+  // abaixo). Ainda faltava o filtro de "Mostrar ocorrências": só ligar isHistoricalMode (sem
+  // nunca ter marcado "Mostrar") já baixava e parseava a planilha de ~10MB à toa — era isso que
+  // deixava "ativar o histórico" lento, não a busca de ocorrências em si (essa já era sob demanda).
   useEffect(() => {
-    if (occurrenceDataSource !== 'planilha' || !isHistoricalMode) return;
+    if (occurrenceDataSource !== 'planilha' || !isHistoricalMode || !pendingShowOccurrences) return;
     setPlanilhaLoadError(null);
     loadStaticOccurrences()
       .then(setStaticOccurrences)
@@ -389,7 +390,7 @@ function App() {
         setStaticOccurrences([]);
         setPlanilhaLoadError('Planilha não carregou (arquivo muito grande). Use a fonte API.');
       });
-  }, [occurrenceDataSource, isHistoricalMode]);
+  }, [occurrenceDataSource, isHistoricalMode, pendingShowOccurrences]);
 
   useEffect(() => {
     if (isHistoricalMode || !appliedShowOccurrences) return;

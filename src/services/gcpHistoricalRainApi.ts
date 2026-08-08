@@ -15,7 +15,9 @@ function getHistoricalRainApiBase(): string {
   return '/api/historical-rain';
 }
 
-const DEFAULT_HISTORICAL_LIMIT = 10000;
+// Mesmo valor de netlify/functions/historical-rain.js — cobre os ~28.000 registros de 3 dias
+// (grão real de 5 min x 33 estações; testado contra o BigQuery real, ~4,5MB de resposta).
+const DEFAULT_HISTORICAL_LIMIT = 35000;
 
 /** Normaliza nome da estação para bater com o mapa (igual ao backend). */
 function normalizeStationKey(value: string): string {

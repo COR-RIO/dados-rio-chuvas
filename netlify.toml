@@ -47,6 +47,14 @@
   status = 200
   force = true
 
+# Histórico de vento forte/muito-forte (BigQuery via Netlify Function) — mesma tabela alimentada
+# por scripts/backfill-wind-events.js e wind-events-sync.js. Ver netlify/functions/wind-events-history.js.
+[[redirects]]
+  from = "/api/wind-events-history"
+  to = "/.netlify/functions/wind-events-history"
+  status = 200
+  force = true
+
 # Vento em aeroportos (REDEMET via Netlify Function — esconde a API key)
 [[redirects]]
   from = "/api/redemet-wind"

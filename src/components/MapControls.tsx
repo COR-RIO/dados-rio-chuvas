@@ -220,6 +220,9 @@ export const WindLegend: React.FC<WindLegendProps> = ({ loading = false, error =
 interface RadarSourceControlProps {
   value: RadarSourceId | 'off';
   onChange: (source: RadarSourceId | 'off') => void;
+  /** Desabilita a escolha (ex.: modo histórico — radar só existe ao vivo, sem período passado). */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 /** Opções de fonte do radar (chuva/tempo). */
@@ -230,7 +233,7 @@ const RADAR_SOURCE_OPTIONS: { id: RadarSourceId | 'off'; label: string; title: s
 ];
 
 /** Controle para escolher a fonte do radar: Mendanha ou Sumaré (Prefeitura do Rio). */
-export const RadarSourceControl: React.FC<RadarSourceControlProps> = ({ value, onChange }) => {
+export const RadarSourceControl: React.FC<RadarSourceControlProps> = ({ value, onChange, disabled = false, disabledReason }) => {
   return (
     <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
       <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
@@ -243,15 +246,23 @@ export const RadarSourceControl: React.FC<RadarSourceControlProps> = ({ value, o
             key={opt.id}
             type="button"
             onClick={() => onChange(opt.id)}
-            title={opt.title}
+            title={disabled ? disabledReason : opt.title}
+            disabled={disabled}
             className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
-              value === opt.id ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              disabled
+                ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                : value === opt.id
+                  ? 'bg-yellow-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             {opt.label}
           </button>
         ))}
       </div>
+      {disabled && disabledReason && (
+        <p className="mt-1.5 text-[10px] text-gray-500">{disabledReason}</p>
+      )}
     </div>
   );
 };
@@ -890,6 +901,18 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
     const [y, m, d] = yyyyMmDd.split('-');
     return d && m && y ? `${d}/${m}/${y}` : yyyyMmDd;
   };
+  // Consulta ao BigQuery corta em 10.000 linhas — 3 dias (~33 estações x 15min) fica logo abaixo
+  // disso; período maior cortava silenciosamente nos primeiros dias sem erro nenhum (ver
+  // netlify/functions/historical-rain.js). Limitado aqui pra não deixar escolher mais que isso.
+  const MAX_ACCUMULATED_RANGE_DAYS = 3;
+  const addDaysToDateString = (yyyyMmDd: string, days: number): string => {
+    const [y, m, d] = yyyyMmDd.split('-').map(Number);
+    if (!y || !m || !d) return yyyyMmDd;
+    const date = new Date(y, m - 1, d + days);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+  const maxDateTo = addDaysToDateString(dateValue, MAX_ACCUMULATED_RANGE_DAYS);
   const intervalLabel = (() => {
     const dFrom = dateValue;
     const dTo = dateToValue ?? dateValue;
@@ -926,7 +949,7 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
       <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
         {isAccumulatedView ? (
           <>
-            <p>Acumulado: use De e Até para o intervalo.</p>
+            <p>Acumulado: use De e Até para o intervalo (máx. {MAX_ACCUMULATED_RANGE_DAYS} dias).</p>
             <p>Ex.: 09/02/2026 até 10/02/2026 → Aplicar.</p>
           </>
         ) : (
@@ -957,13 +980,21 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
         {isAccumulatedView && (
           <>
             <div>
-              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Até (data)</label>
+              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                Até (data) <span className="font-normal text-gray-400">(máx. {MAX_ACCUMULATED_RANGE_DAYS} dias)</span>
+              </label>
               <input
                 type="date"
                 value={dateToValue ?? dateValue}
-                onChange={(e) => onDateToChange?.(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Navegador já respeita min/max no seletor, mas clampa aqui também (digitação
+                  // manual, autofill etc. podem passar direto do onChange sem barrar o valor).
+                  onDateToChange?.(v > maxDateTo ? maxDateTo : v);
+                }}
                 disabled={!enabled}
                 min={dateValue}
+                max={maxDateTo}
                 className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 disabled:bg-gray-100 disabled:text-gray-400"
               />
             </div>

@@ -43,6 +43,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/redemet-wind/, '/.netlify/functions/redemet-wind'),
       },
+      // Histórico de vento forte/muito-forte (BigQuery) em dev: proxy para a function no Netlify.
+      '/api/wind-events-history': {
+        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/wind-events-history/, '/.netlify/functions/wind-events-history'),
+      },
       // INMET (estações automáticas) – API pública, só evita CORS em dev
       '/api/inmet': {
         target: 'https://apitempo.inmet.gov.br',

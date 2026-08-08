@@ -467,6 +467,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   );
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
+  // Radar só tem imagem AO VIVO (sem histórico próprio, ao contrário de chuva/vento agora) —
+  // deixá-lo ligado no modo histórico mostraria o radar de agora por cima de um período do
+  // passado, o que é enganoso. Desliga sozinho ao entrar no histórico, e volta pro padrão
+  // (Mendanha) sozinho ao sair — sem exigir que o usuário religue na mão.
+  useEffect(() => {
+    setRadarSource(historicalMode ? 'off' : 'mendanha');
+  }, [historicalMode]);
   const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -651,7 +658,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   />
                 </>
               )}
-              <RadarSourceControl value={radarSource} onChange={setRadarSource} />
+              <RadarSourceControl
+                value={radarSource}
+                onChange={setRadarSource}
+                disabled={historicalMode}
+                disabledReason="Radar só existe ao vivo — sem imagem do período histórico selecionado (instantâneo ou acumulado)."
+              />
               {radarSource !== 'off' && (
                 <RadarTimeControl
                   frameCount={radarData.frames.length}
@@ -869,7 +881,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           attribution={mapTypeConfig.attribution}
           url={mapTypeConfig.url}
         />
-        {radarSource !== 'off' && (
+        {/* !historicalMode de novo aqui como segunda trava: o useEffect já força radarSource pra
+            'off' ao entrar no histórico, mas isso não impede alguém de escolher uma fonte de novo
+            enquanto já está no histórico (o efeito só reage à MUDANÇA de historicalMode). */}
+        {radarSource !== 'off' && !historicalMode && (
           <RadarLayer imageUrl={radarData.currentImageUrl} />
         )}
         <FitCityOnLoad boundsData={boundsData} />
