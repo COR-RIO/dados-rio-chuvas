@@ -8,6 +8,12 @@
 [functions]
   directory = "netlify/functions"
 
+# Mantém a tabela BigQuery de vento forte/muito-forte atualizada com dados novos (o backfill em
+# scripts/backfill-wind-events.js só cobre até o momento em que rodou) — não depende de ninguém
+# estar com o site aberto no navegador. Ver netlify/functions/wind-events-sync.js.
+[functions."wind-events-sync"]
+  schedule = "*/15 * * * *"
+
 # Headers para resolver problemas de CORS
 [[headers]]
   for = "/*"

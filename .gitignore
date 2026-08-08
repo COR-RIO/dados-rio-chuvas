@@ -32,3 +32,6 @@ credentials/netlify-env-value.txt
 
 # Local Netlify folder
 .netlify
+
+# Checkpoint do backfill de vento (scripts/backfill-wind-events.js) — estado local, não versionar
+scripts/.wind-backfill-checkpoint.json
