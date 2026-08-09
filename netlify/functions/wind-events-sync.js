@@ -159,6 +159,30 @@ function buildRows(records, fallbackDate) {
   return rows;
 }
 
+/**
+ * Remove da lista quem já está salvo (mesmo icao+observed_at). Necessário porque o dedup por
+ * insertId do BigQuery streaming insert só vale por ~1 minuto — como essa function roda a cada
+ * 15min e a "leitura mais recente" de uma estação costuma continuar a mesma por várias execuções
+ * seguidas (sem METAR novo), sem essa checagem cada execução duplicava a mesma linha na tabela
+ * (confirmado acontecendo em produção: SBGR com 4 linhas idênticas, 15min de diferença no
+ * fetched_at). Uma query de leitura antes do insert é bem mais barata que acumular duplicata.
+ */
+async function filterAlreadyStored(bigquery, since, rows) {
+  if (!rows.length) return rows;
+  const [existing] = await bigquery.query({
+    query: `SELECT DISTINCT icao, observed_at FROM \`${PROJECT_ID}.${DATASET}.${TABLE}\` WHERE observed_at >= @since`,
+    params: { since: since.toISOString() },
+    location: LOCATION,
+  });
+  const existingKeys = new Set(
+    existing.map((r) => {
+      const ts = r.observed_at && typeof r.observed_at === 'object' ? r.observed_at.value : r.observed_at;
+      return `${r.icao}_${new Date(ts).toISOString()}`;
+    })
+  );
+  return rows.filter((r) => !existingKeys.has(r.insertId));
+}
+
 function getBigQueryClient() {
   const jsonCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   if (jsonCreds) {
@@ -191,16 +215,18 @@ exports.handler = async () => {
     const dataFim = toRedemetDateParam(now);
 
     const records = await fetchRecentRecords(dataIni, dataFim);
-    const rows = buildRows(records, since);
+    const candidateRows = buildRows(records, since);
 
-    if (rows.length) {
-      const bigquery = getBigQueryClient();
+    const bigquery = getBigQueryClient();
+    const newRows = await filterAlreadyStored(bigquery, since, candidateRows);
+
+    if (newRows.length) {
       const table = bigquery.dataset(DATASET, { location: LOCATION }).table(TABLE);
-      await table.insert(rows, { ignoreUnknownValues: false, skipInvalidRows: false, raw: true });
+      await table.insert(newRows, { ignoreUnknownValues: false, skipInvalidRows: false, raw: true });
     }
 
-    console.log(`wind-events-sync: ${records.length} registros brutos, ${rows.length} forte/muito-forte novos/repetidos (dedup por insertId)`);
-    return { statusCode: 200, body: JSON.stringify({ success: true, checked: records.length, saved: rows.length }) };
+    console.log(`wind-events-sync: ${records.length} registros brutos, ${candidateRows.length} forte/muito-forte na janela, ${newRows.length} realmente novos salvos`);
+    return { statusCode: 200, body: JSON.stringify({ success: true, checked: records.length, saved: newRows.length }) };
   } catch (err) {
     console.error('wind-events-sync error:', err.message);
     return { statusCode: 200, body: JSON.stringify({ success: false, error: err.message }) };

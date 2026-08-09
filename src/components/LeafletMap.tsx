@@ -7,6 +7,9 @@ import type { Occurrence } from '../types/occurrence';
 import { useBairrosData, useZonasPluvData } from '../hooks/useCitiesData';
 import { useWindData } from '../hooks/useWindData';
 import { useHistoricalWindData } from '../hooks/useHistoricalWindData';
+import { fetchWindEventsHistory, type WindEventRecord } from '../services/windEventsApi';
+import { WindEventsTable } from './WindEventsTable';
+import { WindStationsTable } from './WindStationsTable';
 import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
 import type { MapAlert } from '../types/mapAlert';
 import { detectZoneConcentration } from '../utils/rainZoneAlerts';
@@ -474,7 +477,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   useEffect(() => {
     setRadarSource(historicalMode ? 'off' : 'mendanha');
   }, [historicalMode]);
-  const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences'>('stations');
+  const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences' | 'wind-events'>('stations');
+  const [windEvents, setWindEvents] = useState<WindEventRecord[]>([]);
+  const [windEventsLoading, setWindEventsLoading] = useState(false);
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
   const [showSidebar, setShowSidebar] = useState(!isMobileInitial);
@@ -586,6 +591,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       const fromIso = localDateTimeToIso(historicalDate, historicalTimeFrom);
       const toIso = localDateTimeToIso(historicalDateTo ?? historicalDate, historicalTimeTo);
       historicalWindData.fetchRange(fromIso, toIso);
+
+      setWindEventsLoading(true);
+      fetchWindEventsHistory(historicalDate, historicalDateTo ?? historicalDate)
+        .then(setWindEvents)
+        .finally(() => setWindEventsLoading(false));
     }
     onApplyHistoricalFilter?.();
   };
@@ -784,7 +794,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           {isMobileView && (
             <div className="flex items-center justify-between gap-2 p-3 border-b border-gray-200 bg-gray-50/80 shrink-0">
               <span className="font-medium text-gray-800 text-sm truncate min-w-0 flex-1">
-                {sidebarView === 'stations' ? 'Dados das estações' : 'Ocorrências'}
+                {sidebarView === 'stations'
+                  ? 'Dados das estações'
+                  : sidebarView === 'occurrences'
+                    ? 'Ocorrências'
+                    : 'Vento'}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -830,6 +844,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 >
                   Ocorrências
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarView('wind-events')}
+                  className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap ${sidebarView === 'wind-events'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-transparent text-gray-700 hover:bg-white'
+                    }`}
+                  title={historicalMode ? 'Eventos de vento forte/muito-forte no período (histórico, BigQuery)' : 'Estações do cinturão de vento ao vivo'}
+                >
+                  Vento
+                </button>
               </div>
 
               {!isMobileView && (
@@ -858,6 +883,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               )}
               {sidebarView === 'occurrences' && (
                 <OccurrenceTable occurrences={occurrences} embedded />
+              )}
+              {sidebarView === 'wind-events' && (
+                historicalMode ? (
+                  <WindEventsTable events={windEvents} loading={windEventsLoading} embedded />
+                ) : (
+                  <WindStationsTable stations={filteredWindStations} loading={windData.loading} embedded />
+                )
               )}
             </div>
           </div>

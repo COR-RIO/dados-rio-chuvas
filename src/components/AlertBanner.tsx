@@ -24,7 +24,10 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({ alerts, onDismiss }) =
   if (!alerts.length) return null;
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1500] flex flex-col gap-2 w-[min(92vw,420px)] pointer-events-none">
+    // top-40/sm:top-44: abaixo do cabeçalho do app (que fica fora do mapa, sobreposto por cima
+    // dele) E do botão "Ver cidade inteira" (que já usa top-24/28 pra só limpar o cabeçalho) —
+    // sem esse offset extra o alerta nascia atrás do cabeçalho, cortado/quase invisível.
+    <div className="absolute top-40 sm:top-44 left-1/2 -translate-x-1/2 z-[1500] flex flex-col gap-2 w-[min(92vw,420px)] pointer-events-none">
       {alerts.map((alert) => {
         const Icon = KIND_ICON[alert.kind];
         return (
