@@ -107,6 +107,13 @@
   status = 200
   force = true
 
+# KMZ dos mesmos sensores acima, para abrir em Google Earth/Maps/GIS (?source=redemet|inmet filtra).
+[[redirects]]
+  from = "/api/v1/wind/kmz"
+  to = "/.netlify/functions/v1-wind-kmz"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/v1/radar"
   to = "/.netlify/functions/v1-radar"
