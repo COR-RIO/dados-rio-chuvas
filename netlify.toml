@@ -70,10 +70,13 @@
   status = 200
   force = true
 
-# Vento em estações automáticas (INMET) — proxy simples, API pública sem credenciais
+# Vento em estações automáticas (INMET) — via Function (netlify/functions/inmet-proxy.js).
+# Era um redirect direto pro host externo, mas passou a devolver 500 no edge (a API do INMET
+# responde normalmente quando chamada direto ou via Function — só o proxy de borda estava
+# falhando). Roteado por Function pra evitar esse caminho quebrado.
 [[redirects]]
   from = "/api/inmet/*"
-  to = "https://apitempo.inmet.gov.br/:splat"
+  to = "/.netlify/functions/inmet-proxy"
   status = 200
   force = true
 
