@@ -243,7 +243,7 @@ const StationMarkers: React.FC<{
               width: 16px;
               height: 16px;
               background-color: ${rainLevel.color};
-              border: 2px solid white;
+              border: 2px solid #000000;
               border-radius: 50%;
               box-shadow: 0 1px 3px rgba(0,0,0,0.3);
             "></div>

@@ -5,12 +5,16 @@
 
 const WIND_BELT_CITIES = [
   { nameMatch: ['angra dos reis'], uf: 'RJ', corridor: 'costeiro', label: 'Angra dos Reis' },
+  // Costa Verde, a oeste de Angra dos Reis — mesmo corredor costeiro. Código A619.
+  { nameMatch: ['paraty'], uf: 'RJ', corridor: 'costeiro', label: 'Paraty' },
   // "Petrópolis" não existe como estação automática no INMET — Pico do Couto é a estação real
   // mais próxima (fica dentro do município de Petrópolis, no topo da serra, BR-040 antiga).
   // Confirmado contra /estacoes/T em 2026-08-05 (674 estações, nenhuma "PETROPOLIS" na lista).
   { nameMatch: ['pico do couto'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Petrópolis (Pico do Couto)' },
   { nameMatch: ['juiz de fora'], uf: 'MG', corridor: 'norte-noroeste', label: 'Juiz de Fora' },
   { nameMatch: ['resende'], uf: 'RJ', corridor: 'oeste-sudoeste', label: 'Resende' },
+  // Via Dutra/BR-465, mais perto do Rio que Resende — mesmo corredor oeste-sudoeste. Código A601.
+  { nameMatch: ['seropedica'], uf: 'RJ', corridor: 'oeste-sudoeste', label: 'Seropédica (Ecologia Agrícola)' },
   { nameMatch: ['valenca'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Valença' },
   { nameMatch: ['nova friburgo'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Nova Friburgo' },
   // Trecho entre Petrópolis e a cidade do Rio (BR-040), descendo a serra — confirmado como
