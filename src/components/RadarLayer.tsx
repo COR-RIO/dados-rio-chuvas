@@ -17,7 +17,7 @@ interface RadarLayerProps {
  * acima do mapa base mas abaixo das zonas/bolinhas coloridas — assim as nuvens do radar não
  * encobrem a cor das áreas de abrangência dos pluviômetros.
  */
-export const RadarLayer: React.FC<RadarLayerProps> = ({ radar, imageUrl, opacity = 0.6 }) => {
+export const RadarLayer: React.FC<RadarLayerProps> = ({ radar, imageUrl, opacity = 0.85 }) => {
   if (!imageUrl) return null;
   return (
     <ImageOverlay
