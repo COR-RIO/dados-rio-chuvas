@@ -228,7 +228,7 @@ interface RadarSourceControlProps {
 /** Opções de fonte do radar (chuva/tempo). */
 const RADAR_SOURCE_OPTIONS: { id: RadarSourceId | 'off'; label: string; title: string }[] = [
   { id: 'off', label: 'Ocultar', title: 'Esconder a camada de radar' },
-  { id: 'mendanha', label: 'Mendanha (INEA)', title: 'Radar do Mendanha — Prefeitura do Rio' },
+  { id: 'mendanha', label: 'Mendanha', title: 'Radar do Mendanha — Prefeitura do Rio' },
   { id: 'sumare', label: 'Sumaré (AlertaRio)', title: 'Radar do Sumaré — Prefeitura do Rio' },
 ];
 
@@ -371,7 +371,7 @@ const REFLECTIVITY_TICKS = [0, 15, 25, 35, 45, 55, 65, 75];
 
 const RADAR_SOURCE_LABELS: Record<RadarSourceId, string> = {
   sumare: 'Sumaré (AlertaRio)',
-  mendanha: 'Mendanha (INEA)',
+  mendanha: 'Mendanha',
 };
 
 interface RadarMapLegendProps {

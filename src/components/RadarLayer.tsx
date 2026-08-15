@@ -1,8 +1,10 @@
 import React from 'react';
 import { ImageOverlay } from 'react-leaflet';
-import { COR_RADAR_BOUNDS } from '../services/radarCorApi';
+import { CorRadarId, getRadarBounds } from '../services/radarCorApi';
 
 interface RadarLayerProps {
+  /** Radar ativo (Mendanha/Sumaré) — cada um tem bounds geográficos próprios. */
+  radar: CorRadarId;
   /** URL da imagem PNG do frame atual (radares COR Mendanha/Sumaré). */
   imageUrl: string | null;
   opacity?: number;
@@ -15,13 +17,13 @@ interface RadarLayerProps {
  * acima do mapa base mas abaixo das zonas/bolinhas coloridas — assim as nuvens do radar não
  * encobrem a cor das áreas de abrangência dos pluviômetros.
  */
-export const RadarLayer: React.FC<RadarLayerProps> = ({ imageUrl, opacity = 0.6 }) => {
+export const RadarLayer: React.FC<RadarLayerProps> = ({ radar, imageUrl, opacity = 0.6 }) => {
   if (!imageUrl) return null;
   return (
     <ImageOverlay
       key={imageUrl}
       url={imageUrl}
-      bounds={COR_RADAR_BOUNDS}
+      bounds={getRadarBounds(radar)}
       opacity={opacity}
       pane="radar-clouds"
     />

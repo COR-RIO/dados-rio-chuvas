@@ -917,7 +917,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             'off' ao entrar no histórico, mas isso não impede alguém de escolher uma fonte de novo
             enquanto já está no histórico (o efeito só reage à MUDANÇA de historicalMode). */}
         {radarSource !== 'off' && !historicalMode && (
-          <RadarLayer imageUrl={radarData.currentImageUrl} />
+          <RadarLayer radar={radarSource} imageUrl={radarData.currentImageUrl} />
         )}
         <FitCityOnLoad boundsData={boundsData} />
         <FocusCityButton boundsData={boundsData} />

@@ -135,10 +135,32 @@ export async function stripSumareLegend(imageUrl: string): Promise<string> {
 }
 
 /**
- * Bounds geográficos da cobertura do radar COR (sudoeste/nordeste em [lat, lng]),
- * usados pelo ImageOverlay do Leaflet para posicionar a imagem PNG sobre o mapa.
+ * Bounds geográficos de cada radar COR (sudoeste/nordeste em [lat, lng]), usados pelo
+ * ImageOverlay do Leaflet para posicionar a imagem PNG sobre o mapa.
+ *
+ * Cada radar tem localização e alcance próprios — não dá pra usar o mesmo retângulo para os
+ * dois (era o bug: a imagem do Sumaré aparecia deslocada porque usava os bounds do Mendanha).
+ *
+ * Mendanha: imagem quadrada (587x587px), alcance declarado 150km, antena X-band WRS400 em
+ * ~22°48'47"S 43°31'15"W (Maciço do Mendanha). Bounds abaixo já calibrados e em produção.
+ *
+ * Sumaré: imagem 1024x768px (proporção 4:3, não quadrada), radar C-band em 22°57'18.5"S
+ * 43°14'53.8"W (Morro do Sumaré, Parque Nacional da Tijuca), alcance declarado 250km.
+ * Como a imagem não é quadrada, assumimos que a LARGURA (1024px, maior dimensão) corresponde
+ * ao alcance máximo (250km de raio) e a ALTURA é proporcionalmente menor (768/1024 = 75%,
+ * ou seja, ±187,5km) — mesma resolução km/pixel nos dois eixos, sem esticar a imagem.
  */
-export const COR_RADAR_BOUNDS: [[number, number], [number, number]] = [
+export const MENDANHA_RADAR_BOUNDS: [[number, number], [number, number]] = [
   [-24.07974181385155, -44.88549887560727], // sudoeste [lat, lng]
   [-21.568618096884588, -42.16109533159336], // nordeste [lat, lng]
 ];
+
+export const SUMARE_RADAR_BOUNDS: [[number, number], [number, number]] = [
+  [-24.639539479219143, -45.68689937266415], // sudoeste [lat, lng]
+  [-21.270738520780858, -40.80965662733585], // nordeste [lat, lng]
+];
+
+/** Devolve os bounds geográficos corretos para o radar informado. */
+export function getRadarBounds(radar: CorRadarId): [[number, number], [number, number]] {
+  return radar === 'sumare' ? SUMARE_RADAR_BOUNDS : MENDANHA_RADAR_BOUNDS;
+}

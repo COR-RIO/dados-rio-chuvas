@@ -17,10 +17,18 @@ const CACHE_CONTROL_SUCCESS = 'public, max-age=60, s-maxage=60, stale-while-reva
 const COR_RADAR_BASE_URL = 'https://dashboardradar.cor.rio';
 const RADAR_IDS = ['mendanha', 'sumare'];
 
-const COR_RADAR_BOUNDS = [
-  [-24.07974181385155, -44.88549887560727],
-  [-21.568618096884588, -42.16109533159336],
-];
+// Cada radar tem localização/alcance próprios — ver comentário equivalente em
+// src/services/radarCorApi.ts (fonte da verdade, mantida em sincronia manualmente).
+const RADAR_BOUNDS = {
+  mendanha: [
+    [-24.07974181385155, -44.88549887560727],
+    [-21.568618096884588, -42.16109533159336],
+  ],
+  sumare: [
+    [-24.639539479219143, -45.68689937266415],
+    [-21.270738520780858, -40.80965662733585],
+  ],
+};
 
 function parseMendanhaTimestamp(filename) {
   const focus = filename.match(/focus(\d{12})/);
@@ -66,6 +74,7 @@ async function fetchRadar(radar) {
     frames,
     latestTimestamp: json.latest_timestamp ?? null,
     delayMinutes: json.delay_minutes ?? null,
+    bounds: RADAR_BOUNDS[radar],
   };
 }
 
@@ -106,7 +115,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         success: true,
         fetchedAt: new Date().toISOString(),
-        bounds: COR_RADAR_BOUNDS,
+        // Mantido pra compatibilidade (era um único retângulo compartilhado — errado pro Sumaré,
+        // que tem localização/alcance diferentes do Mendanha). Prefira o `bounds` dentro de cada
+        // `data[radar]`, que já vem correto por radar.
+        bounds: RADAR_BOUNDS,
         data,
       }),
     };
