@@ -146,12 +146,13 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
               <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('wind_direction_deg')}>
                 Direção
               </th>
-              <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('observed_at')}>
-                Data/hora (UTC)
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observed_at')}>
+                Atualizado
               </th>
               <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corredor')}>
                 Corredor
               </th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Fonte</th>
               <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('message_type')}>
                 Tipo
               </th>
@@ -161,8 +162,11 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
           <tbody className="divide-y divide-gray-200">
             {sorted.map((ev, index) => {
               const ts = windEventTimestamp(ev);
+              // Sem forçar timeZone: 'UTC' — mesmo formato da WindStationsTable (hora local do
+              // navegador), senão os dois horários de "Atualizado" batem com rótulos iguais mas
+              // valores ~3h diferentes entre tabela ao vivo e histórica.
               const dtLabel = ts
-                ? new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' })
+                ? new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
                 : '-';
               const gustKmh = msToKmh(ev.wind_gust_ms ?? ev.wind_speed_ms);
               const speedKmh = msToKmh(ev.wind_speed_ms);
@@ -190,12 +194,13 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                   <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     {ev.wind_direction_deg != null ? `${ev.wind_direction_deg}°` : 'VRB'}
                   </td>
-                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={ts}>
+                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={ts}>
                     {dtLabel}
                   </td>
                   <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={corridorLabel(ev.corredor)}>
                     {corridorLabel(ev.corredor)}
                   </td>
+                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>REDEMET</td>
                   <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     <span
                       className={`px-1.5 py-0.5 rounded text-white text-[9px] font-medium ${
