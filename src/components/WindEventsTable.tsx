@@ -22,7 +22,8 @@ type SortField =
   | 'categoria'
   | 'wind_direction_deg'
   | 'corredor'
-  | 'message_type';
+  | 'message_type'
+  | 'fonte';
 type SortDirection = 'asc' | 'desc';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -89,6 +90,9 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
           break;
         case 'message_type':
           comp = (a.message_type ?? '').localeCompare(b.message_type ?? '');
+          break;
+        case 'fonte':
+          comp = (a.fonte ?? 'REDEMET').localeCompare(b.fonte ?? 'REDEMET');
           break;
       }
       return sortDirection === 'asc' ? comp : -comp;
@@ -200,7 +204,7 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                   <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={corridorLabel(ev.corredor)}>
                     {corridorLabel(ev.corredor)}
                   </td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>REDEMET</td>
+                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>{ev.fonte ?? 'REDEMET'}</td>
                   <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     <span
                       className={`px-1.5 py-0.5 rounded text-white text-[9px] font-medium ${

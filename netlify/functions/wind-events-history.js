@@ -111,7 +111,7 @@ function buildQuery(params) {
 
   return `
     SELECT icao, estacao_nome, corredor, observed_at, wind_speed_ms, wind_gust_ms,
-           wind_direction_deg, message_type, categoria, raw
+           wind_direction_deg, message_type, categoria, raw, fonte
     FROM ${fullTable}
     ${whereClause}
     ORDER BY observed_at DESC

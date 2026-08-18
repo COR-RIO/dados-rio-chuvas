@@ -9,6 +9,7 @@ export interface WindEventRecord {
   message_type: 'METAR' | 'SPECI' | null;
   categoria: 'forte' | 'muito-forte' | null;
   raw: string | null;
+  fonte: 'REDEMET' | 'INMET' | null;
 }
 
 interface WindEventsHistoryResponse {
