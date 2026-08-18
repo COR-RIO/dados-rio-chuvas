@@ -1,14 +1,26 @@
 import React, { useMemo, useState } from 'react';
 import type { WindStation } from '../types/wind';
-import { msToKmh, windCategoryFromSpeedKmh, windDirectionToCardinal, WIND_CATEGORY_LABELS, WIND_CATEGORY_COLORS, WIND_CATEGORY_ORDER, WIND_CORRIDOR_LABELS } from '../types/wind';
+import {
+  msToKmh,
+  windCategoryFromSpeedKmh,
+  windDirectionToCardinal,
+  isSignificantWindStation,
+  WIND_CATEGORY_LABELS,
+  WIND_CATEGORY_COLORS,
+  WIND_CATEGORY_ORDER,
+  WIND_CORRIDOR_LABELS,
+} from '../types/wind';
 
 interface WindStationsTableProps {
   stations: WindStation[];
   loading?: boolean;
   embedded?: boolean;
+  /** Id da estação atualmente em foco no mapa (WindSpotlight) — fica sempre na primeira linha,
+   * destacada, pra bater com o que está sendo mostrado no mapa. */
+  spotlightStationId?: string | null;
 }
 
-type SortField = 'name' | 'corridor' | 'windGustMs' | 'observedAt' | 'category';
+type SortField = 'name' | 'corridor' | 'windSpeedMs' | 'windGustMs' | 'observedAt' | 'category' | 'windDirectionDeg' | 'source';
 type SortDirection = 'asc' | 'desc';
 
 const SOURCE_LABEL: Record<'inmet' | 'redemet', string> = { inmet: 'INMET', redemet: 'REDEMET' };
@@ -18,9 +30,15 @@ const SOURCE_LABEL: Record<'inmet' | 'redemet', string> = { inmet: 'INMET', rede
  * visual de RainDataTable/OccurrenceTable. Complementa WindEventsTable (que é só o histórico
  * forte/muito-forte, do BigQuery) com a visão "agora" de todas as estações reportando.
  */
-export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, loading = false, embedded = false }) => {
+export const WindStationsTable: React.FC<WindStationsTableProps> = ({
+  stations,
+  loading = false,
+  embedded = false,
+  spotlightStationId = null,
+}) => {
   const [sortField, setSortField] = useState<SortField>('windGustMs');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [onlySignificant, setOnlySignificant] = useState(false);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -42,6 +60,9 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
         case 'corridor':
           comp = WIND_CORRIDOR_LABELS[a.corridor].localeCompare(WIND_CORRIDOR_LABELS[b.corridor]);
           break;
+        case 'windSpeedMs':
+          comp = a.windSpeedMs - b.windSpeedMs;
+          break;
         case 'windGustMs':
           comp = (a.windGustMs ?? a.windSpeedMs) - (b.windGustMs ?? b.windSpeedMs);
           break;
@@ -54,11 +75,28 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
           comp = WIND_CATEGORY_ORDER.indexOf(catA) - WIND_CATEGORY_ORDER.indexOf(catB);
           break;
         }
+        case 'windDirectionDeg':
+          comp = (a.windDirectionDeg ?? -1) - (b.windDirectionDeg ?? -1);
+          break;
+        case 'source':
+          comp = SOURCE_LABEL[a.source].localeCompare(SOURCE_LABEL[b.source]);
+          break;
       }
       return sortDirection === 'asc' ? comp : -comp;
     });
     return list;
   }, [stations, sortField, sortDirection]);
+
+  const visible = useMemo(() => {
+    const base = onlySignificant ? sorted.filter(isSignificantWindStation) : sorted;
+    if (!spotlightStationId) return base;
+    const idx = base.findIndex((s) => s.id === spotlightStationId);
+    if (idx <= 0) return base; // não encontrada, ou já é a primeira
+    const reordered = [...base];
+    const [spotlighted] = reordered.splice(idx, 1);
+    reordered.unshift(spotlighted);
+    return reordered;
+  }, [sorted, onlySignificant, spotlightStationId]);
 
   if (loading) {
     return (
@@ -84,11 +122,34 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
 
   return (
     <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
-      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">Cinturão de vento — agora</h3>
-        <span className="text-[10px] sm:text-[11px] text-gray-500">{sorted.length} estações</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOnlySignificant((prev) => !prev)}
+            className={`px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-medium border transition-colors ${
+              onlySignificant
+                ? 'bg-amber-600 border-amber-600 text-white'
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+            title="Mostrar só estações com vento forte ou muito forte"
+          >
+            Só forte/muito forte
+          </button>
+          <span className="text-[10px] sm:text-[11px] text-gray-500">
+            {visible.length} {onlySignificant ? `de ${sorted.length} ` : ''}estações
+          </span>
+        </div>
       </div>
 
+      {!visible.length ? (
+        <div className="py-8 flex items-center justify-center bg-white">
+          <p className="text-xs sm:text-sm text-gray-500 px-4 text-center">
+            Nenhuma estação com vento forte/muito forte no momento.
+          </p>
+        </div>
+      ) : (
       <div className="overflow-auto max-h-[60vh]">
         <table className="w-full table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
@@ -96,33 +157,48 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
               <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('name')}>
                 Estação
               </th>
-              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Vento méd.</th>
+              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`} onClick={() => handleSort('windSpeedMs')}>
+                Vento méd.
+              </th>
               <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('windGustMs')}>
                 Rajada
               </th>
               <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('category')}>
                 Categoria
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Direção</th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('windDirectionDeg')}>
+                Direção
+              </th>
               <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observedAt')}>
                 Atualizado
               </th>
               <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corridor')}>
                 Corredor
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Fonte</th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('source')}>
+                Fonte
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sorted.map((s) => {
+            {visible.map((s) => {
               const gustKmh = msToKmh(s.windGustMs ?? s.windSpeedMs);
               const speedKmh = msToKmh(s.windSpeedMs);
               const category = windCategoryFromSpeedKmh(gustKmh);
               const dtLabel = new Date(s.observedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+              const isSpotlighted = s.id === spotlightStationId;
               return (
-                <tr key={s.id} className="hover:bg-gray-50">
+                <tr key={s.id} className={isSpotlighted ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}>
                   <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={s.name}>
-                    <span className="font-semibold text-gray-900 truncate block">{s.name}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-semibold text-gray-900 truncate block">{s.name}</span>
+                      {isSpotlighted && (
+                        <span
+                          className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500"
+                          title="Em foco no mapa agora"
+                        />
+                      )}
+                    </div>
                     <div className="text-gray-500 truncate">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
                   <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>{speedKmh.toFixed(0)} km/h</td>
@@ -151,6 +227,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
           </tbody>
         </table>
       </div>
+      )}
 
       <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-3 border-t border-gray-200 bg-white">
         <p className="text-[10px] sm:text-xs text-gray-500">

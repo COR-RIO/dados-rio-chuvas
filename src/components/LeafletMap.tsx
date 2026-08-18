@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X, Maximize2, Minimize2 } from 'lucide-react';
@@ -10,12 +10,13 @@ import { useHistoricalWindData } from '../hooks/useHistoricalWindData';
 import { fetchWindEventsHistory, type WindEventRecord } from '../services/windEventsApi';
 import { WindEventsTable } from './WindEventsTable';
 import { WindStationsTable } from './WindStationsTable';
-import { msToKmh, windCategoryFromSpeedKmh, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
+import { msToKmh, windCategoryFromSpeedKmh, isSignificantWindStation, WIND_CATEGORY_ORDER, type WindCategory } from '../types/wind';
 import type { MapAlert } from '../types/mapAlert';
 import { detectZoneConcentration } from '../utils/rainZoneAlerts';
 import type { RainMacroZone } from '../config/rainZones';
 import { MapAutoFocus } from './MapAutoFocus';
 import { AlertBanner } from './AlertBanner';
+import { WindSpotlight } from './WindSpotlight';
 import { useRadarFrames, type RadarSourceId } from '../hooks/useRadarFrames';
 import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
@@ -462,12 +463,34 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const historicalWindData = useHistoricalWindData();
   // No histórico, o vento passa a acompanhar o instante selecionado na linha do tempo (em vez do
   // vento atual) — usa a série buscada em fetchHistoricalWindRange (disparada ao clicar Aplicar).
-  const activeWindData = historicalMode
-    ? historicalWindData.getFrame(selectedHistoricalTimestamp)
-    : { stations: windData.stations, corridorSummary: windData.corridorSummary };
-  const filteredWindStations = activeWindData.stations.filter((s) =>
-    windCategoryFilter.includes(windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs)))
+  // Memoizado: historicalWindData.getFrame() monta um array novo a cada chamada mesmo pro mesmo
+  // instante — sem isso, activeWindData.stations muda de identidade a cada render e quebra a
+  // memoização de filteredWindStations/significantWindStations logo abaixo (getFrame em si É
+  // estável via useCallback, só muda quando a série muda de verdade).
+  const activeWindData = useMemo(
+    () =>
+      historicalMode
+        ? historicalWindData.getFrame(selectedHistoricalTimestamp)
+        : { stations: windData.stations, corridorSummary: windData.corridorSummary },
+    [historicalMode, historicalWindData.getFrame, selectedHistoricalTimestamp, windData.stations, windData.corridorSummary]
   );
+  // Memoizado por identidade de activeWindData.stations (não muda a cada render, só quando o
+  // hook realmente busca dado novo) — WindSpotlight depende de identidade estável aqui, senão o
+  // rodízio reinicia a cada render do componente e nunca chega a alternar de estação.
+  const filteredWindStations = useMemo(
+    () =>
+      activeWindData.stations.filter((s) =>
+        windCategoryFilter.includes(windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs)))
+      ),
+    [activeWindData.stations, windCategoryFilter]
+  );
+  // Estações em vento forte/muito-forte agora — alimenta o rodízio automático de foco do mapa
+  // (WindSpotlight) e mantém a linha correspondente sempre em primeiro na WindStationsTable.
+  const significantWindStations = useMemo(
+    () => filteredWindStations.filter(isSignificantWindStation),
+    [filteredWindStations]
+  );
+  const [windSpotlightId, setWindSpotlightId] = useState<string | null>(null);
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
   // Radar só tem imagem AO VIVO (sem histórico próprio, ao contrário de chuva/vento agora) —
@@ -532,28 +555,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       ? stationsAfterPlaybackFilter
       : stationsAfterPlaybackFilter.map((s) => ({ ...s, accumulated: undefined }));
 
-  // Alertas automáticos: vento forte/muito-forte via SPECI (useWindData) e concentração de chuva
-  // muito forte numa mesma macrorregião (detectZoneConcentration) — cada um dispara uma vez por
-  // mudança de sinal (ver comentários nos respectivos arquivos). MapAutoFocus move a câmera
-  // sozinho só se o mapa estiver ocioso; AlertBanner sempre mostra a notificação.
+  // Alerta automático de chuva: concentração muito forte numa mesma macrorregião
+  // (detectZoneConcentration) — dispara uma vez por mudança de sinal (ver comentário no arquivo).
+  // MapAutoFocus move a câmera sozinho só se o mapa estiver ocioso; AlertBanner sempre mostra a
+  // notificação. Vento tem seu próprio mecanismo, sem pop-up — ver WindSpotlight mais abaixo.
   const [mapAlerts, setMapAlerts] = useState<MapAlert[]>([]);
   const previousAlertedZonesRef = useRef<Set<RainMacroZone>>(new Set());
 
-  useEffect(() => {
-    if (!windData.windAlerts.length) return;
-    const newAlerts: MapAlert[] = windData.windAlerts.map((s) => {
-      const category = windCategoryFromSpeedKmh(msToKmh(s.windGustMs ?? s.windSpeedMs));
-      return {
-        id: `vento-${s.code}-${s.observedAt}`,
-        kind: 'vento',
-        label: `Vento ${category === 'muito-forte' ? 'muito forte' : 'forte'} em ${s.name} (${s.code})`,
-        location: s.location,
-        points: null,
-        createdAt: new Date().toISOString(),
-      };
-    });
-    setMapAlerts((prev) => [...prev, ...newAlerts].slice(-20));
-  }, [windData.windAlerts]);
+  // Vento forte/muito-forte NÃO gera mais pop-up (AlertBanner) — substituído pelo rodízio
+  // automático de foco no mapa (WindSpotlight, mais abaixo) + destaque na primeira linha da
+  // WindStationsTable, que é persistente em vez de aparecer e sumir sozinho.
 
   useEffect(() => {
     const rainForAlerts = isHistoricalPlayback && playbackMode === 'occurrences' ? [] : stations;
@@ -888,7 +899,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 historicalMode ? (
                   <WindEventsTable events={windEvents} loading={windEventsLoading} embedded />
                 ) : (
-                  <WindStationsTable stations={filteredWindStations} loading={windData.loading} embedded />
+                  <WindStationsTable
+                    stations={filteredWindStations}
+                    loading={windData.loading}
+                    spotlightStationId={windSpotlightId}
+                    embedded
+                  />
                 )
               )}
             </div>
@@ -923,6 +939,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <FocusCityButton boundsData={boundsData} />
         <MapAutoFocus alerts={mapAlerts} />
         <AlertBanner alerts={mapAlerts} onDismiss={handleDismissAlert} />
+        {showWind && (
+          <WindSpotlight stations={significantWindStations} onFocusChange={setWindSpotlightId} />
+        )}
         {zonasData && (
           <ZoneRainLayer
             zonasData={zonasData}

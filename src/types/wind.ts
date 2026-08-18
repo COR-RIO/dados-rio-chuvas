@@ -94,6 +94,14 @@ export function windLevelFromGustKmh(gustKmh: number): WindLevel {
 
 export const msToKmh = (ms: number): number => ms * 3.6;
 
+/** Estação em vento forte ou muito-forte agora — mesmo limiar que dispara alerta (>=52 km/h de
+ * rajada/velocidade). Usado tanto pra filtrar a tabela quanto pra decidir o que entra no rodízio
+ * automático de foco do mapa (WindSpotlight). */
+export function isSignificantWindStation(station: Pick<WindStation, 'windGustMs' | 'windSpeedMs'>): boolean {
+  const category = windCategoryFromSpeedKmh(msToKmh(station.windGustMs ?? station.windSpeedMs));
+  return category === 'forte' || category === 'muito-forte';
+}
+
 /** Converte graus (0-360) para ponto cardeal (N, NE, L, SE, S, SO, O, NO). */
 export function windDirectionToCardinal(deg: number | null): string {
   if (deg == null || Number.isNaN(deg)) return '—';

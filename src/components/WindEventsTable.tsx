@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { WindEventRecord } from '../services/windEventsApi';
 import { windEventTimestamp } from '../services/windEventsApi';
-import { WIND_CATEGORY_ORDER } from '../types/wind';
+import { WIND_CATEGORY_ORDER, WIND_CORRIDOR_LABELS, type WindCorridor } from '../types/wind';
 
 interface WindEventsTableProps {
   events: WindEventRecord[];
@@ -9,7 +9,20 @@ interface WindEventsTableProps {
   embedded?: boolean;
 }
 
-type SortField = 'observed_at' | 'icao' | 'wind_gust_ms' | 'categoria';
+function corridorLabel(corredor: string | null): string {
+  if (!corredor) return '-';
+  return WIND_CORRIDOR_LABELS[corredor as WindCorridor] ?? corredor;
+}
+
+type SortField =
+  | 'observed_at'
+  | 'icao'
+  | 'wind_speed_ms'
+  | 'wind_gust_ms'
+  | 'categoria'
+  | 'wind_direction_deg'
+  | 'corredor'
+  | 'message_type';
 type SortDirection = 'asc' | 'desc';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -59,11 +72,23 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
         case 'icao':
           comp = (a.icao ?? '').localeCompare(b.icao ?? '');
           break;
+        case 'wind_speed_ms':
+          comp = (a.wind_speed_ms ?? 0) - (b.wind_speed_ms ?? 0);
+          break;
         case 'wind_gust_ms':
           comp = (a.wind_gust_ms ?? a.wind_speed_ms ?? 0) - (b.wind_gust_ms ?? b.wind_speed_ms ?? 0);
           break;
         case 'categoria':
           comp = categoryRank(a.categoria) - categoryRank(b.categoria);
+          break;
+        case 'wind_direction_deg':
+          comp = (a.wind_direction_deg ?? -1) - (b.wind_direction_deg ?? -1);
+          break;
+        case 'corredor':
+          comp = corridorLabel(a.corredor).localeCompare(corridorLabel(b.corredor));
+          break;
+        case 'message_type':
+          comp = (a.message_type ?? '').localeCompare(b.message_type ?? '');
           break;
       }
       return sortDirection === 'asc' ? comp : -comp;
@@ -106,22 +131,30 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
         <table className="w-full table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('icao')}>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('icao')}>
                 Estação
               </th>
-              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Vento méd.</th>
+              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`} onClick={() => handleSort('wind_speed_ms')}>
+                Vento méd.
+              </th>
               <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('wind_gust_ms')}>
                 Rajada
               </th>
               <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('categoria')}>
                 Categoria
               </th>
-              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Direção</th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('wind_direction_deg')}>
+                Direção
+              </th>
               <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('observed_at')}>
                 Data/hora (UTC)
               </th>
-              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`}>Corredor</th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Tipo</th>
+              <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corredor')}>
+                Corredor
+              </th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('message_type')}>
+                Tipo
+              </th>
               <th className={`${headerBase} min-w-[220px] truncate`}>METAR/SPECI bruto</th>
             </tr>
           </thead>
@@ -136,8 +169,8 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
               const category = ev.categoria ?? 'forte';
               return (
                 <tr key={`${ev.icao}-${ts}-${index}`} className="hover:bg-gray-50">
-                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`} title={ev.estacao_nome ?? undefined}>
-                    <span className="font-semibold text-gray-900">{ev.icao}</span>
+                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={ev.estacao_nome ?? undefined}>
+                    <span className="font-semibold text-gray-900 truncate block">{ev.icao}</span>
                     <div className="text-gray-500 truncate">{ev.estacao_nome ?? '-'}</div>
                   </td>
                   <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>
@@ -154,13 +187,15 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                       {CATEGORY_LABEL[category] ?? category}
                     </span>
                   </td>
-                  <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>
+                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     {ev.wind_direction_deg != null ? `${ev.wind_direction_deg}°` : 'VRB'}
                   </td>
                   <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={ts}>
                     {dtLabel}
                   </td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`}>{ev.corredor ?? '-'}</td>
+                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={corridorLabel(ev.corredor)}>
+                    {corridorLabel(ev.corredor)}
+                  </td>
                   <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     <span
                       className={`px-1.5 py-0.5 rounded text-white text-[9px] font-medium ${
