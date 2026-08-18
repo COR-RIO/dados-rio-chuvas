@@ -162,15 +162,33 @@ async function fetchStationList() {
   return response.json();
 }
 
-/** Busca observações horárias de uma estação num intervalo — sem paginação (ao contrário da REDEMET). */
+const MAX_RETRIES = 5;
+const RATE_LIMIT_BACKOFF_MS = 15000; // INMET não documenta o limite exato — 15s é conservador
+
+/** Busca observações horárias de uma estação num intervalo — sem paginação (ao contrário da REDEMET).
+ * Com retry/backoff: a API do INMET rate-limita sem status HTTP de erro (200 OK com corpo tipo
+ * "Você atingiu o limite..." em vez de JSON) — confirmado em produção 2026-08-18, um trecho do
+ * backfill (fev-jun/2025) falhou por completo pra todas as 15 estações até o limite liberar de
+ * novo sozinho. Retry com espera evita perder o bloco inteiro por causa disso. */
 async function fetchStationRange(code, fromDate, toDate) {
   const url = `${INMET_BASE}/token/estacao/${dateOnly(fromDate)}/${dateOnly(toDate)}/${code}/${INMET_TOKEN}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`INMET estacao ${code} retornou ${response.status}`);
-  const text = await response.text();
-  if (text === 'CHAVE INVÁLIDA!') throw new Error('INMET_TOKEN/VITE_INMET_TOKEN inválido');
-  const records = JSON.parse(text);
-  return Array.isArray(records) ? records : [];
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`INMET estacao ${code} retornou ${response.status}`);
+    const text = await response.text();
+    if (text === 'CHAVE INVÁLIDA!') throw new Error('INMET_TOKEN/VITE_INMET_TOKEN inválido');
+    try {
+      const records = JSON.parse(text);
+      return Array.isArray(records) ? records : [];
+    } catch {
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`resposta não-JSON após ${MAX_RETRIES} tentativas (provável rate limit): ${text.slice(0, 80)}`);
+      }
+      console.warn(`  ${code}: resposta não-JSON (tentativa ${attempt}/${MAX_RETRIES}, provável rate limit) — aguardando ${RATE_LIMIT_BACKOFF_MS / 1000}s...`);
+      await sleep(RATE_LIMIT_BACKOFF_MS);
+    }
+  }
+  return [];
 }
 
 function toObservedAtIso(obs) {
@@ -228,6 +246,17 @@ async function filterAlreadyStored(bigquery, since, rows) {
   return rows.filter((r) => !existingKeys.has(r.insertId));
 }
 
+/** --from AAAA-MM-DD --to AAAA-MM-DD reprocessa só esse intervalo (ignora checkpoint) — usado pra
+ * cobrir um trecho que falhou (ex.: rate limit do INMET) sem refazer o backfill inteiro. */
+function parseCliRange() {
+  const args = process.argv.slice(2);
+  const fromIdx = args.indexOf('--from');
+  const toIdx = args.indexOf('--to');
+  if (fromIdx === -1 && toIdx === -1) return null;
+  if (fromIdx === -1 || toIdx === -1) throw new Error('Use --from AAAA-MM-DD --to AAAA-MM-DD juntos.');
+  return { from: new Date(`${args[fromIdx + 1]}T00:00:00Z`), to: new Date(`${args[toIdx + 1]}T00:00:00Z`) };
+}
+
 async function main() {
   if (!INMET_TOKEN) {
     throw new Error('Defina INMET_TOKEN ou VITE_INMET_TOKEN no .env (ver docs/WIND_SETUP.md).');
@@ -241,12 +270,14 @@ async function main() {
   console.log(`Estações do cinturão resolvidas: ${matched.length}/${WIND_BELT_CITIES.length}`);
   matched.forEach((m) => console.log(`  ${m.code} — ${m.name} (${m.city.corridor})`));
 
-  const now = new Date();
-  const earliest = new Date(now);
-  earliest.setFullYear(earliest.getFullYear() - INMET_BACKFILL_YEARS);
+  const cliRange = parseCliRange();
+  const now = cliRange ? cliRange.to : new Date();
+  const earliest = cliRange ? cliRange.from : new Date(now);
+  if (!cliRange) earliest.setFullYear(earliest.getFullYear() - INMET_BACKFILL_YEARS);
 
-  const checkpoint = loadCheckpoint();
+  const checkpoint = !cliRange && loadCheckpoint();
   let chunkEnd = checkpoint ? new Date(checkpoint.oldestCompletedChunkStart) : now;
+  if (cliRange) console.log(`\nModo intervalo específico: ${dateOnly(earliest)} a ${dateOnly(now)} (checkpoint ignorado, não é salvo).`);
 
   let totalChecked = 0;
   let totalCandidates = 0;
@@ -278,7 +309,7 @@ async function main() {
       await sleep(DELAY_BETWEEN_REQUESTS_MS);
     }
 
-    saveCheckpoint(chunkStart.toISOString());
+    if (!cliRange) saveCheckpoint(chunkStart.toISOString());
     chunkEnd = chunkStart;
   }
 
