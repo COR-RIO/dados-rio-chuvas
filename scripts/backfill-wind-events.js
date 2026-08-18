@@ -216,8 +216,12 @@ function buildRows(records, chunkStart) {
     const icao = extractIcao(record, rawText);
     if (!wind || !icao || !AIRPORT_BY_ICAO.has(icao)) continue;
 
-    const gustKmh = (wind.windGustMs ?? wind.windSpeedMs) * 3.6;
-    if (gustKmh < FORTE_THRESHOLD_KMH) continue; // só guarda forte/muito-forte
+    // Maior valor entre vento médio e rajada, checado independente — não só a rajada com fallback
+    // pra média quando falta rajada, pra não perder um evento onde a média sozinha já é forte.
+    const speedKmh = wind.windSpeedMs * 3.6;
+    const gustKmhOrNull = wind.windGustMs != null ? wind.windGustMs * 3.6 : null;
+    const maxKmh = Math.max(speedKmh, gustKmhOrNull ?? 0);
+    if (maxKmh < FORTE_THRESHOLD_KMH) continue; // só guarda forte/muito-forte
 
     const airport = AIRPORT_BY_ICAO.get(icao);
     const observedAt = parseObservedAt(record, rawText, chunkStart);
@@ -232,13 +236,59 @@ function buildRows(records, chunkStart) {
         wind_gust_ms: wind.windGustMs,
         wind_direction_deg: wind.windDirectionDeg,
         message_type: extractMessageType(rawText),
-        categoria: gustKmh >= 76 ? 'muito-forte' : 'forte',
+        categoria: maxKmh >= 76 ? 'muito-forte' : 'forte',
         raw: rawText,
         fetched_at: new Date().toISOString(),
+        fonte: 'REDEMET',
       },
     });
   }
   return rows;
+}
+
+function sqlString(value) {
+  if (value == null) return 'NULL';
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+function sqlNumber(value) {
+  return value == null ? 'NULL' : String(value);
+}
+function sqlTimestamp(value) {
+  return value == null ? 'NULL' : `TIMESTAMP(${sqlString(value)})`;
+}
+
+/**
+ * Insere via MERGE (DML), não streaming insert (table.insert) — streaming não fica imediatamente
+ * consultável (buffer de alguns minutos); rodar o backfill de novo sobre um período recém-inserido
+ * (ex.: retomar depois de interromper perto do fim de um chunk) podia duplicar linha, já que não
+ * havia nem checagem de "já existe" antes do insert aqui (só o dedup best-effort ~1min do próprio
+ * BigQuery por insertId). MERGE é atômico contra o estado real da tabela.
+ */
+async function mergeRows(bigquery, rows) {
+  if (!rows.length) return 0;
+  const values = rows
+    .map(({ json: r }) =>
+      `(${sqlString(r.icao)}, ${sqlString(r.estacao_nome)}, ${sqlString(r.corredor)}, ${sqlTimestamp(r.observed_at)}, ${sqlNumber(r.wind_speed_ms)}, ${sqlNumber(r.wind_gust_ms)}, ${sqlNumber(r.wind_direction_deg)}, ${sqlString(r.message_type)}, ${sqlString(r.categoria)}, ${sqlString(r.raw)}, ${sqlTimestamp(r.fetched_at)}, ${sqlString(r.fonte)})`
+    )
+    .join(',\n      ');
+
+  const query = `
+    MERGE \`${PROJECT_ID}.${DATASET}.${TABLE}\` T
+    USING (
+      SELECT * FROM UNNEST(ARRAY<STRUCT<icao STRING, estacao_nome STRING, corredor STRING, observed_at TIMESTAMP, wind_speed_ms FLOAT64, wind_gust_ms FLOAT64, wind_direction_deg INT64, message_type STRING, categoria STRING, raw STRING, fetched_at TIMESTAMP, fonte STRING>>[
+      ${values}
+      ])
+    ) S
+    ON T.icao = S.icao AND T.observed_at = S.observed_at AND T.fonte = S.fonte
+    WHEN NOT MATCHED THEN
+      INSERT (icao, estacao_nome, corredor, observed_at, wind_speed_ms, wind_gust_ms, wind_direction_deg, message_type, categoria, raw, fetched_at, fonte)
+      VALUES (S.icao, S.estacao_nome, S.corredor, S.observed_at, S.wind_speed_ms, S.wind_gust_ms, S.wind_direction_deg, S.message_type, S.categoria, S.raw, S.fetched_at, S.fonte)
+  `;
+
+  const [job] = await bigquery.createQueryJob({ query, location: LOCATION });
+  await job.getQueryResults();
+  const [metadata] = await job.getMetadata();
+  return Number(metadata.statistics?.query?.dmlStats?.insertedRowCount ?? 0);
 }
 
 async function main() {
@@ -279,13 +329,11 @@ async function main() {
       const rows = buildRows(records, effectiveStart);
 
       if (rows.length) {
-        // raw:true é obrigatório pro cliente entender o wrapper {insertId, json} — sem isso ele
-        // trata o wrapper como se fosse a própria linha e reclama de campo desconhecido.
-        await table.insert(rows, { ignoreUnknownValues: false, skipInvalidRows: false, raw: true });
-        totalInserted += rows.length;
+        const saved = await mergeRows(bigquery, rows);
+        totalInserted += saved;
       }
 
-      console.log(`${records.length} registros brutos, ${rows.length} fortes/muito-fortes salvos (total acumulado: ${totalInserted})`);
+      console.log(`${records.length} registros brutos, ${rows.length} fortes/muito-fortes candidatos, ${totalInserted} salvos no total até agora`);
       saveCheckpoint(effectiveStart.toISOString());
     } catch (err) {
       // err.message pode vir vazio pra alguns tipos de erro do BigQuery (PartialFailureError

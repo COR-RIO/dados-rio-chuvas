@@ -98,6 +98,15 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Maior valor entre vento médio e rajada, em km/h — checa os dois independente (não só a rajada
+ * com fallback pra média quando falta rajada), pra não perder um evento onde a média sozinha já
+ * cruza o limiar de forte/muito-forte. */
+function strongestKmh(speedMs, gustMs) {
+  const speedKmh = speedMs * 3.6;
+  const gustKmh = gustMs != null ? gustMs * 3.6 : null;
+  return Math.max(speedKmh, gustKmh ?? 0);
+}
+
 function toRedemetDateParam(date) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}${pad(date.getUTCHours())}`;
@@ -183,8 +192,8 @@ function buildRows(records, fallbackDate) {
     const icao = extractIcao(record, rawText);
     if (!wind || !icao || !AIRPORT_BY_ICAO.has(icao)) continue;
 
-    const gustKmh = (wind.windGustMs ?? wind.windSpeedMs) * 3.6;
-    if (gustKmh < FORTE_THRESHOLD_KMH) continue;
+    const maxKmh = strongestKmh(wind.windSpeedMs, wind.windGustMs);
+    if (maxKmh < FORTE_THRESHOLD_KMH) continue;
 
     const airport = AIRPORT_BY_ICAO.get(icao);
     const observedAt = parseObservedAt(record, rawText, fallbackDate);
@@ -199,7 +208,7 @@ function buildRows(records, fallbackDate) {
         wind_gust_ms: wind.windGustMs,
         wind_direction_deg: wind.windDirectionDeg,
         message_type: extractMessageType(rawText),
-        categoria: gustKmh >= 76 ? 'muito-forte' : 'forte',
+        categoria: maxKmh >= 76 ? 'muito-forte' : 'forte',
         raw: rawText,
         fetched_at: now,
         fonte: 'REDEMET',
@@ -257,8 +266,8 @@ function buildInmetRows(stationResults) {
       const windSpeedMs = toFiniteNumber(obs.VEN_VEL);
       if (windSpeedMs == null) continue;
       const windGustMs = toFiniteNumber(obs.VEN_RAJ);
-      const gustKmh = (windGustMs ?? windSpeedMs) * 3.6;
-      if (gustKmh < FORTE_THRESHOLD_KMH) continue;
+      const maxKmh = strongestKmh(windSpeedMs, windGustMs);
+      if (maxKmh < FORTE_THRESHOLD_KMH) continue;
 
       const day = obs.DT_MEDICAO;
       const hr = String(obs.HR_MEDICAO ?? '0000').padStart(4, '0');
@@ -274,7 +283,7 @@ function buildInmetRows(stationResults) {
           wind_gust_ms: windGustMs,
           wind_direction_deg: toFiniteNumber(obs.VEN_DIR),
           message_type: null, // INMET não tem conceito de METAR/SPECI
-          categoria: gustKmh >= 76 ? 'muito-forte' : 'forte',
+          categoria: maxKmh >= 76 ? 'muito-forte' : 'forte',
           raw: null,
           fetched_at: now,
           fonte: 'INMET',
@@ -285,28 +294,55 @@ function buildInmetRows(stationResults) {
   return rows;
 }
 
+function sqlString(value) {
+  if (value == null) return 'NULL';
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function sqlNumber(value) {
+  return value == null ? 'NULL' : String(value);
+}
+
+function sqlTimestamp(value) {
+  return value == null ? 'NULL' : `TIMESTAMP(${sqlString(value)})`;
+}
+
 /**
- * Remove da lista quem já está salvo (mesmo icao+observed_at). Necessário porque o dedup por
- * insertId do BigQuery streaming insert só vale por ~1 minuto — como essa function roda a cada
- * 15min e a "leitura mais recente" de uma estação costuma continuar a mesma por várias execuções
- * seguidas (sem METAR novo), sem essa checagem cada execução duplicava a mesma linha na tabela
- * (confirmado acontecendo em produção: SBGR com 4 linhas idênticas, 15min de diferença no
- * fetched_at). Uma query de leitura antes do insert é bem mais barata que acumular duplicata.
+ * Insere linhas novas via MERGE (DML), não streaming insert (table.insert). O streaming insert do
+ * BigQuery não fica imediatamente consultável (buffer de alguns minutos) — se duas execuções
+ * rodarem próximas no tempo (ex.: dois backfills cobrindo período parecido, ou até a sincronização
+ * ao vivo em execuções muito seguidas), a checagem "já existe" de uma pode não enxergar o insert
+ * da outra e duplicar a linha (aconteceu de verdade: 276 linhas duplicadas entre o backfill do
+ * INMET e o reprocessamento do trecho com rate limit, mais alguns casos antigos já em produção —
+ * ver limpeza feita em 2026-08-18). MERGE é uma operação DML atômica contra o estado real e
+ * consistente da tabela — sem essa janela de inconsistência, não precisa mais de uma query de
+ * leitura separada antes de inserir.
  */
-async function filterAlreadyStored(bigquery, since, rows) {
-  if (!rows.length) return rows;
-  const [existing] = await bigquery.query({
-    query: `SELECT DISTINCT icao, observed_at FROM \`${PROJECT_ID}.${DATASET}.${TABLE}\` WHERE observed_at >= @since`,
-    params: { since: since.toISOString() },
-    location: LOCATION,
-  });
-  const existingKeys = new Set(
-    existing.map((r) => {
-      const ts = r.observed_at && typeof r.observed_at === 'object' ? r.observed_at.value : r.observed_at;
-      return `${r.icao}_${new Date(ts).toISOString()}`;
-    })
-  );
-  return rows.filter((r) => !existingKeys.has(r.insertId));
+async function mergeRows(bigquery, rows) {
+  if (!rows.length) return 0;
+  const values = rows
+    .map(({ json: r }) =>
+      `(${sqlString(r.icao)}, ${sqlString(r.estacao_nome)}, ${sqlString(r.corredor)}, ${sqlTimestamp(r.observed_at)}, ${sqlNumber(r.wind_speed_ms)}, ${sqlNumber(r.wind_gust_ms)}, ${sqlNumber(r.wind_direction_deg)}, ${sqlString(r.message_type)}, ${sqlString(r.categoria)}, ${sqlString(r.raw)}, ${sqlTimestamp(r.fetched_at)}, ${sqlString(r.fonte)})`
+    )
+    .join(',\n      ');
+
+  const query = `
+    MERGE \`${PROJECT_ID}.${DATASET}.${TABLE}\` T
+    USING (
+      SELECT * FROM UNNEST(ARRAY<STRUCT<icao STRING, estacao_nome STRING, corredor STRING, observed_at TIMESTAMP, wind_speed_ms FLOAT64, wind_gust_ms FLOAT64, wind_direction_deg INT64, message_type STRING, categoria STRING, raw STRING, fetched_at TIMESTAMP, fonte STRING>>[
+      ${values}
+      ])
+    ) S
+    ON T.icao = S.icao AND T.observed_at = S.observed_at AND T.fonte = S.fonte
+    WHEN NOT MATCHED THEN
+      INSERT (icao, estacao_nome, corredor, observed_at, wind_speed_ms, wind_gust_ms, wind_direction_deg, message_type, categoria, raw, fetched_at, fonte)
+      VALUES (S.icao, S.estacao_nome, S.corredor, S.observed_at, S.wind_speed_ms, S.wind_gust_ms, S.wind_direction_deg, S.message_type, S.categoria, S.raw, S.fetched_at, S.fonte)
+  `;
+
+  const [job] = await bigquery.createQueryJob({ query, location: LOCATION });
+  await job.getQueryResults();
+  const [metadata] = await job.getMetadata();
+  return Number(metadata.statistics?.query?.dmlStats?.insertedRowCount ?? 0);
 }
 
 function getBigQueryClient() {
@@ -366,16 +402,11 @@ exports.handler = async () => {
 
   try {
     const bigquery = getBigQueryClient();
-    const newRows = await filterAlreadyStored(bigquery, since, candidateRows);
-
-    if (newRows.length) {
-      const table = bigquery.dataset(DATASET, { location: LOCATION }).table(TABLE);
-      await table.insert(newRows, { ignoreUnknownValues: false, skipInvalidRows: false, raw: true });
-    }
+    const saved = await mergeRows(bigquery, candidateRows);
 
     console.log(
       `wind-events-sync: REDEMET ${redemet.checked} registros/${redemet.candidateRows.length} forte, ` +
-        `INMET ${inmet.checked} registros/${inmet.candidateRows.length} forte, ${newRows.length} realmente novos salvos`
+        `INMET ${inmet.checked} registros/${inmet.candidateRows.length} forte, ${saved} realmente novos salvos`
     );
     return {
       statusCode: 200,
@@ -383,7 +414,7 @@ exports.handler = async () => {
         success: true,
         redemet: { checked: redemet.checked, candidates: redemet.candidateRows.length, error: redemetResult.status === 'rejected' ? redemetResult.reason?.message : null },
         inmet: { checked: inmet.checked, candidates: inmet.candidateRows.length, error: inmetResult.status === 'rejected' ? inmetResult.reason?.message : null },
-        saved: newRows.length,
+        saved,
       }),
     };
   } catch (err) {
