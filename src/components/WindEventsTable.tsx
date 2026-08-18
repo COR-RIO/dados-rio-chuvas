@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { WindEventRecord } from '../services/windEventsApi';
 import { windEventTimestamp } from '../services/windEventsApi';
+import { WIND_CATEGORY_ORDER } from '../types/wind';
 
 interface WindEventsTableProps {
   events: WindEventRecord[];
@@ -23,6 +24,11 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 function msToKmh(ms: number | null): number | null {
   return ms == null ? null : ms * 3.6;
+}
+
+/** Posição na escala oficial fraco/moderado/forte/muito-forte, pra ordenar por severidade em vez de alfabeticamente. */
+function categoryRank(categoria: 'forte' | 'muito-forte' | null): number {
+  return categoria == null ? -1 : WIND_CATEGORY_ORDER.indexOf(categoria);
 }
 
 /**
@@ -57,7 +63,7 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
           comp = (a.wind_gust_ms ?? a.wind_speed_ms ?? 0) - (b.wind_gust_ms ?? b.wind_speed_ms ?? 0);
           break;
         case 'categoria':
-          comp = (a.categoria ?? '').localeCompare(b.categoria ?? '');
+          comp = categoryRank(a.categoria) - categoryRank(b.categoria);
           break;
       }
       return sortDirection === 'asc' ? comp : -comp;
@@ -96,26 +102,26 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
         <span className="text-[10px] sm:text-[11px] text-gray-500">{sorted.length} registros</span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
+      <div className="overflow-auto max-h-[60vh]">
+        <table className="w-full table-fixed">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('observed_at')}>
-                Data/hora (UTC)
-              </th>
               <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('icao')}>
                 Estação
               </th>
-              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`}>Corredor</th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Vento méd.</th>
-              <th className={`${headerBase} w-[80px] min-w-[80px] truncate`} onClick={() => handleSort('wind_gust_ms')}>
+              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Vento méd.</th>
+              <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('wind_gust_ms')}>
                 Rajada
               </th>
-              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Direção</th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Tipo</th>
-              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`} onClick={() => handleSort('categoria')}>
+              <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('categoria')}>
                 Categoria
               </th>
+              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Direção</th>
+              <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('observed_at')}>
+                Data/hora (UTC)
+              </th>
+              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`}>Corredor</th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Tipo</th>
               <th className={`${headerBase} min-w-[220px] truncate`}>METAR/SPECI bruto</th>
             </tr>
           </thead>
@@ -130,23 +136,31 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
               const category = ev.categoria ?? 'forte';
               return (
                 <tr key={`${ev.icao}-${ts}-${index}`} className="hover:bg-gray-50">
-                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={ts}>
-                    {dtLabel}
-                  </td>
                   <td className={`${cellBase} w-[90px] min-w-[90px] truncate`} title={ev.estacao_nome ?? undefined}>
                     <span className="font-semibold text-gray-900">{ev.icao}</span>
                     <div className="text-gray-500 truncate">{ev.estacao_nome ?? '-'}</div>
                   </td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`}>{ev.corredor ?? '-'}</td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
+                  <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>
                     {speedKmh != null ? `${speedKmh.toFixed(0)} km/h` : '-'}
                   </td>
-                  <td className={`${cellBase} w-[80px] min-w-[80px] truncate font-semibold`}>
+                  <td className={`${cellBase} w-[65px] min-w-[65px] truncate font-semibold`}>
                     {gustKmh != null ? `${gustKmh.toFixed(0)} km/h` : '-'}
+                  </td>
+                  <td className={`${cellBase} w-[85px] min-w-[85px] truncate`}>
+                    <span
+                      className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium"
+                      style={{ backgroundColor: CATEGORY_COLOR[category] }}
+                    >
+                      {CATEGORY_LABEL[category] ?? category}
+                    </span>
                   </td>
                   <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>
                     {ev.wind_direction_deg != null ? `${ev.wind_direction_deg}°` : 'VRB'}
                   </td>
+                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={ts}>
+                    {dtLabel}
+                  </td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`}>{ev.corredor ?? '-'}</td>
                   <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
                     <span
                       className={`px-1.5 py-0.5 rounded text-white text-[9px] font-medium ${
@@ -154,14 +168,6 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                       }`}
                     >
                       {ev.message_type ?? '-'}
-                    </span>
-                  </td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`}>
-                    <span
-                      className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium"
-                      style={{ backgroundColor: CATEGORY_COLOR[category] }}
-                    >
-                      {CATEGORY_LABEL[category] ?? category}
                     </span>
                   </td>
                   <td className={`${cellBase} min-w-[220px] truncate font-mono`} title={ev.raw ?? undefined}>

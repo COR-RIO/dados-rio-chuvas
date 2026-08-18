@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { WindStation } from '../types/wind';
-import { msToKmh, windCategoryFromSpeedKmh, windDirectionToCardinal, WIND_CATEGORY_LABELS, WIND_CATEGORY_COLORS, WIND_CORRIDOR_LABELS } from '../types/wind';
+import { msToKmh, windCategoryFromSpeedKmh, windDirectionToCardinal, WIND_CATEGORY_LABELS, WIND_CATEGORY_COLORS, WIND_CATEGORY_ORDER, WIND_CORRIDOR_LABELS } from '../types/wind';
 
 interface WindStationsTableProps {
   stations: WindStation[];
@@ -8,7 +8,7 @@ interface WindStationsTableProps {
   embedded?: boolean;
 }
 
-type SortField = 'name' | 'corridor' | 'windGustMs' | 'observedAt';
+type SortField = 'name' | 'corridor' | 'windGustMs' | 'observedAt' | 'category';
 type SortDirection = 'asc' | 'desc';
 
 const SOURCE_LABEL: Record<'inmet' | 'redemet', string> = { inmet: 'INMET', redemet: 'REDEMET' };
@@ -48,6 +48,12 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
         case 'observedAt':
           comp = a.observedAt.localeCompare(b.observedAt);
           break;
+        case 'category': {
+          const catA = windCategoryFromSpeedKmh(msToKmh(a.windGustMs ?? a.windSpeedMs));
+          const catB = windCategoryFromSpeedKmh(msToKmh(b.windGustMs ?? b.windSpeedMs));
+          comp = WIND_CATEGORY_ORDER.indexOf(catA) - WIND_CATEGORY_ORDER.indexOf(catB);
+          break;
+        }
       }
       return sortDirection === 'asc' ? comp : -comp;
     });
@@ -83,26 +89,28 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
         <span className="text-[10px] sm:text-[11px] text-gray-500">{sorted.length} estações</span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50">
+      <div className="overflow-auto max-h-[60vh]">
+        <table className="w-full table-fixed">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className={`${headerBase} w-[130px] min-w-[130px] truncate`} onClick={() => handleSort('name')}>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('name')}>
                 Estação
+              </th>
+              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`}>Vento méd.</th>
+              <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('windGustMs')}>
+                Rajada
+              </th>
+              <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('category')}>
+                Categoria
+              </th>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Direção</th>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observedAt')}>
+                Atualizado
               </th>
               <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corridor')}>
                 Corredor
               </th>
               <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Fonte</th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Direção</th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`}>Vento méd.</th>
-              <th className={`${headerBase} w-[80px] min-w-[80px] truncate`} onClick={() => handleSort('windGustMs')}>
-                Rajada
-              </th>
-              <th className={`${headerBase} w-[90px] min-w-[90px] truncate`}>Categoria</th>
-              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observedAt')}>
-                Atualizado
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -113,20 +121,13 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
               const dtLabel = new Date(s.observedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
               return (
                 <tr key={s.id} className="hover:bg-gray-50">
-                  <td className={`${cellBase} w-[130px] min-w-[130px] truncate`} title={s.name}>
-                    <span className="font-semibold text-gray-900">{s.name}</span>
-                    <div className="text-gray-500">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
+                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={s.name}>
+                    <span className="font-semibold text-gray-900 truncate block">{s.name}</span>
+                    <div className="text-gray-500 truncate">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
-                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={WIND_CORRIDOR_LABELS[s.corridor]}>
-                    {WIND_CORRIDOR_LABELS[s.corridor]}
-                  </td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>{SOURCE_LABEL[s.source]}</td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
-                    {s.windDirectionDeg != null ? `${windDirectionToCardinal(s.windDirectionDeg)} (${s.windDirectionDeg}°)` : 'VRB'}
-                  </td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>{speedKmh.toFixed(0)} km/h</td>
-                  <td className={`${cellBase} w-[80px] min-w-[80px] truncate font-semibold`}>{gustKmh.toFixed(0)} km/h</td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] truncate`}>
+                  <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>{speedKmh.toFixed(0)} km/h</td>
+                  <td className={`${cellBase} w-[65px] min-w-[65px] truncate font-semibold`}>{gustKmh.toFixed(0)} km/h</td>
+                  <td className={`${cellBase} w-[85px] min-w-[85px] truncate`}>
                     <span
                       className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium"
                       style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
@@ -134,9 +135,16 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({ stations, 
                       {WIND_CATEGORY_LABELS[category]}
                     </span>
                   </td>
+                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
+                    {s.windDirectionDeg != null ? `${windDirectionToCardinal(s.windDirectionDeg)} (${s.windDirectionDeg}°)` : 'VRB'}
+                  </td>
                   <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={dtLabel}>
                     {dtLabel}
                   </td>
+                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={WIND_CORRIDOR_LABELS[s.corridor]}>
+                    {WIND_CORRIDOR_LABELS[s.corridor]}
+                  </td>
+                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>{SOURCE_LABEL[s.source]}</td>
                 </tr>
               );
             })}
