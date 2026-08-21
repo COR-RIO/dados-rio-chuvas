@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WindStation } from '../types/wind';
 import {
   msToKmh,
@@ -18,6 +18,7 @@ interface WindStationsTableProps {
   /** Id da estação atualmente em foco no mapa (WindSpotlight) — fica sempre na primeira linha,
    * destacada, pra bater com o que está sendo mostrado no mapa. */
   spotlightStationId?: string | null;
+  onFocusLocation?: (lat: number, lng: number) => void;
 }
 
 type SortField = 'name' | 'corridor' | 'windSpeedMs' | 'windGustMs' | 'observedAt' | 'category' | 'windDirectionDeg' | 'source';
@@ -35,10 +36,38 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
   loading = false,
   embedded = false,
   spotlightStationId = null,
+  onFocusLocation,
 }) => {
   const [sortField, setSortField] = useState<SortField>('windGustMs');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [onlySignificant, setOnlySignificant] = useState(false);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(0);
+
+  useEffect(() => {
+    if (!tableRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(tableRef.current);
+    return () => observer.disconnect();
+  }, [stations, onlySignificant]);
+
+  const handleTopScroll = () => {
+    if (bottomScrollRef.current && topScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -98,6 +127,10 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
     return reordered;
   }, [sorted, onlySignificant, spotlightStationId]);
 
+  const stationCountLabel = onlySignificant
+    ? `${visible.length} de ${sorted.length} estações`
+    : `${sorted.length} estações`;
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-white">
@@ -137,8 +170,8 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
           >
             Só forte/muito forte
           </button>
-          <span className="text-[10px] sm:text-[11px] text-gray-500">
-            {visible.length} {onlySignificant ? `de ${sorted.length} ` : ''}estações
+          <span className="min-w-[88px] text-right text-[10px] sm:text-[11px] font-medium text-gray-600">
+            {stationCountLabel}
           </span>
         </div>
       </div>
@@ -150,8 +183,23 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
           </p>
         </div>
       ) : (
-      <div className="overflow-auto max-h-[60vh]">
-        <table className="w-full" style={{ tableLayout: 'auto' }}>
+      <>
+        <div
+          ref={topScrollRef}
+          onScroll={handleTopScroll}
+          className="overflow-x-auto border-b border-gray-200 bg-gray-50"
+          style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}
+        >
+          <div
+            style={{
+              width: tableWidth > 0 ? `${Math.max(tableWidth + 24, tableWidth)}px` : '100%',
+              minWidth: '100%',
+              height: '12px',
+            }}
+          />
+        </div>
+        <div ref={bottomScrollRef} onScroll={handleBottomScroll} className="overflow-auto max-h-[60vh]">
+        <table ref={tableRef} className="w-full min-w-max" style={{ tableLayout: 'auto' }}>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th className={`${headerBase} w-[140px] min-w-[140px]`} onClick={() => handleSort('name')}>
@@ -187,8 +235,18 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
               const category = windCategoryFromSpeedKmh(gustKmh);
               const dtLabel = new Date(s.observedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
               const isSpotlighted = s.id === spotlightStationId;
+              const canFocus = Boolean(s.location?.[0] != null && s.location?.[1] != null);
               return (
-                <tr key={s.id} className={isSpotlighted ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}>
+                <tr
+                  key={s.id}
+                  className={`${isSpotlighted ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'} ${canFocus ? 'cursor-pointer' : 'cursor-default'}`}
+                  onClick={() => {
+                    if (canFocus && onFocusLocation) {
+                      onFocusLocation(s.location[0], s.location[1]);
+                    }
+                  }}
+                  title={canFocus ? 'Ir para esta estação no mapa' : undefined}
+                >
                   <td className={`${cellBase} w-[140px] min-w-[140px]`} title={s.name}>
                     <div className="flex items-center gap-1">
                       <span className="font-semibold text-gray-900 break-words block">{s.name}</span>
@@ -227,6 +285,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
           </tbody>
         </table>
       </div>
+      </>
       )}
 
       <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-3 border-t border-gray-200 bg-white">

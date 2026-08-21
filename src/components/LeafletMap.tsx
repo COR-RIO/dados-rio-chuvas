@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup, Pane } from 'react-leaflet';
 import L from 'leaflet';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Table2, X, Maximize2, Minimize2 } from 'lucide-react';
@@ -455,6 +455,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onSortChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const { bairrosData, loading, error } = useBairrosData();
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
@@ -532,6 +533,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  const focusMapOnLocation = useCallback((lat: number, lng: number) => {
+    if (!mapRef.current) return;
+    mapRef.current.flyTo([lat, lng], Math.max(mapRef.current.getZoom(), 11), {
+      duration: 1.2,
+    });
   }, []);
 
   const mapDataWindow = mapDataWindowProp ?? mapDataWindowInternal;
@@ -895,11 +903,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   sortField={sortField}
                   sortDirection={sortDirection}
                   onSortChange={onSortChange}
+                  onFocusLocation={focusMapOnLocation}
                 />
 
               )}
               {sidebarView === 'occurrences' && (
-                <OccurrenceTable occurrences={occurrences} embedded />
+                <OccurrenceTable occurrences={occurrences} embedded onFocusLocation={focusMapOnLocation} />
               )}
               {sidebarView === 'wind-events' && (
                 historicalMode ? (
@@ -910,6 +919,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                     loading={windData.loading}
                     spotlightStationId={windSpotlightId}
                     embedded
+                    onFocusLocation={focusMapOnLocation}
                   />
                 )
               )}
@@ -919,6 +929,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       </div>
 
       <MapContainer
+        ref={mapRef}
         center={[-22.9068, -43.1729]}
         zoom={10}
         style={{ height: '100%', width: '100%' }}

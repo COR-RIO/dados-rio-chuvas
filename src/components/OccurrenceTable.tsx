@@ -5,6 +5,7 @@ import { getCriticidadeLabel } from '../utils/criticidade';
 interface OccurrenceTableProps {
   occurrences?: Occurrence[];
   embedded?: boolean;
+  onFocusLocation?: (lat: number, lng: number) => void;
 }
 
 type SortField =
@@ -34,7 +35,7 @@ function getOccurrenceDateTimeFim(occ: Occurrence): string {
   return '';
 }
 
-export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = [], embedded = false }) => {
+export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = [], embedded = false, onFocusLocation }) => {
   const [sortField, setSortField] = useState<SortField>('data_hora_abertura');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -168,13 +169,20 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
         </span>
       </div>
 
-      {/* Barra de rolagem superior */}
+      {/* Barra de rolagem superior, visível acima do cabeçalho para manter a navegação horizontal sempre acessível */}
       <div
         ref={topScrollRef}
         onScroll={handleTopScroll}
-        className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
+        className={`overflow-x-auto border-b border-gray-200 bg-gray-50 ${embedded ? 'min-w-0' : ''}`}
+        style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}
       >
-        <div style={{ width: tableWidth > 0 ? `${tableWidth}px` : '100%', height: '1px' }}></div>
+        <div
+          style={{
+            width: tableWidth > 0 ? `${Math.max(tableWidth + 24, tableWidth)}px` : '100%',
+            minWidth: '100%',
+            height: '12px',
+          }}
+        />
       </div>
 
       <div
@@ -182,8 +190,8 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
         onScroll={handleBottomScroll}
         className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
       >
-        <table ref={tableRef} className="w-full">
-          <thead className="bg-gray-50">
+        <table ref={tableRef} className="w-full min-w-max">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th className={`${headerBase} w-[72px] min-w-[72px] truncate`} onClick={() => handleSort('id_ocorrencia')}>ID</th>
               <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('data_hora_abertura')}>Data/hora</th>
@@ -208,9 +216,19 @@ export const OccurrenceTable: React.FC<OccurrenceTableProps> = ({ occurrences = 
               const dtFimLabel = dtFimIso
                 ? new Date(dtFimIso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
                 : '';
+              const canFocus = Number.isFinite(Number(occ.latitude)) && Number.isFinite(Number(occ.longitude));
 
               return (
-                <tr key={`${occ.id_ocorrencia}-${index}`} className="hover:bg-gray-50">
+                <tr
+                  key={`${occ.id_ocorrencia}-${index}`}
+                  className={`${canFocus ? 'cursor-pointer hover:bg-blue-50/80' : 'cursor-default hover:bg-gray-50'}`}
+                  onClick={() => {
+                    if (canFocus && onFocusLocation) {
+                      onFocusLocation(Number(occ.latitude), Number(occ.longitude));
+                    }
+                  }}
+                  title={canFocus ? 'Ir para esta ocorrência no mapa' : undefined}
+                >
                   <td className={`${cellBase} w-[72px] min-w-[72px] truncate`} title={occ.id_ocorrencia}>
                     <span className="font-semibold text-gray-900">{occ.id_ocorrencia}</span>
                   </td>

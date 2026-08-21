@@ -16,6 +16,7 @@ interface RainDataTableProps {
   sortField?: SortField;
   sortDirection?: SortDirection;
   onSortChange?: (field: SortField, direction: SortDirection) => void;
+  onFocusLocation?: (lat: number, lng: number) => void;
 }
 
 export const RainDataTable: React.FC<RainDataTableProps> = ({
@@ -24,7 +25,8 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({
   showAccumulatedColumn = false,
   sortField = 'h01',
   sortDirection = 'desc',
-  onSortChange
+  onSortChange,
+  onFocusLocation,
 }) => {
 
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -127,13 +129,20 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({
         </button>
       </div>
 
-      {/* Barra de rolagem superior */}
+      {/* Barra de rolagem superior, visível acima do cabeçalho para manter a navegação horizontal sempre acessível */}
       <div
         ref={topScrollRef}
         onScroll={handleTopScroll}
-        className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
+        className={`overflow-x-auto border-b border-gray-200 bg-gray-50 ${embedded ? 'min-w-0' : ''}`}
+        style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}
       >
-        <div style={{ width: tableWidth > 0 ? `${tableWidth}px` : '100%', height: '1px' }}></div>
+        <div
+          style={{
+            width: tableWidth > 0 ? `${Math.max(tableWidth + 24, tableWidth)}px` : '100%',
+            minWidth: '100%',
+            height: '12px',
+          }}
+        />
       </div>
 
       {/* Tabela como antes: colunas Estação | 5m | 15m | 1h | 24h | Acum.; valores alinhados sob cada coluna; scroll horizontal no mobile/tablet */}
@@ -142,8 +151,8 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({
         onScroll={handleBottomScroll}
         className={`overflow-x-auto ${embedded ? 'min-w-0' : ''}`}
       >
-        <table ref={tableRef} className="w-full">
-          <thead className="bg-gray-50">
+        <table ref={tableRef} className="w-full min-w-max">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th
                 className="px-1.5 sm:px-2 py-1.5 sm:py-2 text-left text-[10px] sm:text-[11px] font-medium text-gray-700 cursor-pointer hover:bg-gray-100 min-w-[80px] w-[90px] sm:w-[110px] max-w-[150px]"
@@ -210,8 +219,18 @@ export const RainDataTable: React.FC<RainDataTableProps> = ({
                 ? getAccumulatedRainLevel(station.accumulated?.mm_accumulated ?? 0)
                 : getRainLevel(station.data.h01);
               const isHighRainfall = station.data.m05 > 0 || station.data.m15 > 0 || station.data.h01 > 0;
+              const canFocus = Boolean(station.location?.[0] != null && station.location?.[1] != null);
               return (
-                <tr key={station.id} className={isHighRainfall ? 'bg-blue-50' : 'hover:bg-gray-50'}>
+                <tr
+                  key={station.id}
+                  className={`${isHighRainfall ? 'bg-blue-50' : 'hover:bg-gray-50'} ${canFocus ? 'cursor-pointer hover:bg-blue-50/80' : 'cursor-default'}`}
+                  onClick={() => {
+                    if (canFocus && onFocusLocation) {
+                      onFocusLocation(station.location[0], station.location[1]);
+                    }
+                  }}
+                  title={canFocus ? 'Ir para esta estação no mapa' : undefined}
+                >
                   <td className="px-1.5 sm:px-2 py-1.5 sm:py-2 min-w-[80px] w-[130px] sm:w-[150px] max-w-[170px]">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border border-white shadow-sm flex-shrink-0" style={{ backgroundColor: rainLevel.color }} />

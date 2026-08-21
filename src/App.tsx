@@ -162,6 +162,7 @@ function App() {
 
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [showMapLegend, setShowMapLegend] = useState(true);
+  const [showHeaderPanel, setShowHeaderPanel] = useState(false);
   const isDarkMap = mapType === 'escuro';
   const isSatelliteMap = mapType === 'satelite';
   const isHighContrastMap = isDarkMap || isSatelliteMap;
@@ -535,99 +536,123 @@ function App() {
         />
 
 
-        <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
-          <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
-            <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0 flex-shrink-0">
-                <h1 className={`text-xs sm:text-base lg:text-lg font-bold leading-tight ${headerTitleClass}`}>{titleLabel}</h1>
-                <div className={`mt-0.5 sm:mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs ${headerMetaClass}`}>
-                  {selectedMoment && <span>Momento dos dados: {selectedMoment}</span>}
-                  {lastUpdate && !selectedMoment && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
-                  <span>Estações: {totalStations}</span>
-                  <span>Fonte: {sourceLabel}</span>
-                  {!useMockDemo && (
-                    <span
-                      className={
-                        isHistoricalMode
-                          ? headerFallbackClass
-                          : apiAvailable
-                            ? headerOnlineClass
-                            : dataSource === 'gcp'
-                              ? headerFallbackClass
-                              : headerOfflineClass
-                      }
-                    >
-                      {isHistoricalMode
-                        ? 'Modo histórico (GCP)'
-                        : apiAvailable
-                          ? 'API online'
-                          : dataSource === 'gcp'
-                            ? 'API offline (fallback GCP)'
-                            : 'API offline'}
-                    </span>
-                  )}
-                  {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
-                </div>
-                {realtimeApiDiagnostic && (
-                  <p
-                    className={`mt-1 text-[10px] sm:text-xs ${isHighContrastMap ? 'text-sky-200' : 'text-sky-700'}`}
-                    title={realtimeApiDiagnostic}
-                  >
-                    {realtimeApiDiagnostic}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setUseMockDemo((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonMockClass}`}
-                  title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
-                >
-                  <Beaker className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  {useMockDemo ? 'Tempo real' : 'Exemplo'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataMode((m) => (m === 'historical' ? 'auto' : 'historical'));
-                    setHistoricalTimestamp(null);
-                  }}
-                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonHistoricalClass}`}
-                  title={isHistoricalMode ? 'Voltar para tempo real/fallback automático' : 'Ativar filtro temporal histórico (GCP)'}
-                >
-                  {isHistoricalMode ? 'Tempo real' : 'Histórico'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsInfoModalOpen(true)}
-                  className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
-                  title="Informações"
-                >
-                  <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  Info
-                </button>
-                <button
-                  type="button"
-                  onClick={refresh}
-                  disabled={loading || refreshing}
-                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-yellow-500 px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
-                  Atualizar
-                </button>
-              </div>
-            </div>
+        {!showHeaderPanel && (
+          <div className="absolute top-3 left-3 z-[2000]">
+            <button
+              type="button"
+              onClick={() => setShowHeaderPanel(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/60 bg-white/80 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-md backdrop-blur hover:bg-white"
+              title="Mostrar painel de contexto"
+            >
+              <Info className="w-3.5 h-3.5" />
+              Mostrar painel
+            </button>
           </div>
+        )}
 
-          {error && !useMockDemo && (
-            <div className={`pointer-events-auto mx-auto max-w-6xl mt-2 rounded-xl border backdrop-blur px-3 py-2 text-xs sm:text-sm flex items-center gap-2 ${headerAlertClass}`}>
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{error}</span>
+        {showHeaderPanel && (
+          <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
+            <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
+              <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 flex-shrink-0">
+                  <h1 className={`text-xs sm:text-base lg:text-lg font-bold leading-tight ${headerTitleClass}`}>{titleLabel}</h1>
+                  <div className={`mt-0.5 sm:mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs ${headerMetaClass}`}>
+                    {selectedMoment && <span>Momento dos dados: {selectedMoment}</span>}
+                    {lastUpdate && !selectedMoment && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
+                    <span>Estações: {totalStations}</span>
+                    <span>Fonte: {sourceLabel}</span>
+                    {!useMockDemo && (
+                      <span
+                        className={
+                          isHistoricalMode
+                            ? headerFallbackClass
+                            : apiAvailable
+                              ? headerOnlineClass
+                              : dataSource === 'gcp'
+                                ? headerFallbackClass
+                                : headerOfflineClass
+                        }
+                      >
+                        {isHistoricalMode
+                          ? 'Modo histórico (GCP)'
+                          : apiAvailable
+                            ? 'API online'
+                            : dataSource === 'gcp'
+                              ? 'API offline (fallback GCP)'
+                              : 'API offline'}
+                      </span>
+                    )}
+                    {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
+                  </div>
+                  {realtimeApiDiagnostic && (
+                    <p
+                      className={`mt-1 text-[10px] sm:text-xs ${isHighContrastMap ? 'text-sky-200' : 'text-sky-700'}`}
+                      title={realtimeApiDiagnostic}
+                    >
+                      {realtimeApiDiagnostic}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowHeaderPanel(false)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                    title="Ocultar painel"
+                  >
+                    Ocultar painel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseMockDemo((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonMockClass}`}
+                    title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
+                  >
+                    <Beaker className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    {useMockDemo ? 'Tempo real' : 'Exemplo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDataMode((m) => (m === 'historical' ? 'auto' : 'historical'));
+                      setHistoricalTimestamp(null);
+                    }}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonHistoricalClass}`}
+                    title={isHistoricalMode ? 'Voltar para tempo real/fallback automático' : 'Ativar filtro temporal histórico (GCP)'}
+                  >
+                    {isHistoricalMode ? 'Tempo real' : 'Histórico'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsInfoModalOpen(true)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                    title="Informações"
+                  >
+                    <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    Info
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refresh}
+                    disabled={loading || refreshing}
+                    className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-yellow-500 px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+                    Atualizar
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            {error && !useMockDemo && (
+              <div className={`pointer-events-auto mx-auto max-w-6xl mt-2 rounded-xl border backdrop-blur px-3 py-2 text-xs sm:text-sm flex items-center gap-2 ${headerAlertClass}`}>
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{error}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <section className="bg-white border-t border-gray-200">

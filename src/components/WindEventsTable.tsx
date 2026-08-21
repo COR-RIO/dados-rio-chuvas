@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WindEventRecord } from '../services/windEventsApi';
 import { windEventTimestamp } from '../services/windEventsApi';
 import { WIND_CATEGORY_ORDER, WIND_CORRIDOR_LABELS, type WindCorridor } from '../types/wind';
@@ -52,6 +52,33 @@ function categoryRank(categoria: 'forte' | 'muito-forte' | null): number {
 export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loading = false, embedded = false }) => {
   const [sortField, setSortField] = useState<SortField>('observed_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(0);
+
+  useEffect(() => {
+    if (!tableRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(tableRef.current);
+    return () => observer.disconnect();
+  }, [events]);
+
+  const handleTopScroll = () => {
+    if (bottomScrollRef.current && topScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -131,8 +158,22 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
         <span className="text-[10px] sm:text-[11px] text-gray-500">{sorted.length} registros</span>
       </div>
 
-      <div className="overflow-auto max-h-[60vh]">
-        <table className="w-full table-fixed">
+      <div
+        ref={topScrollRef}
+        onScroll={handleTopScroll}
+        className="overflow-x-auto border-b border-gray-200 bg-gray-50"
+        style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}
+      >
+        <div
+          style={{
+            width: tableWidth > 0 ? `${Math.max(tableWidth + 24, tableWidth)}px` : '100%',
+            minWidth: '100%',
+            height: '12px',
+          }}
+        />
+      </div>
+      <div ref={bottomScrollRef} onScroll={handleBottomScroll} className="overflow-auto max-h-[60vh]">
+        <table ref={tableRef} className="w-full min-w-max table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('icao')}>
