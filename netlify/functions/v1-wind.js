@@ -173,7 +173,18 @@ async function fetchRedemetStations() {
 }
 
 function msToKmh(ms) {
-  return ms * 3.6;
+  return Number((ms * 3.6).toFixed(1));
+}
+
+function toApiWindStation(station) {
+  const windSpeedKmh = station.windSpeedMs != null ? msToKmh(station.windSpeedMs) : null;
+  const windGustKmh = station.windGustMs != null ? msToKmh(station.windGustMs) : null;
+
+  return {
+    ...station,
+    windSpeedKmh,
+    windGustKmh,
+  };
 }
 
 function windLevelFromGustKmh(gustKmh) {
@@ -216,6 +227,9 @@ function buildCorridorSummary(stations) {
   return summary;
 }
 
+exports.toApiWindStation = toApiWindStation;
+exports.msToKmh = msToKmh;
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
@@ -251,7 +265,7 @@ exports.handler = async (event) => {
         fetchedAt: new Date().toISOString(),
         sources: { inmet: Boolean(INMET_TOKEN), redemet: Boolean(process.env.REDEMET_API_KEY) },
         count: stations.length,
-        data: stations,
+        data: stations.map(toApiWindStation),
         corridorSummary: buildCorridorSummary(stations),
       }),
     };

@@ -36,6 +36,7 @@ import {
   OccurrencePlanilhaUpload,
   OccurrenceFilters,
   WindLayerToggle,
+  WindAutoFocusToggle,
   WindCategoryFilter,
   WindLegend,
   RadarSourceControl,
@@ -458,6 +459,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const { zonasData, loading: loadingZonas } = useZonasPluvData();
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showWind, setShowWind] = useState(true);
+  const [autoWindFocus, setAutoWindFocus] = useState(false);
   const [windCategoryFilter, setWindCategoryFilter] = useState<WindCategory[]>([...WIND_CATEGORY_ORDER]);
   const windData = useWindData();
   const historicalWindData = useHistoricalWindData();
@@ -491,6 +493,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     [filteredWindStations]
   );
   const [windSpotlightId, setWindSpotlightId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!autoWindFocus) setWindSpotlightId(null);
+  }, [autoWindFocus]);
   const [radarSource, setRadarSource] = useState<RadarSourceId | 'off'>('mendanha');
   const radarData = useRadarFrames(radarSource === 'off' ? null : radarSource);
   // Radar só tem imagem AO VIVO (sem histórico próprio, ao contrário de chuva/vento agora) —
@@ -673,6 +678,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               {showWind && (
                 <>
                   <WindCategoryFilter value={windCategoryFilter} onChange={setWindCategoryFilter} />
+                  <WindAutoFocusToggle value={autoWindFocus} onChange={setAutoWindFocus} />
                   <WindLegend
                     loading={historicalMode ? historicalWindData.loading : windData.loading}
                     error={historicalMode ? historicalWindData.error : windData.error}
@@ -939,7 +945,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <FocusCityButton boundsData={boundsData} />
         <MapAutoFocus alerts={mapAlerts} />
         <AlertBanner alerts={mapAlerts} onDismiss={handleDismissAlert} />
-        {showWind && (
+        {showWind && autoWindFocus && (
           <WindSpotlight stations={significantWindStations} onFocusChange={setWindSpotlightId} />
         )}
         {zonasData && (

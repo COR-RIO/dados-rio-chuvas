@@ -123,6 +123,43 @@ export const WindLayerToggle: React.FC<WindLayerToggleProps> = ({ value, onChang
   );
 };
 
+interface WindAutoFocusToggleProps {
+  value: boolean;
+  onChange: (enabled: boolean) => void;
+}
+
+/** Foco automático do mapa em rajadas fortes: desligado por padrão e só liga se o usuário ativar. */
+export const WindAutoFocusToggle: React.FC<WindAutoFocusToggleProps> = ({ value, onChange }) => {
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700" title="Foca a câmera no vento forte ou muito forte somente quando esta opção estiver ligada.">
+        <Wind className="w-3.5 h-3.5" />
+        Foco automático de vento
+      </div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Ativar
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-2.5 py-1.5 rounded text-left text-xs font-medium transition-colors ${
+            !value ? 'bg-yellow-500 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Estático
+        </button>
+      </div>
+    </div>
+  );
+};
+
 interface WindCategoryFilterProps {
   value: WindCategory[];
   onChange: (categories: WindCategory[]) => void;
