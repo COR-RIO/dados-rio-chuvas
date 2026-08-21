@@ -117,8 +117,8 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
   }
 
   const headerBase =
-    'px-1.5 sm:px-2 py-1.5 sm:py-2 text-left text-[10px] sm:text-[11px] font-medium text-gray-700 cursor-pointer hover:bg-gray-100';
-  const cellBase = 'px-1.5 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-[11px] text-gray-800 align-top';
+    'px-1.5 sm:px-2 py-1.5 sm:py-2 text-left text-[10px] sm:text-[11px] font-medium text-gray-700 cursor-pointer hover:bg-gray-100 whitespace-normal';
+  const cellBase = 'px-1.5 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-[11px] text-gray-800 align-top whitespace-normal break-words';
 
   return (
     <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
@@ -151,31 +151,31 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
         </div>
       ) : (
       <div className="overflow-auto max-h-[60vh]">
-        <table className="w-full table-fixed">
+        <table className="w-full" style={{ tableLayout: 'auto' }}>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('name')}>
+              <th className={`${headerBase} w-[140px] min-w-[140px]`} onClick={() => handleSort('name')}>
                 Estação
               </th>
-              <th className={`${headerBase} w-[60px] min-w-[60px] truncate`} onClick={() => handleSort('windSpeedMs')}>
+              <th className={`${headerBase} w-[90px] min-w-[90px]`} onClick={() => handleSort('windSpeedMs')}>
                 Vento méd.
               </th>
-              <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('windGustMs')}>
+              <th className={`${headerBase} w-[90px] min-w-[90px]`} onClick={() => handleSort('windGustMs')}>
                 Rajada
               </th>
-              <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('category')}>
+              <th className={`${headerBase} w-[110px] min-w-[110px]`} onClick={() => handleSort('category')}>
                 Categoria
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('windDirectionDeg')}>
+              <th className={`${headerBase} w-[95px] min-w-[95px]`} onClick={() => handleSort('windDirectionDeg')}>
                 Direção
               </th>
-              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observedAt')}>
+              <th className={`${headerBase} w-[150px] min-w-[150px]`} onClick={() => handleSort('observedAt')}>
                 Atualizado
               </th>
-              <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corridor')}>
+              <th className={`${headerBase} w-[180px] min-w-[180px]`} onClick={() => handleSort('corridor')}>
                 Corredor
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('source')}>
+              <th className={`${headerBase} w-[80px] min-w-[80px]`} onClick={() => handleSort('source')}>
                 Fonte
               </th>
             </tr>
@@ -189,9 +189,9 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
               const isSpotlighted = s.id === spotlightStationId;
               return (
                 <tr key={s.id} className={isSpotlighted ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}>
-                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={s.name}>
+                  <td className={`${cellBase} w-[140px] min-w-[140px]`} title={s.name}>
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-gray-900 truncate block">{s.name}</span>
+                      <span className="font-semibold text-gray-900 break-words block">{s.name}</span>
                       {isSpotlighted && (
                         <span
                           className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500"
@@ -199,28 +199,28 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                         />
                       )}
                     </div>
-                    <div className="text-gray-500 truncate">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
+                    <div className="text-gray-500 break-words">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
-                  <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>{speedKmh.toFixed(0)} km/h</td>
-                  <td className={`${cellBase} w-[65px] min-w-[65px] truncate font-semibold`}>{gustKmh.toFixed(0)} km/h</td>
-                  <td className={`${cellBase} w-[85px] min-w-[85px] truncate`}>
+                  <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedKmh.toFixed(0)} km/h</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh.toFixed(0)} km/h</td>
+                  <td className={`${cellBase} w-[110px] min-w-[110px]`}>
                     <span
-                      className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium"
+                      className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium inline-block"
                       style={{ backgroundColor: WIND_CATEGORY_COLORS[category] }}
                     >
                       {WIND_CATEGORY_LABELS[category]}
                     </span>
                   </td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>
+                  <td className={`${cellBase} w-[95px] min-w-[95px]`}>
                     {s.windDirectionDeg != null ? `${windDirectionToCardinal(s.windDirectionDeg)} (${s.windDirectionDeg}°)` : 'VRB'}
                   </td>
-                  <td className={`${cellBase} w-[100px] min-w-[100px] truncate`} title={dtLabel}>
+                  <td className={`${cellBase} w-[150px] min-w-[150px]`} title={dtLabel}>
                     {dtLabel}
                   </td>
-                  <td className={`${cellBase} w-[110px] min-w-[110px] truncate`} title={WIND_CORRIDOR_LABELS[s.corridor]}>
+                  <td className={`${cellBase} w-[180px] min-w-[180px]`} title={WIND_CORRIDOR_LABELS[s.corridor]}>
                     {WIND_CORRIDOR_LABELS[s.corridor]}
                   </td>
-                  <td className={`${cellBase} w-[70px] min-w-[70px] truncate`}>{SOURCE_LABEL[s.source]}</td>
+                  <td className={`${cellBase} w-[80px] min-w-[80px]`}>{SOURCE_LABEL[s.source]}</td>
                 </tr>
               );
             })}
