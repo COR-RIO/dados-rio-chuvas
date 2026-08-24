@@ -809,8 +809,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           flex flex-col min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
           fixed right-0 top-0 bottom-0
           ${isTableExpanded
-            ? 'w-[95vw] md:w-[600px] lg:w-[650px] max-w-[700px] md:right-3 md:top-28 md:bottom-3 z-[2200] md:z-[2200] bg-white'
-            : 'w-[92vw] max-w-[420px] md:w-[min(500px,calc(100vw-24px))] md:absolute md:top-40 md:right-3 md:bottom-3 z-[2100] md:z-[1400]'
+            ? 'w-[95vw] md:w-[600px] lg:w-[650px] max-w-[700px] md:right-3 md:top-3 md:bottom-3 z-[2200] md:z-[2200] bg-white'
+            : 'w-[92vw] max-w-[420px] md:w-[min(500px,calc(100vw-24px))] md:absolute md:top-3 md:right-3 md:bottom-3 z-[2100] md:z-[1400]'
           }
           ${isMobileView ? (showSidebar ? 'translate-x-0' : 'translate-x-full') : showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}
         `}
@@ -883,15 +883,26 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               </div>
 
               {!isMobileView && (
-                <button
-                  type="button"
-                  onClick={() => setIsTableExpanded(!isTableExpanded)}
-                  className="hidden md:flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                  aria-label={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
-                  title={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
-                >
-                  {isTableExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </button>
+                <div className="hidden md:flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsTableExpanded(!isTableExpanded)}
+                    className="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                    aria-label={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
+                    title={isTableExpanded ? 'Restaurar tamanho' : 'Expandir tabela'}
+                  >
+                    {isTableExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSidebar(false)}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+                    aria-label="Ocultar tabela"
+                    title="Ocultar tabela"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               )}
             </div>
             <div className={`p-3 transition-all duration-300 ${isTableExpanded ? 'md:p-6' : ''}`}>

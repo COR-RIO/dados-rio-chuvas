@@ -130,6 +130,13 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
   const stationCountLabel = onlySignificant
     ? `${visible.length} de ${sorted.length} estações`
     : `${sorted.length} estações`;
+  const latestObservedAt = stations.reduce<string | null>((latest, station) => {
+    if (!latest || station.observedAt > latest) return station.observedAt;
+    return latest;
+  }, null);
+  const latestTimeLabel = latestObservedAt
+    ? new Date(latestObservedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   if (loading) {
     return (
@@ -156,7 +163,9 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
   return (
     <div className={`${embedded ? 'bg-white rounded-xl shadow-lg' : 'bg-white rounded-xl sm:rounded-2xl shadow-lg'} overflow-hidden`}>
       <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">Cinturão de vento — agora</h3>
+        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-800">
+          Cinturão de vento — agora{latestTimeLabel ? ` (${latestTimeLabel})` : ''}
+        </h3>
         <div className="flex items-center gap-2">
           <button
             type="button"
