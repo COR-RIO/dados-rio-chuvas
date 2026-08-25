@@ -239,9 +239,9 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {visible.map((s) => {
-              const gustKmh = msToKmh(s.windGustMs ?? s.windSpeedMs);
               const speedKmh = msToKmh(s.windSpeedMs);
-              const category = windCategoryFromSpeedKmh(gustKmh);
+              const gustKmh = s.windGustMs != null ? msToKmh(s.windGustMs) : null;
+              const category = windCategoryFromSpeedKmh(gustKmh ?? speedKmh);
               const dtLabel = new Date(s.observedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
               const isSpotlighted = s.id === spotlightStationId;
               const canFocus = Boolean(s.location?.[0] != null && s.location?.[1] != null);
@@ -269,7 +269,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                     <div className="text-gray-500 break-words">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
                   <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedKmh.toFixed(1)} km/h</td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh.toFixed(1)} km/h</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh != null ? `${gustKmh.toFixed(1)} km/h` : '-'}</td>
                   <td className={`${cellBase} w-[110px] min-w-[110px]`}>
                     <span
                       className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium inline-block"

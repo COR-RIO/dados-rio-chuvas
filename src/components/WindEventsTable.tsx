@@ -213,8 +213,8 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
               const dtLabel = ts
                 ? new Date(ts).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
                 : '-';
-              const gustKmh = msToKmh(ev.wind_gust_ms ?? ev.wind_speed_ms);
               const speedKmh = msToKmh(ev.wind_speed_ms);
+              const gustKmh = ev.wind_gust_ms != null ? msToKmh(ev.wind_gust_ms) : null;
               const category = ev.categoria ?? 'forte';
               return (
                 <tr key={`${ev.icao}-${ts}-${index}`} className="hover:bg-gray-50">
