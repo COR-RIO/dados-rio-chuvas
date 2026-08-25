@@ -69,11 +69,11 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridor
                   <span style={{ fontSize: '14px', color: '#666' }}>{level.label}</span>
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Vento médio:</strong> {speedKmh.toFixed(0)} km/h
+                  <strong>Vento médio:</strong> {speedKmh.toFixed(1)} km/h
                 </p>
                 {station.windGustMs != null && (
                   <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                    <strong>Rajada:</strong> {gustKmh.toFixed(0)} km/h
+                    <strong>Rajada:</strong> {gustKmh.toFixed(1)} km/h
                   </p>
                 )}
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>

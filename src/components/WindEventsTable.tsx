@@ -223,10 +223,10 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                     <div className="text-gray-500 truncate">{ev.estacao_nome ?? '-'}</div>
                   </td>
                   <td className={`${cellBase} w-[60px] min-w-[60px] truncate`}>
-                    {speedKmh != null ? `${speedKmh.toFixed(0)} km/h` : '-'}
+                    {speedKmh != null ? `${speedKmh.toFixed(1)} km/h` : '-'}
                   </td>
                   <td className={`${cellBase} w-[65px] min-w-[65px] truncate font-semibold`}>
-                    {gustKmh != null ? `${gustKmh.toFixed(0)} km/h` : '-'}
+                    {gustKmh != null ? `${gustKmh.toFixed(1)} km/h` : '-'}
                   </td>
                   <td className={`${cellBase} w-[85px] min-w-[85px] truncate`}>
                     <span

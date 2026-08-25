@@ -268,8 +268,8 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                     </div>
                     <div className="text-gray-500 break-words">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedKmh.toFixed(0)} km/h</td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh.toFixed(0)} km/h</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedKmh.toFixed(1)} km/h</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh.toFixed(1)} km/h</td>
                   <td className={`${cellBase} w-[110px] min-w-[110px]`}>
                     <span
                       className="px-1.5 py-0.5 rounded text-white text-[9px] font-medium inline-block"

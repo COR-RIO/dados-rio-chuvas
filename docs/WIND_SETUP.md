@@ -1,8 +1,7 @@
 # Cinturão de vento (INMET + REDEMET)
 
 Camada opcional no mapa ("Cinturão de vento") que mostra vento/rajada em estações regionais
-(INMET) e aeroportos (REDEMET) fora do Rio, para dar antecedência antes que um sistema de vento
-forte chegue à Região Metropolitana.
+(INMET) e aeroportos (REDEMET) fora do Rio, para dar antecedência antes que um sistema de vento forte chegue à Região Metropolitana.
 
 ## INMET (estações automáticas)
 
