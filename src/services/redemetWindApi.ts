@@ -1,5 +1,6 @@
 import type { WindStation } from '../types/wind';
 import { WIND_BELT_AIRPORTS } from '../config/windBelt';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 const REDEMET_WIND_URL = '/api/redemet-wind';
 
@@ -52,7 +53,7 @@ async function fetchRedemetWindRecords(extraQuery: string): Promise<WindStation[
 
   let json: RedemetWindResponse;
   try {
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
     json = await response.json();
   } catch (err) {
     console.warn('Erro ao buscar vento REDEMET:', err);

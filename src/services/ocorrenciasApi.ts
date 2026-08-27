@@ -154,7 +154,7 @@ export async function fetchAllOcorrenciasByDate(
 }
 
 /** Converte item da API (StatusDasOcorrencias) para o tipo Occurrence do app. Preserva todos os campos em rawApi. */
-function mapApiItemToOccurrence(item: OcorrenciaStatus): Occurrence {
+export function mapApiItemToOccurrence(item: OcorrenciaStatus): Occurrence {
   const isoAbertura = item.Data_Abertura ?? item.dataAbertura ?? '';
   const isoFechamento = item.Data_Fechamento ?? item.dataEncerramento ?? '';
   const [dateAbertura, timeAbertura] = isoAbertura.includes('T')
@@ -276,4 +276,17 @@ export async function fetchOccurrencesForMap(
     }
   }
   return list;
+}
+
+/**
+ * Busca todas as ocorrências do período (API Hexagon, histórico) no formato Occurrence do app,
+ * SEM geocoding (mais rápido, suficiente para agregações da aba de Análise). Usa o mapper padrão.
+ */
+export async function fetchOccurrencesForAnalysis(
+  dataInicio: string,
+  dataFim: string,
+  pageSize: number = 100
+): Promise<Occurrence[]> {
+  const raw = await fetchAllOcorrenciasByDate(dataInicio, dataFim, pageSize);
+  return raw.map(mapApiItemToOccurrence);
 }

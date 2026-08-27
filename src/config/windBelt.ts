@@ -41,6 +41,12 @@ export const WIND_BELT_CITIES: WindBeltCity[] = [
   { nameMatch: ['marambaia'], uf: 'RJ', corridor: 'interno', label: 'Marambaia' },
   { nameMatch: ['vila militar'], uf: 'RJ', corridor: 'interno', label: 'Vila Militar' },
   { nameMatch: ['forte de copacabana', 'copacabana'], uf: 'RJ', corridor: 'interno', label: 'Forte de Copacabana' },
+  // Reforços do RJ que existem como estação automática no INMET (confirmados contra /estacoes/T):
+  // Teresópolis (serra, reforço do norte-noroeste), Niterói (outro lado da baía, confirmação) e
+  // Arraial do Cabo (litoral leste, costeiro).
+  { nameMatch: ['teresopolis'], uf: 'RJ', corridor: 'norte-noroeste', label: 'Teresópolis' },
+  { nameMatch: ['niteroi'], uf: 'RJ', corridor: 'interno', label: 'Niterói' },
+  { nameMatch: ['arraial do cabo'], uf: 'RJ', corridor: 'costeiro', label: 'Arraial do Cabo' },
 ];
 
 export interface WindBeltAirport {

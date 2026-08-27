@@ -43,6 +43,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/redemet-wind/, '/.netlify/functions/redemet-wind'),
       },
+      // SEMPRE Rio (dados meteorológicos em tempo real) em dev: proxy direto para o host (a API
+      // é pública, só não tem CORS — o Vite adiciona). Em prod, netlify.toml roteia para a
+      // function websempre-weather.
+      '/api/websempre-weather': {
+        target: 'https://websempre.rio.rj.gov.br',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/websempre-weather/, '/json/dados_meteorologicos'),
+      },
       // Histórico de vento forte/muito-forte (BigQuery) em dev: proxy para a function no Netlify.
       '/api/wind-events-history': {
         target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',

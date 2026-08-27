@@ -3,6 +3,7 @@ import type { CorridorSummary, WindCorridor, WindStation } from '../types/wind';
 import { msToKmh, windCategoryFromSpeedKmh, windLevelFromGustKmh } from '../types/wind';
 import { fetchInmetWindObservations } from '../services/inmetWindApi';
 import { fetchRedemetWind } from '../services/redemetWindApi';
+import { fetchWebsempreWind } from '../services/websempreWindApi';
 
 export const CORRIDORS: WindCorridor[] = ['oeste-sudoeste', 'norte-noroeste', 'costeiro', 'interno'];
 // 5 min — igual à chuva (App.tsx: useRainData refreshInterval=300000). O cache da function
@@ -103,11 +104,12 @@ export function useWindData(refreshInterval: number = DEFAULT_REFRESH_INTERVAL_M
     inFlightRef.current = true;
     try {
       setError(null);
-      const [inmetStations, redemetStations] = await Promise.all([
+      const [inmetStations, redemetStations, sempreStations] = await Promise.all([
         fetchInmetWindObservations(),
         fetchRedemetWind(),
+        fetchWebsempreWind(),
       ]);
-      const combined = [...inmetStations, ...redemetStations];
+      const combined = [...inmetStations, ...redemetStations, ...sempreStations];
 
       if (!combined.length) {
         setError('Nenhuma estação de vento disponível no momento');

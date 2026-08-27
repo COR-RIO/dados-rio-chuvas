@@ -23,9 +23,13 @@ credenciais viviam em variáveis `VITE_*`, que o Vite embute no bundle do navega
 qualquer visitante podia extraí-las pelo DevTools. Corrigido.)
 
 - **Credenciais**: configurar no Netlify (nunca em `VITE_*` — copiar de `.env.example`):
-  - `OCORRENCIAS_API_BASE_URL`
+  - `OCORRENCIAS_API_BASE_URL` (raiz do servidor, ex.: `http://IP:PORTA`)
   - `OCORRENCIAS_API_USERNAME`
   - `OCORRENCIAS_API_PASSWORD`
+  - `OCORRENCIAS_API_ENDPOINT_SUFFIX` (opcional): força o caminho do endpoint após o baseUrl.
+    Padrão: v2 `Hxgn.OcorrenciaAPI/api/Ocorrencia/StatusDaOcorrência`; fallback automático para o
+    legado `Ocorrencias/StatusDasOcorrencias` se der 404/405.
+  - `OCORRENCIAS_API_LOGIN_PATH` (opcional, padrão `/login`): caminho do login/token.
 - **Endpoint que o cliente chama**: `/api/ocorrencias-hexagon?inicio=DD-MM-YYYY&fim=DD-MM-YYYY&page=N&pageSize=N` (mesma origem — sem CORS, sem credenciais expostas).
 
 ## Fluxo de Uso (passo a passo, dentro da Netlify Function)
@@ -35,11 +39,11 @@ As duas chamadas abaixo (`login` e `StatusDasOcorrencias`) acontecem **dentro de
 quem for mexer na function ou testar a API Hexagon diretamente (ex.: via Swagger/Postman, com as
 credenciais reais que só existem no servidor de deploy).
 
-### 1. Obter o token (POST {OCORRENCIAS_API_BASE_URL}/login)
+### 1. Obter o token (POST {OCORRENCIAS_API_BASE_URL}{OCORRENCIAS_API_LOGIN_PATH})
 
 **Request**
 - **Método**: `POST`
-- **URL**: `{OCORRENCIAS_API_BASE_URL}/login`
+- **URL**: `{OCORRENCIAS_API_BASE_URL}/login` (caminho configurável via `OCORRENCIAS_API_LOGIN_PATH`)
 - **Headers**: `Content-Type: application/json`
 - **Request body**:
 ```json
@@ -59,11 +63,15 @@ credenciais reais que só existem no servidor de deploy).
 
 O `accessToken` deve ser usado no próximo passo. O `expirationTime` indica até quando o token é válido.
 
-### 2. Buscar ocorrências (GET StatusDasOcorrencias)
+### 2. Buscar ocorrências (GET StatusDaOcorrência — v2 / CoRIO)
 
 **Request**
 - **Método**: `GET`
-- **URL**: `{OCORRENCIAS_API_BASE_URL}/Ocorrencias/StatusDasOcorrencias/{dataInicio}/{dataFim}`
+- **URL (v2 — ET - OcorrênciasAPI_V2)**:
+  `{OCORRENCIAS_API_BASE_URL}/Hxgn.OcorrenciaAPI/api/Ocorrencia/StatusDaOcorrência/{dataInicio}/{dataFim}`
+- **URL (legado)**: `{OCORRENCIAS_API_BASE_URL}/Ocorrencias/StatusDasOcorrencias/{dataInicio}/{dataFim}`
+- A function tenta **v2 → legado** automaticamente (404/405 = tenta o próximo); é possível forçar
+  outro caminho com `OCORRENCIAS_API_ENDPOINT_SUFFIX`.
 - **Headers**: `Authorization: Bearer {accessToken}` (token obtido no passo 1)
 - **Parâmetros de path** (obrigatórios):
   - `dataInicio`: data inicial no formato **DD-MM-YYYY** (ex: `09-02-2026`)

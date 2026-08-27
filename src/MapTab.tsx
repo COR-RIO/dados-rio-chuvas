@@ -1,0 +1,754 @@
+import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useRainData, type RainDataMode } from './hooks/useRainData';
+import { LeafletMap } from './components/LeafletMap';
+import { RainStationCard } from './components/RainStationCard';
+import { InfoModal } from './components/InfoModal';
+import { InfluenceLegend } from './components/InfluenceLegend';
+import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
+import type { SortField, SortDirection } from './components/RainDataTable';
+import { findClosestTimestamp } from './utils/historicalTimestamp';
+import type { Occurrence } from './types/occurrence';
+import { loadStaticOccurrences } from './data/loadOccurrences';
+import { parseOccurrencesFromArrayBuffer } from './utils/importOccurrencesXlsx';
+import { enrichOccurrencesMissingCoords } from './utils/enrichOccurrencesGeocode';
+import {
+  filterOccurrencesByRange,
+  filterOccurrencesByText,
+} from './utils/occurrenceFilter';
+import { fetchOccurrencesForMap } from './services/ocorrenciasApi';
+import { fetchOcorrenciasAbertas } from './services/ocorrenciasAbertasApi';
+
+function MapTab() {
+  const [useMockDemo, setUseMockDemo] = useState(false);
+  const [dataMode, setDataMode] = useState<RainDataMode>('auto');
+  const today = new Date().toISOString().slice(0, 10);
+  const [historicalDate, setHistoricalDate] = useState(today);
+  const [historicalDateTo, setHistoricalDateTo] = useState(today);
+  const [historicalTimeFrom, setHistoricalTimeFrom] = useState('00:00');
+  const [historicalTimeTo, setHistoricalTimeTo] = useState('23:59');
+  const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
+  const [desiredAnalysisTime, setDesiredAnalysisTime] = useState<string>('00:00');
+  const [historicalViewMode, setHistoricalViewMode] = useState<HistoricalViewMode>('instant');
+  const pendingApplyTimeRef = useRef<string | null>(null);
+  const [appliedOccDateFrom, setAppliedOccDateFrom] = useState<string | null>(null);
+  const [appliedOccTimeFrom, setAppliedOccTimeFrom] = useState<string | null>(null);
+  const [appliedOccDateTo, setAppliedOccDateTo] = useState<string | null>(null);
+  const [appliedOccTimeTo, setAppliedOccTimeTo] = useState<string | null>(null);
+  const [mapType, setMapType] = useState<MapTypeId>('rua');
+  // --- Playback state ---
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingIndex, setPlayingIndex] = useState(0);
+  const [playbackMode, setPlaybackMode] = useState<'rain' | 'occurrences' | 'both'>('both');
+  const [playbackSpeed, setPlaybackSpeed] = useState(1000); // ms per step
+
+  const [sortField, setSortField] = useState<SortField>('h01');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const {
+    stations: rawStations,
+    loading,
+    refreshing,
+    error,
+    lastUpdate,
+    apiAvailable,
+    dataSource,
+    historicalTimeline,
+    activeHistoricalTimestamp,
+    totalStations,
+    lastFetchDurationMs,
+    lastRequestAt,
+    apiDataUnchangedSince,
+    refresh,
+  } = useRainData({
+    useMock: useMockDemo,
+    mode: dataMode,
+    historicalDate,
+    historicalDateFrom: historicalDate,
+    historicalDateTo,
+    historicalTimeFrom,
+    historicalTimeTo,
+    historicalTimestamp,
+    refreshInterval: 300000,
+  });
+  const isHistoricalMode = dataMode === 'historical' && !useMockDemo;
+
+  // We simply use the stations provided by useRainData. 
+  // The API now handles progressive accumulation correctly.
+  const stations = rawStations;
+
+  const sortedStations = useMemo(() => {
+    return [...stations].sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'm05':
+          aValue = a.data.m05;
+          bValue = b.data.m05;
+          break;
+        case 'm15':
+          aValue = a.data.m15;
+          bValue = b.data.m15;
+          break;
+        case 'h01':
+          aValue = a.data.h01;
+          bValue = b.data.h01;
+          break;
+        case 'h24':
+          aValue = a.data.h24;
+          bValue = b.data.h24;
+          break;
+        case 'accumulated':
+          aValue = a.accumulated?.mm_accumulated ?? -1;
+          bValue = b.accumulated?.mm_accumulated ?? -1;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      }
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      return 0;
+    });
+  }, [stations, sortField, sortDirection]);
+
+
+
+
+
+  // When the timeline loads or changes, reset playingIndex to the first frame >= user's filter start time
+  useEffect(() => {
+    if (historicalTimeline.length === 0) return;
+    setIsPlaying(false);
+    // Parse start datetime from the user's filter
+    const [hFrom, mFrom] = (historicalTimeFrom || '00:00').split(':').map(Number);
+    const [yFrom, moFrom, dFrom] = historicalDate.split('-').map(Number);
+    const startMs = new Date(yFrom, moFrom - 1, dFrom, hFrom ?? 0, mFrom ?? 0, 0).getTime();
+    // Find the first timeline index >= start
+    const idx = historicalTimeline.findIndex((ts) => new Date(ts).getTime() >= startMs);
+    setPlayingIndex(idx >= 0 ? idx : 0);
+  }, [historicalTimeline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Advance playingIndex while playing
+  useEffect(() => {
+    if (!isPlaying || historicalTimeline.length === 0) return;
+    const iv = setInterval(() => {
+      setPlayingIndex((prev) => {
+        if (prev >= historicalTimeline.length - 1) {
+          setIsPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, playbackSpeed);
+    return () => clearInterval(iv);
+  }, [isPlaying, playbackSpeed, historicalTimeline.length]);
+
+  // Sincronizar timestamp com a posição da linha do tempo: ao mudar o quadro (slider ou reprodução),
+  // atualizar historicalTimestamp para que o mapa e a tabela (incl. Acum. no período) acompanhem o frame atual.
+  useEffect(() => {
+    if (!isHistoricalMode || historicalTimeline.length === 0) return;
+    const ts = historicalTimeline[playingIndex];
+    if (ts) setHistoricalTimestamp(ts);
+  }, [isHistoricalMode, historicalTimeline, playingIndex]);
+
+
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [showMapLegend, setShowMapLegend] = useState(true);
+  const [showHeaderPanel, setShowHeaderPanel] = useState(false);
+  const isDarkMap = mapType === 'escuro';
+  const isSatelliteMap = mapType === 'satelite';
+  const isHighContrastMap = isDarkMap || isSatelliteMap;
+
+  const headerPanelClass = isDarkMap
+    ? 'bg-slate-900/88 border-slate-500'
+    : isSatelliteMap
+      ? 'bg-black/62 border-white/35'
+      : 'bg-white/92 border-gray-200';
+  const headerTitleClass = isHighContrastMap ? 'text-white' : 'text-gray-900';
+  const headerMetaClass = isHighContrastMap ? 'text-gray-200' : 'text-gray-600';
+  const headerButtonNeutralClass = isHighContrastMap
+    ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30'
+    : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+  const headerButtonMockClass = useMockDemo
+    ? 'bg-amber-500 text-white hover:bg-amber-600'
+    : (isHighContrastMap ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+  const headerButtonHistoricalClass = isHistoricalMode
+    ? 'bg-blue-600 text-white hover:bg-blue-700'
+    : (isHighContrastMap ? 'bg-white/15 text-white hover:bg-white/25 border border-white/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+  const headerOnlineClass = isHighContrastMap ? 'text-emerald-300' : 'text-green-700';
+  const headerOfflineClass = isHighContrastMap ? 'text-red-300' : 'text-red-700';
+  const headerFallbackClass = isHighContrastMap ? 'text-amber-300' : 'text-amber-700';
+  const headerAlertClass = isHighContrastMap
+    ? 'border-amber-400/70 bg-amber-900/78 text-amber-100'
+    : 'border-amber-200 bg-amber-50/95 text-amber-800';
+  const sourceLabel = useMockDemo
+    ? 'Demonstração'
+    : isHistoricalMode
+      ? 'COR (histórico filtrado no GCP)'
+      : dataSource === 'gcp'
+        ? 'COR (histórico no GCP)'
+        : 'Alerta Rio (API em tempo real)';
+  const titleLabel = isHistoricalMode ? 'Como estava a chuva no horário selecionado?' : 'Onde está chovendo agora?';
+
+  const selectedMoment =
+    isHistoricalMode && (historicalTimestamp || activeHistoricalTimestamp)
+      ? (() => {
+        const ts = historicalTimestamp || activeHistoricalTimestamp;
+        if (!ts) return null;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      })()
+      : null;
+
+  const realtimeApiDiagnostic = !useMockDemo && !isHistoricalMode
+    ? (() => {
+        if (refreshing) return 'Atualizando dados da API...';
+        if (apiDataUnchangedSince && lastUpdate) {
+          return `API sem nova atualização desde ${lastUpdate.toLocaleTimeString('pt-BR')} (checagem a cada 5 min).`;
+        }
+        if (lastFetchDurationMs >= 15000) {
+          return `Resposta lenta na última atualização (~${Math.round(lastFetchDurationMs / 1000)}s).`;
+        }
+        if (lastRequestAt && lastFetchDurationMs > 0) {
+          return `Última checagem: ${lastRequestAt.toLocaleTimeString('pt-BR')} (${Math.round(lastFetchDurationMs / 1000)}s).`;
+        }
+        return null;
+      })()
+    : null;
+
+  // Ao receber nova timeline após Aplicar no Instantâneo: definir timestamp pelo horário desejado e atualizar mapa/tabela com dados do GCP
+  useEffect(() => {
+    if (historicalViewMode !== 'instant' || historicalTimeline.length === 0 || pendingApplyTimeRef.current === null) return;
+    const time = pendingApplyTimeRef.current;
+    pendingApplyTimeRef.current = null;
+    const closest = findClosestTimestamp(historicalTimeline, historicalDate, time);
+    if (closest) {
+      setHistoricalTimestamp(closest);
+      const d = new Date(closest);
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      setDesiredAnalysisTime(`${h}:${m}`);
+    }
+  }, [historicalViewMode, historicalTimeline, historicalDate]);
+
+  const handleApplyHistorical = () => {
+    setHistoricalTimestamp(null);
+    if (historicalViewMode === 'instant') {
+      pendingApplyTimeRef.current = desiredAnalysisTime || '00:00';
+    }
+    setAppliedOccDateFrom(historicalDate);
+    setAppliedOccTimeFrom(historicalTimeFrom);
+    setAppliedOccDateTo(historicalDateTo);
+    setAppliedOccTimeTo(historicalTimeTo);
+    setAppliedOccTextFilter(pendingOccTextFilter);
+    setAppliedOccCategoryFilter(pendingOccCategoryFilter);
+    setAppliedShowOccurrences(pendingShowOccurrences);
+    if (pendingShowOccurrences && !isHistoricalMode) {
+      setAbertasOccurrencesError(null);
+      setAbertasOccurrencesLoading(true);
+      fetchOcorrenciasAbertas()
+        .then(setAbertasOccurrences)
+        .catch((err) => {
+          setAbertasOccurrencesError(err?.message ?? 'Erro ao atualizar ocorrências abertas.');
+          setAbertasOccurrences([]);
+        })
+        .finally(() => setAbertasOccurrencesLoading(false));
+    }
+    if (pendingShowOccurrences && isHistoricalMode && occurrenceDataSource === 'api') {
+      setApiOccurrencesError(null);
+      setApiOccurrencesLoading(true);
+      const dateFrom = isHistoricalMode ? historicalDate : today;
+      const dateTo = isHistoricalMode ? historicalDateTo : today;
+      fetchOccurrencesForMap(dateFrom, dateTo)
+        .then((occs) => {
+          setApiOccurrences(occs);
+          setApiOccurrencesLoading(false);
+        })
+        .catch((err) => {
+          setApiOccurrencesError(err?.message ?? 'Erro ao carregar ocorrências da API');
+          setApiOccurrences(null);
+          setApiOccurrencesLoading(false);
+        });
+    } else if (!pendingShowOccurrences) {
+      setApiOccurrences(null);
+    }
+    refresh();
+  };
+  const [pendingShowOccurrences, setPendingShowOccurrences] = useState(false);
+  const [appliedShowOccurrences, setAppliedShowOccurrences] = useState(false);
+  // Em tempo real a fonte é sempre a API (Simaa) — nada a ver com o painel "Histórico (GCP)", que
+  // é sobre o período de chuva via BigQuery. Por isso o toggle já aplica na hora, sem precisar do
+  // botão "Carregar ocorrências (hoje)" (que continua existindo só como atualização manual). No
+  // histórico mantém o fluxo de "Aplicar" (período de chuva e ocorrências são aplicados juntos).
+  const handleShowOccurrencesChange = (show: boolean) => {
+    setPendingShowOccurrences(show);
+    if (!isHistoricalMode) {
+      setAppliedShowOccurrences(show);
+    }
+  };
+  // Mesmo raciocínio: texto/categoria também aplicam na hora em tempo real (sem "Aplicar").
+  const handleOccTextFilterChange = (text: string) => {
+    setPendingOccTextFilter(text);
+    if (!isHistoricalMode) setAppliedOccTextFilter(text);
+  };
+  const handleOccCategoryFilterChange = (categories: string[] | null) => {
+    setPendingOccCategoryFilter(categories);
+    if (!isHistoricalMode) setAppliedOccCategoryFilter(categories);
+  };
+  const [occurrenceDataSource, setOccurrenceDataSource] = useState<'api' | 'planilha'>('planilha');
+  const [staticOccurrences, setStaticOccurrences] = useState<Occurrence[]>([]);
+  const [apiOccurrences, setApiOccurrences] = useState<Occurrence[] | null>(null);
+  const [abertasOccurrences, setAbertasOccurrences] = useState<Occurrence[]>([]);
+  const [apiOccurrencesLoading, setApiOccurrencesLoading] = useState(false);
+  const [abertasOccurrencesLoading, setAbertasOccurrencesLoading] = useState(false);
+  const [apiOccurrencesError, setApiOccurrencesError] = useState<string | null>(null);
+  const [abertasOccurrencesError, setAbertasOccurrencesError] = useState<string | null>(null);
+  const [pendingOccTextFilter, setPendingOccTextFilter] = useState<string>('');
+  const [appliedOccTextFilter, setAppliedOccTextFilter] = useState<string>('');
+  const [pendingOccCategoryFilter, setPendingOccCategoryFilter] = useState<string[] | null>(null);
+  const [appliedOccCategoryFilter, setAppliedOccCategoryFilter] = useState<string[] | null>(null);
+
+  const [planilhaLoadError, setPlanilhaLoadError] = useState<string | null>(null);
+  const [uploadedPlanilhaOccurrences, setUploadedPlanilhaOccurrences] = useState<Occurrence[] | null>(null);
+  const [uploadedPlanilhaFileName, setUploadedPlanilhaFileName] = useState<string | null>(null);
+  const [planilhaUploadError, setPlanilhaUploadError] = useState<string | null>(null);
+  const [planilhaGeocoding, setPlanilhaGeocoding] = useState(false);
+  const [planilhaGeocodeProgress, setPlanilhaGeocodeProgress] = useState<string | null>(null);
+
+  const handlePlanilhaFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const ok =
+      /\.xlsx$/i.test(file.name) ||
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (!ok) {
+      setPlanilhaUploadError('Use um arquivo .xlsx.');
+      return;
+    }
+    setPlanilhaUploadError(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const list = parseOccurrencesFromArrayBuffer(buf);
+      if (list.length === 0) {
+        setPlanilhaUploadError('Nenhuma ocorrência válida. Confira colunas (ex.: Ocorrência) e o formato.');
+        setUploadedPlanilhaOccurrences(null);
+        setUploadedPlanilhaFileName(null);
+        return;
+      }
+      setUploadedPlanilhaOccurrences(list);
+      setUploadedPlanilhaFileName(file.name);
+      const needGeo = list.some(
+        (o) => (o.latitude == null || o.longitude == null) && o.localizacao?.trim()
+      );
+      if (needGeo && import.meta.env.VITE_GEOCODE_OCORRENCIAS !== 'false') {
+        setPlanilhaGeocoding(true);
+        setPlanilhaGeocodeProgress('0/0');
+        const enriched = await enrichOccurrencesMissingCoords(list, {
+          onProgress: (done, total) => setPlanilhaGeocodeProgress(`${done}/${total}`),
+        });
+        setUploadedPlanilhaOccurrences(enriched);
+        setPlanilhaGeocodeProgress(null);
+        setPlanilhaGeocoding(false);
+      }
+    } catch (err) {
+      setPlanilhaUploadError(err instanceof Error ? err.message : 'Erro ao ler a planilha.');
+      setUploadedPlanilhaOccurrences(null);
+      setUploadedPlanilhaFileName(null);
+      setPlanilhaGeocoding(false);
+      setPlanilhaGeocodeProgress(null);
+    }
+  }, []);
+
+  const clearUploadedPlanilha = useCallback(() => {
+    setUploadedPlanilhaOccurrences(null);
+    setUploadedPlanilhaFileName(null);
+    setPlanilhaUploadError(null);
+    setPlanilhaGeocodeProgress(null);
+    setPlanilhaGeocoding(false);
+  }, []);
+
+  // staticOccurrences só é usado no modo histórico com fonte "planilha" (ver occurrenceSource
+  // abaixo). Ainda faltava o filtro de "Mostrar ocorrências": só ligar isHistoricalMode (sem
+  // nunca ter marcado "Mostrar") já baixava e parseava a planilha de ~10MB à toa — era isso que
+  // deixava "ativar o histórico" lento, não a busca de ocorrências em si (essa já era sob demanda).
+  useEffect(() => {
+    if (occurrenceDataSource !== 'planilha' || !isHistoricalMode || !pendingShowOccurrences) return;
+    setPlanilhaLoadError(null);
+    loadStaticOccurrences()
+      .then(setStaticOccurrences)
+      .catch((err) => {
+        console.warn('Planilha de ocorrências não carregada:', err);
+        setStaticOccurrences([]);
+        setPlanilhaLoadError('Planilha não carregou (arquivo muito grande). Use a fonte API.');
+      });
+  }, [occurrenceDataSource, isHistoricalMode, pendingShowOccurrences]);
+
+  useEffect(() => {
+    if (isHistoricalMode || !appliedShowOccurrences) return;
+    setAbertasOccurrencesError(null);
+    setAbertasOccurrencesLoading(true);
+    fetchOcorrenciasAbertas()
+      .then(setAbertasOccurrences)
+      .catch((err) => {
+        console.warn('Ocorrências abertas não carregadas:', err);
+        setAbertasOccurrences([]);
+        setAbertasOccurrencesError('Não foi possível carregar ocorrências abertas.');
+      })
+      .finally(() => setAbertasOccurrencesLoading(false));
+  }, [isHistoricalMode, appliedShowOccurrences]);
+
+  /** Em tempo real: ocorrências abertas (Simaa). No histórico: API ou planilha (arquivo do site ou .xlsx carregado). */
+  const occurrenceSource: Occurrence[] = !isHistoricalMode
+    ? abertasOccurrences
+    : occurrenceDataSource === 'api'
+      ? (apiOccurrences ?? [])
+      : (uploadedPlanilhaOccurrences ?? staticOccurrences);
+  const availableOccCategories = useMemo(() => {
+    const cats = new Set<string>();
+    occurrenceSource.forEach((o: Occurrence) => {
+      if (o.pop) cats.add(o.pop);
+    });
+    return Array.from(cats).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [occurrenceSource]);
+
+  const filteredOccurrences = (() => {
+    if (!occurrenceSource.length) return [];
+    let occs: Occurrence[];
+    if (!isHistoricalMode) {
+      occs = occurrenceSource;
+    } else if (isHistoricalMode) {
+      const dateFrom = appliedOccDateFrom ?? historicalDate;
+      const timeFrom = appliedOccTimeFrom ?? historicalTimeFrom;
+      const dateTo = appliedOccDateTo ?? historicalDateTo;
+      const timeTo = appliedOccTimeTo ?? historicalTimeTo;
+      occs = filterOccurrencesByRange(occurrenceSource, dateFrom, timeFrom, dateTo, timeTo);
+    } else {
+      occs = filterOccurrencesByRange(occurrenceSource, today, '00:00', today, '23:59');
+    }
+    // null = sem filtro (mostra tudo); array (mesmo vazio) = seleção explícita do usuário —
+    // ver OccurrenceFilters (MapControls.tsx) para o "Selecionar todos"/"Desselecionar todos".
+    if (appliedOccCategoryFilter != null) {
+      occs = occs.filter((o: Occurrence) => appliedOccCategoryFilter.includes(o.pop ?? ''));
+    }
+    return filterOccurrencesByText(occs, appliedOccTextFilter);
+  })();
+
+  // Ocorrências na linha do tempo: começar zerado (quadro 0 = nenhuma) e ir preenchendo conforme o tempo avança.
+  // playbackMode só deve valer durante o playback histórico ativo (onde o seletor Chuva/Ocorrências/
+  // Ambos aparece) — é estado solto que fica "grudado" no último valor escolhido, então checar isso
+  // ANTES de saber se está em playback histórico faria "Chuva" selecionada uma vez no histórico
+  // continuar escondendo ocorrências pra sempre, até em tempo real.
+  const occurrencesForPlayback = useMemo(() => {
+    const isHistoricalWithTimeline = isHistoricalMode && historicalTimeline.length > 0;
+    if (!isHistoricalWithTimeline) return filteredOccurrences;
+    if (playbackMode === 'rain') return [];
+    // No primeiro quadro (início do período): nenhuma ocorrência, mapa "zerado"
+    if (playingIndex === 0) return [];
+    const ts = historicalTimeline[playingIndex];
+    if (!ts) return [];
+    const upTo = new Date(ts);
+    return filteredOccurrences.filter((o: Occurrence) => {
+      const dt = o.data_hora_abertura ?? (o.data_abertura ? `${o.data_abertura} ${o.hora_abertura ?? '00:00'}` : null);
+      if (!dt) return false;
+      const d = new Date(dt);
+      return !isNaN(d.getTime()) && d <= upTo;
+    });
+  }, [isHistoricalMode, playbackMode, filteredOccurrences, historicalTimeline, playingIndex]);
+
+  return (
+    <div className="h-full w-full bg-gray-900 overflow-y-auto overflow-x-hidden">
+      <div className="relative h-[calc(100vh-3.5rem)] w-full overflow-hidden">
+        <LeafletMap
+          stations={stations}
+          mapType={mapType}
+          onMapTypeChange={setMapType}
+          historicalMode={isHistoricalMode}
+          historicalDate={historicalDate}
+          onHistoricalDateChange={(date) => {
+            setHistoricalDate(date);
+            if (date > historicalDateTo) setHistoricalDateTo(date);
+            setHistoricalTimestamp(null);
+          }}
+          historicalDateTo={historicalDateTo}
+          onHistoricalDateToChange={(date) => {
+            setHistoricalDateTo(date);
+            setHistoricalTimestamp(null);
+          }}
+          historicalTimeFrom={historicalTimeFrom}
+          historicalTimeTo={historicalTimeTo}
+          onHistoricalTimeFromChange={setHistoricalTimeFrom}
+          onHistoricalTimeToChange={setHistoricalTimeTo}
+          historicalTimeline={historicalTimeline}
+          selectedHistoricalTimestamp={historicalTimestamp ?? activeHistoricalTimestamp}
+          onHistoricalTimestampChange={(ts) => {
+            setHistoricalTimestamp(ts);
+          }}
+          desiredAnalysisTime={desiredAnalysisTime}
+          onDesiredAnalysisTimeChange={setDesiredAnalysisTime}
+          historicalViewMode={historicalViewMode}
+          onHistoricalViewModeChange={setHistoricalViewMode}
+          onApplyHistoricalFilter={handleApplyHistorical}
+          historicalRefreshing={refreshing}
+          occurrenceLoading={(!isHistoricalMode && abertasOccurrencesLoading) || (isHistoricalMode && occurrenceDataSource === 'api' && apiOccurrencesLoading)}
+          occurrenceError={!isHistoricalMode ? abertasOccurrencesError : (occurrenceDataSource === 'api' ? apiOccurrencesError : null)}
+          occurrences={occurrencesForPlayback}
+          showOccurrences={pendingShowOccurrences}
+          onShowOccurrencesChange={handleShowOccurrencesChange}
+          occurrenceDataSource={occurrenceDataSource}
+          onOccurrenceDataSourceChange={setOccurrenceDataSource}
+          planilhaLoadError={planilhaLoadError}
+          onPlanilhaFileChange={handlePlanilhaFileChange}
+          uploadedPlanilhaFileName={uploadedPlanilhaFileName}
+          onClearUploadedPlanilha={clearUploadedPlanilha}
+          planilhaUploadError={planilhaUploadError}
+          planilhaGeocoding={planilhaGeocoding}
+          planilhaGeocodeProgress={planilhaGeocodeProgress}
+          appliedShowOccurrences={appliedShowOccurrences || (isPlaying && playbackMode !== 'rain')}
+          occurrenceTextFilter={pendingOccTextFilter}
+          onOccurrenceTextFilterChange={handleOccTextFilterChange}
+          occurrenceCategoryFilter={pendingOccCategoryFilter}
+          onOccurrenceCategoryFilterChange={handleOccCategoryFilterChange}
+          availableOccurrenceCategories={availableOccCategories}
+          isPlaying={isPlaying}
+          playingIndex={playingIndex}
+          onPlayingIndexChange={setPlayingIndex}
+          onPlayPause={setIsPlaying}
+          playbackMode={playbackMode}
+          onPlaybackModeChange={setPlaybackMode}
+          playbackSpeed={playbackSpeed}
+          onPlaybackSpeedChange={setPlaybackSpeed}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSortChange={(field: SortField, direction: SortDirection) => {
+            setSortField(field);
+            setSortDirection(direction);
+          }}
+        />
+
+
+        {!showHeaderPanel && (
+          <div className="absolute top-3 left-3 z-[2000]">
+            <button
+              type="button"
+              onClick={() => setShowHeaderPanel(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/60 bg-white/80 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-md backdrop-blur hover:bg-white"
+              title="Mostrar painel de contexto"
+            >
+              <Info className="w-3.5 h-3.5" />
+              Mostrar painel
+            </button>
+          </div>
+        )}
+
+        {showHeaderPanel && (
+          <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
+            <div className={`pointer-events-auto mx-auto max-w-6xl rounded-xl sm:rounded-2xl border backdrop-blur shadow-lg px-2.5 py-2 sm:px-4 sm:py-3 overflow-hidden ${headerPanelClass}`}>
+              <div className="flex flex-col gap-2 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 flex-shrink-0">
+                  <h1 className={`text-xs sm:text-base lg:text-lg font-bold leading-tight ${headerTitleClass}`}>{titleLabel}</h1>
+                  <div className={`mt-0.5 sm:mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs ${headerMetaClass}`}>
+                    {selectedMoment && <span>Momento dos dados: {selectedMoment}</span>}
+                    {lastUpdate && !selectedMoment && <span>Atualizado: {lastUpdate.toLocaleString('pt-BR')}</span>}
+                    <span>Estações: {totalStations}</span>
+                    <span>Fonte: {sourceLabel}</span>
+                    {!useMockDemo && (
+                      <span
+                        className={
+                          isHistoricalMode
+                            ? headerFallbackClass
+                            : apiAvailable
+                              ? headerOnlineClass
+                              : dataSource === 'gcp'
+                                ? headerFallbackClass
+                                : headerOfflineClass
+                        }
+                      >
+                        {isHistoricalMode
+                          ? 'Modo histórico (GCP)'
+                          : apiAvailable
+                            ? 'API online'
+                            : dataSource === 'gcp'
+                              ? 'API offline (fallback GCP)'
+                              : 'API offline'}
+                      </span>
+                    )}
+                    {useMockDemo && <span className={isHighContrastMap ? 'text-amber-300 font-medium' : 'text-amber-700 font-medium'}>Modo demonstração</span>}
+                  </div>
+                  {realtimeApiDiagnostic && (
+                    <p
+                      className={`mt-1 text-[10px] sm:text-xs ${isHighContrastMap ? 'text-sky-200' : 'text-sky-700'}`}
+                      title={realtimeApiDiagnostic}
+                    >
+                      {realtimeApiDiagnostic}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowHeaderPanel(false)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                    title="Ocultar painel"
+                  >
+                    Ocultar painel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseMockDemo((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonMockClass}`}
+                    title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
+                  >
+                    <Beaker className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    {useMockDemo ? 'Tempo real' : 'Exemplo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDataMode((m) => (m === 'historical' ? 'auto' : 'historical'));
+                      setHistoricalTimestamp(null);
+                    }}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonHistoricalClass}`}
+                    title={isHistoricalMode ? 'Voltar para tempo real/fallback automático' : 'Ativar filtro temporal histórico (GCP)'}
+                  >
+                    {isHistoricalMode ? 'Tempo real' : 'Histórico'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsInfoModalOpen(true)}
+                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                    title="Informações"
+                  >
+                    <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    Info
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refresh}
+                    disabled={loading || refreshing}
+                    className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-yellow-500 px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+                    Atualizar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {error && !useMockDemo && (
+              <div className={`pointer-events-auto mx-auto max-w-6xl mt-2 rounded-xl border backdrop-blur px-3 py-2 text-xs sm:text-sm flex items-center gap-2 ${headerAlertClass}`}>
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{error}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm sm:text-base font-bold text-gray-800">Legenda e explicações do mapa</h2>
+            <button
+              type="button"
+              onClick={() => setShowMapLegend((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {showMapLegend ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showMapLegend ? 'Ocultar legenda' : 'Mostrar legenda'}
+            </button>
+          </div>
+
+          {showMapLegend && (
+            <div className="mt-3 sm:mt-4 flex flex-wrap gap-4 sm:gap-6 items-start">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3 sm:p-4 shrink-0">
+                <InfluenceLegend showHexagons={false} mapType={mapType} embedded />
+              </div>
+
+              <div className="space-y-3 text-xs text-gray-600 min-w-0 flex-1">
+                <div className="space-y-1">
+                  <p>• <strong>Bolinhas:</strong> posição das estações pluviométricas no mapa.</p>
+                  <p>• <strong>Cores de fundo:</strong> cada zona (área de influência) usa a mesma paleta por nível de chuva (sem chuva, fraca, moderada, forte, muito forte).</p>
+                  <p>• <strong>Linhas de influência:</strong> contornos que delimitam as zonas no painel do mapa.</p>
+                  <p>• <strong>Dados no mapa = Ambos:</strong> zonas pelo critério 15 min; bolinhas pelo critério 1 h (mesma paleta de cores).</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Níveis de chuva:</strong> mesma paleta (cinza, azuis) para 15min, 1h e acumulado nas zonas e bolinhas.</p>
+                  <p>• <strong>Modo Histórico (GCP):</strong> em <strong>Instantâneo</strong> use uma data e o horário para análise; em <strong>Acumulado no período</strong> aparecem <strong>De</strong> e <strong>Até</strong> para o intervalo (ex.: 09/02/2026 até 10/02/2026).</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Critério oficial (15min):</strong> fraca &lt;1,25 | moderada 1,25–6,25 | forte 6,25–12,5 | muito forte &gt;12,5 mm/15min.</p>
+                  <p>• <strong>Critério oficial (1h):</strong> fraca &lt;5,0 | moderada 5,0–25,0 | forte 25,1–50,0 | muito forte &gt;50,0 mm/h.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p>• <strong>Ver cidade inteira:</strong> ajusta o enquadramento para todo o município.</p>
+                  <p>• <strong>Fonte:</strong> Alerta Rio (Termos Meteorológicos e Probabilidades de Escorregamento).</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-6 sm:py-8">
+          <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">Cards de dados pluviométricos</h2>
+            <span className="text-xs sm:text-sm text-gray-500">{stations.length} estações</span>
+          </div>
+
+          {stations.length === 0 && loading ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
+              Carregando estações...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+              {sortedStations.map((station) => (
+                <RainStationCard
+                  key={station.id}
+                  station={station}
+                  showAccumulated={isHistoricalMode && historicalViewMode === 'accumulated'}
+                />
+              ))}
+            </div>
+
+          )}
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-800 bg-slate-950 text-slate-200">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-5 text-xs sm:px-4 sm:py-6 sm:text-sm lg:px-6">
+          <p className="font-semibold text-slate-100">COR - Centro de Operações e Resiliência | Prefeitura do Rio de Janeiro</p>
+          <p className="text-slate-300">
+            Fonte institucional do projeto. Dados de chuva em tempo real via Alerta Rio e histórico via BigQuery (GCP).
+          </p>
+        </div>
+      </footer>
+
+      {/* Info Modal */}
+      <InfoModal
+        isOpen={isInfoModalOpen}
+        onClose={() => setIsInfoModalOpen(false)}
+        apiAvailable={apiAvailable}
+        dataSource={dataSource}
+        totalStations={totalStations}
+        stations={stations}
+      />
+    </div>
+  );
+}
+
+export default MapTab;

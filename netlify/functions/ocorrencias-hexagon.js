@@ -6,9 +6,13 @@
  * DevTools. Esta function corrige isso, no mesmo padrão já usado por redemet-wind.js.
  *
  * Variáveis de ambiente (SEM prefixo VITE_ — só existem no servidor/Netlify, nunca no bundle):
- * - OCORRENCIAS_API_BASE_URL (ex.: http://IP:PORTA/api)
+ * - OCORRENCIAS_API_BASE_URL (ex.: http://IP:PORTA — raiz do servidor; a função monta o resto)
  * - OCORRENCIAS_API_USERNAME
  * - OCORRENCIAS_API_PASSWORD
+ * - OCORRENCIAS_API_ENDPOINT_SUFFIX (opcional): força o caminho do endpoint após o baseUrl.
+ *   Padrão: v2 (ET - OcorrênciasAPI_V2) "Hxgn.OcorrenciaAPI/api/Ocorrencia/StatusDaOcorrência";
+ *   fallback automático para o legado "Ocorrencias/StatusDasOcorrencias" se der 404/405.
+ * - OCORRENCIAS_API_LOGIN_PATH (opcional, padrão "/login"): caminho do login/token.
  *
  * Query params:
  * - inicio, fim: datas no formato DD-MM-YYYY (mesmo formato exigido pela API Hexagon)
@@ -23,14 +27,21 @@ const CORS_HEADERS = {
 
 const DATE_RE = /^\d{2}-\d{2}-\d{4}$/;
 
+// Caminhos do endpoint de status (sem as barras finais):
+// 1) v2 (ET - OcorrênciasAPI_V2 / CoRIO): Hxgn.OcorrenciaAPI/api/Ocorrencia/StatusDaOcorrência
+// 2) Legado (documentação antiga do repositório): Ocorrencias/StatusDasOcorrencias
+const ENDPOINT_SUFFIX_V2 = 'Hxgn.OcorrenciaAPI/api/Ocorrencia/StatusDaOcorrência';
+const ENDPOINT_SUFFIX_LEGACY = 'Ocorrencias/StatusDasOcorrencias';
+
 // Token em memória: melhor esforço só (containers "quentes" reaproveitam entre invocações;
 // cold start refaz login normalmente — não é um cache garantido, só evita logins redundantes).
 let cachedToken = null; // { token, expiresAt }
 
-async function login(baseUrl, username, password) {
+async function login(baseUrl, username, password, loginPath = '/login') {
   if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.token;
 
-  const response = await fetch(`${baseUrl}/login`, {
+  const loginUrl = `${baseUrl.replace(/\/+$/, '')}/${loginPath.replace(/^\/+/, '')}`;
+  const response = await fetch(loginUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userName: username, password }),
@@ -86,28 +97,47 @@ exports.handler = async (event) => {
     };
   }
 
-  try {
-    let token = await login(baseUrl, username, password);
+  const loginPath = process.env.OCORRENCIAS_API_LOGIN_PATH || '/login';
 
-    const buildUrl = () => {
-      const url = new URL(`${baseUrl}/Ocorrencias/StatusDasOcorrencias/${inicio}/${fim}`);
-      url.searchParams.set('page', page);
-      url.searchParams.set('pageSize', pageSize);
-      return url.toString();
-    };
+  // Ordem de tentativa: override por env (se houver) → v2 → legado.
+  const endpointSuffixes = [
+    process.env.OCORRENCIAS_API_ENDPOINT_SUFFIX?.trim(),
+    ENDPOINT_SUFFIX_V2,
+    ENDPOINT_SUFFIX_LEGACY,
+  ].filter(Boolean);
 
-    let response = await fetch(buildUrl(), {
+  const buildUrl = (suffix) => {
+    const url = new URL(`${baseUrl.replace(/\/+$/, '')}/${suffix}/${inicio}/${fim}`);
+    url.searchParams.set('page', page);
+    url.searchParams.set('pageSize', pageSize);
+    return url.toString();
+  };
+
+  const fetchStatus = (token, suffix) =>
+    fetch(buildUrl(suffix), {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
 
-    if (response.status === 401) {
+  /** Tenta os caminhos em ordem até achar um que responda (404/405 = caminho errado). */
+  const tryFetch = async (token) => {
+    let res = null;
+    for (const suffix of endpointSuffixes) {
+      res = await fetchStatus(token, suffix);
+      if (res.status !== 404 && res.status !== 405) break;
+    }
+    return res;
+  };
+
+  try {
+    let token = await login(baseUrl, username, password, loginPath);
+    let response = await tryFetch(token);
+
+    if (response && response.status === 401) {
       // Token pode ter expirado sem o cache saber (relógio dessincronizado, etc.) — força um
       // novo login e tenta mais uma vez antes de desistir.
       cachedToken = null;
-      token = await login(baseUrl, username, password);
-      response = await fetch(buildUrl(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      });
+      token = await login(baseUrl, username, password, loginPath);
+      response = await tryFetch(token);
     }
 
     const data = await response.json().catch(() => null);

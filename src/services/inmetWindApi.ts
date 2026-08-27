@@ -1,5 +1,6 @@
 import type { WindStation } from '../types/wind';
 import { WIND_BELT_CITIES, type WindBeltCity } from '../config/windBelt';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 // Proxy para evitar CORS (dev: vite.config.ts, prod: netlify.toml).
 const INMET_BASE = '/api/inmet';
@@ -72,7 +73,7 @@ async function fetchStationList(): Promise<InmetStationListItem[]> {
   if (stationListCache && Date.now() - stationListCache.fetchedAt < STATION_LIST_TTL_MS) {
     return stationListCache.stations;
   }
-  const response = await fetch(`${INMET_BASE}/estacoes/T`, { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(`${INMET_BASE}/estacoes/T`, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`INMET estacoes/T retornou ${response.status}`);
   const stations: InmetStationListItem[] = await response.json();
   stationListCache = { fetchedAt: Date.now(), stations };
@@ -115,7 +116,7 @@ async function fetchLatestWindObservation(code: string): Promise<InmetObservatio
   const today = new Date();
   const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
   const url = `${INMET_BASE}/token/estacao/${dateOnly(yesterday)}/${dateOnly(today)}/${code}/${INMET_TOKEN}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`INMET estacao ${code} retornou ${response.status}`);
 
   const text = await response.text();
@@ -194,7 +195,7 @@ async function fetchWindObservationsInRange(
   dateToIso: string
 ): Promise<InmetObservation[]> {
   const url = `${INMET_BASE}/token/estacao/${dateOnly(new Date(dateFromIso))}/${dateOnly(new Date(dateToIso))}/${code}/${INMET_TOKEN}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`INMET estacao ${code} retornou ${response.status}`);
 
   const text = await response.text();

@@ -1,4 +1,4 @@
-export type WindSource = 'inmet' | 'redemet';
+export type WindSource = 'inmet' | 'redemet' | 'sempre';
 
 /**
  * Corredores meteorológicos: os 3 primeiros alimentam o cinturão de ANTECEDÊNCIA (estações

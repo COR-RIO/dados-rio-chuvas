@@ -93,7 +93,8 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridor
                   )}
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Fonte:</strong> {station.source === 'inmet' ? 'INMET' : 'REDEMET'} ({station.code})
+                  <strong>Fonte:</strong>{' '}
+                  {station.source === 'inmet' ? 'INMET' : station.source === 'redemet' ? 'REDEMET' : 'websempre'} ({station.code})
                 </p>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
                   <strong>Última atualização:</strong> {new Date(station.observedAt).toLocaleTimeString('pt-BR')}

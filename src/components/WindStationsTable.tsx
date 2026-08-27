@@ -24,7 +24,7 @@ interface WindStationsTableProps {
 type SortField = 'name' | 'corridor' | 'windSpeedMs' | 'windGustMs' | 'observedAt' | 'category' | 'windDirectionDeg' | 'source';
 type SortDirection = 'asc' | 'desc';
 
-const SOURCE_LABEL: Record<'inmet' | 'redemet', string> = { inmet: 'INMET', redemet: 'REDEMET' };
+const SOURCE_LABEL: Record<'inmet' | 'redemet' | 'sempre', string> = { inmet: 'INMET', redemet: 'REDEMET', sempre: 'websempre' };
 
 /**
  * Estações do cinturão de vento AO VIVO (INMET + REDEMET), em formato tabela — mesmo padrão
@@ -130,8 +130,12 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
   const stationCountLabel = onlySignificant
     ? `${visible.length} de ${sorted.length} estações`
     : `${sorted.length} estações`;
+  // Compara por timestamp real (não por string): as fontes usam fusos diferentes no observedAt
+  // (REDEMET "Z", SEMPRE "-03:00"), e comparar string fazia o header mostrar hora antiga.
   const latestObservedAt = stations.reduce<string | null>((latest, station) => {
-    if (!latest || station.observedAt > latest) return station.observedAt;
+    if (!latest || new Date(station.observedAt).getTime() > new Date(latest).getTime()) {
+      return station.observedAt;
+    }
     return latest;
   }, null);
   const latestTimeLabel = latestObservedAt

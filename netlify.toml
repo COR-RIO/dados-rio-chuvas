@@ -62,6 +62,14 @@
   status = 200
   force = true
 
+# Dados meteorológicos em tempo real (SEMPRE Rio / Prefeitura) — proxy que adiciona CORS.
+# Ver netlify/functions/websempre-weather.js.
+[[redirects]]
+  from = "/api/websempre-weather"
+  to = "/.netlify/functions/websempre-weather"
+  status = 200
+  force = true
+
 # Ocorrências históricas (API Hexagon) via Netlify Function — esconde IP/usuário/senha, que antes
 # ficavam em variáveis VITE_* (embutidas no bundle público). Ver netlify/functions/ocorrencias-hexagon.js.
 [[redirects]]
