@@ -11,9 +11,6 @@ import {
   Tooltip,
   Legend,
   Cell,
-  ScatterChart,
-  Scatter,
-  ZAxis,
   LabelList,
 } from 'recharts';
 import {
@@ -29,6 +26,7 @@ import {
   Loader2,
   Info,
   FileSpreadsheet,
+  CheckCircle2,
   X,
 } from 'lucide-react';
 import { buildAnalysisReport, RAIN_LEVEL_LABELS, RAIN_LEVEL_COLORS, type AnalysisReport, type RainLevelKey } from '../services/analysisReport';
@@ -46,11 +44,13 @@ const ESTAGIO_PALETTE = ['#F59E0B', '#FBBF24', '#10B981', '#0EA5E9', '#EC4899', 
 
 /** Séries selecionáveis no gráfico "Ocorrências por período". */
 const SERIES_OPTS = [
-  { key: 'total', label: 'ATIVAS', color: '#22D3EE' },
+  { key: 'total', label: 'TOTAL', color: '#7DD3FC' },
   { key: 'abertas', label: 'Abertas', color: '#E11D48' },
   { key: 'fechadas', label: 'Fechadas', color: '#84CC16' },
+  { key: 'ativas', label: 'Ativas (em aberto)', color: '#F472B6' },
   { key: 'chuva', label: 'Chuva (mm)', color: '#3B82F6' },
   { key: 'vento', label: 'Rajada (km/h)', color: '#F59E0B' },
+  { key: 'ventoMedio', label: 'Vento médio (km/h)', color: '#38BDF8' },
 ] as const;
 
 type SeriesKey = (typeof SERIES_OPTS)[number]['key'];
@@ -110,20 +110,25 @@ interface ChartTipProps {
   payload?: ChartTipEntry[];
   label?: string | number;
   prefix?: string;
+  dark?: boolean;
 }
 
-function ChartTip({ active, payload, label, prefix }: ChartTipProps) {
+function ChartTip({ active, payload, label, prefix, dark }: ChartTipProps) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-bold text-slate-800">
+    <div
+      className={`rounded-lg border px-3 py-2 text-xs shadow-lg ${
+        dark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+      }`}
+    >
+      <p className={`mb-1 font-bold ${dark ? 'text-slate-100' : 'text-slate-800'}`}>
         {prefix ? `${prefix} ` : ''}{label}
       </p>
       {payload.map((entry, i) => (
-        <p key={i} className="flex items-center gap-1.5 text-slate-600">
+        <p key={i} className={`flex items-center gap-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: entry.color ?? entry.payload?.fill }} />
           <span>{String(entry.name)}: </span>
-          <span className="font-semibold text-slate-900">{fmt(Number(entry.value))}</span>
+          <span className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{fmt(Number(entry.value))}</span>
         </p>
       ))}
     </div>
@@ -131,6 +136,8 @@ function ChartTip({ active, payload, label, prefix }: ChartTipProps) {
 }
 
 const axisTick = { fontSize: 11, fill: '#64748B' };
+const axisTickClean = { fontSize: 11, fill: '#94a3b8' };
+const axisTickCleanDim = { fontSize: 11, fill: '#64748b' };
 
 export function AnalysisDashboard() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -148,14 +155,20 @@ export function AnalysisDashboard() {
   const [planilhaFileName, setPlanilhaFileName] = useState<string | null>(null);
   const [planilhaUploadError, setPlanilhaUploadError] = useState<string | null>(null);
 
+  // Agrupamento do cruzamento (hora em hora ou por dia). Padrão: hora em hora.
+  const [granularidade, setGranularidade] = useState<'auto' | 'hora' | 'dia'>('hora');
+  const granularidadeEfetiva: 'hora' | 'dia' =
+    granularidade === 'auto' ? (report?.cruzamento.granularidade ?? 'hora') : granularidade;
+
   const run = useCallback(
-    async (d: string, a: string, override?: Occurrence[]) => {
+    async (d: string, a: string, override?: Occurrence[], gran?: 'hora' | 'dia') => {
       setLoading(true);
       setError(null);
       try {
         const result = await buildAnalysisReport({
           de: d,
           ate: a,
+          granularidade: gran ?? (granularidade === 'auto' ? undefined : granularidade),
           ocorrenciasOverride: override ?? planilhaOccurrences ?? undefined,
         });
         setReport(result);
@@ -166,8 +179,13 @@ export function AnalysisDashboard() {
         setLoading(false);
       }
     },
-    [planilhaOccurrences]
+    [planilhaOccurrences, granularidade]
   );
+
+  const changeGranularidade = (g: 'auto' | 'hora' | 'dia') => {
+    setGranularidade(g);
+    run(de, ate, undefined, g === 'auto' ? undefined : g);
+  };
 
   const handlePlanilhaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -233,11 +251,16 @@ export function AnalysisDashboard() {
     total: true,
     abertas: true,
     fechadas: true,
+    ativas: true,
     chuva: true,
     vento: true,
+    ventoMedio: true,
   });
   const toggleSeries = (key: SeriesKey) =>
     setSeriesVis((v) => ({ ...v, [key]: !v[key] }));
+  const showAllSeries = () =>
+    setSeriesVis({ total: true, abertas: true, fechadas: true, ativas: true, chuva: true, vento: true, ventoMedio: true });
+  const allSeriesOn = SERIES_OPTS.every((s) => seriesVis[s.key]);
 
   const estagioColors = useMemo(() => {
     const m = new Map<string, string>();
@@ -251,7 +274,7 @@ export function AnalysisDashboard() {
     <div className="h-full overflow-y-auto bg-slate-100">
       {/* Barra de controles (período) */}
       <div className="border-b border-slate-800 bg-slate-900 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+        <div className="mx-auto max-w-[1700px] px-4 py-4 sm:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <h2 className="flex items-center gap-2 text-lg font-extrabold sm:text-xl">
@@ -298,6 +321,31 @@ export function AnalysisDashboard() {
                 onChange={(e) => setAte(e.target.value)}
                 className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-sky-400"
               />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+              Agrupar por
+              <div className="inline-flex overflow-hidden rounded-lg border border-slate-700">
+                {(
+                  [
+                    ['auto', 'Auto'],
+                    ['hora', 'Hora'],
+                    ['dia', 'Dia'],
+                  ] as const
+                ).map(([g, label]) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => changeGranularidade(g)}
+                    className={`px-3 py-2 text-xs font-bold transition-colors ${
+                      granularidade === g
+                        ? 'bg-sky-500 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </label>
             <button
               type="button"
@@ -348,7 +396,7 @@ export function AnalysisDashboard() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-[1700px] space-y-5 px-4 py-6 sm:px-6">
         {/* Avisos de fontes */}
         {error && !report && (
           <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -456,14 +504,38 @@ export function AnalysisDashboard() {
             {/* Ocorrências por período (destaque) */}
             {report.cruzamento.serie.length > 0 && (
               <ChartCard
+                dark
                 title="Ocorrências por período"
-                subtitle={`Total, abertas e fechadas por ${report.cruzamento.granularidade === 'dia' ? 'dia' : 'hora'} — com chuva e vento; selecione as séries`}
+                subtitle={`Total, abertas e fechadas ${granularidadeEfetiva === 'hora' ? 'por hora' : 'por dia'} — com chuva e vento; selecione as séries`}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => run(de, ate)}
+                    disabled={loading}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Atualizar'}
+                  </button>
+                }
               >
-                {/* Seletor de séries */}
+                {/* Seletor de séries (todos ou individuais: vento, chuva, etc.) */}
                 <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                  <span className="mr-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  <span className="mr-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                     Séries:
                   </span>
+                  <button
+                    type="button"
+                    onClick={showAllSeries}
+                    aria-pressed={allSeriesOn}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      allSeriesOn
+                        ? 'border-sky-400 bg-sky-500/20 text-sky-100'
+                        : 'border-slate-600 bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    <CheckCircle2 className="h-3 w-3" />
+                    Todos
+                  </button>
                   {SERIES_OPTS.map((s) => {
                     const on = seriesVis[s.key];
                     return (
@@ -474,8 +546,8 @@ export function AnalysisDashboard() {
                         aria-pressed={on}
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                           on
-                            ? 'border-sky-300 bg-sky-50 text-sky-700'
-                            : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50'
+                            ? 'border-sky-400 bg-sky-500/20 text-sky-100'
+                            : 'border-slate-600 bg-slate-800 text-slate-400 hover:bg-slate-700'
                         }`}
                       >
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
@@ -485,37 +557,63 @@ export function AnalysisDashboard() {
                   })}
                 </div>
 
-                <ResponsiveContainer width="100%" height={320}>
-                  <ComposedChart data={report.cruzamento.serie} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="label" tick={axisTick} />
-                    <YAxis yAxisId="occ" tick={axisTick} allowDecimals={false} />
-                    <YAxis yAxisId="meteo" orientation="right" tick={axisTick} />
-                    <Tooltip content={<ChartTip />} />
-                    {/* onClick vazio: impede o toggle interno da legenda (o seletor de séries é o controle único) */}
-                    <Legend wrapperStyle={{ fontSize: 12 }} onClick={() => undefined} />
+                <ResponsiveContainer width="100%" height={440}>
+                  <ComposedChart data={report.cruzamento.serie} margin={{ top: 30, right: 12, left: 0, bottom: 0 }} barCategoryGap="30%" barGap={2} maxBarSize={30}>
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#CBD5E1' }} minTickGap={30} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="occ" tick={axisTickClean} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
+                    <YAxis yAxisId="meteo" orientation="right" tick={axisTickCleanDim} axisLine={false} tickLine={false} width={38} />
+                    <Tooltip content={<ChartTip dark />} cursor={{ stroke: '#475569', strokeDasharray: '3 3' }} />
                     {seriesVis.total && (
-                      <Bar yAxisId="occ" dataKey="ocorrencias" name="ATIVAS (total)" fill="#22D3EE" radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="occ" dataKey="ocorrencias" name="TOTAL" fill="#7DD3FC" radius={[4, 4, 0, 0]}>
+                        <LabelList
+                          dataKey="ocorrencias"
+                          position="top"
+                          formatter={(v) => fmt(Number(v), 0)}
+                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
+                        />
+                      </Bar>
                     )}
                     {seriesVis.abertas && (
-                      <Line yAxisId="occ" dataKey="abertas" name="Abertas" stroke="#E11D48" strokeWidth={2.5} dot={{ r: 3 }} />
+                      <Line yAxisId="occ" dataKey="abertas" name="Abertas" stroke="#F87171" strokeWidth={2.5} dot={{ r: 2.5, fill: '#F87171', strokeWidth: 0 }} activeDot={{ r: 4 }}>
+                        <LabelList
+                          dataKey="abertas"
+                          position="top"
+                          offset={8}
+                          formatter={(v) => fmt(Number(v), 0)}
+                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
+                        />
+                      </Line>
                     )}
                     {seriesVis.fechadas && (
-                      <Line yAxisId="occ" dataKey="fechadas" name="Fechadas" stroke="#84CC16" strokeWidth={2.5} dot={{ r: 3 }} />
+                      <Line yAxisId="occ" dataKey="fechadas" name="Fechadas" stroke="#4ADE80" strokeWidth={2.5} dot={{ r: 2.5, fill: '#4ADE80', strokeWidth: 0 }} activeDot={{ r: 4 }}>
+                        <LabelList
+                          dataKey="fechadas"
+                          position="bottom"
+                          offset={8}
+                          formatter={(v) => fmt(Number(v), 0)}
+                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
+                        />
+                      </Line>
+                    )}
+                    {seriesVis.ativas && (
+                      <Line yAxisId="occ" dataKey="ativas" name="Ativas (em aberto)" stroke="#F472B6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                     )}
                     {seriesVis.chuva && (
-                      <Bar yAxisId="meteo" dataKey="chuvaMm" name="Chuva (mm)" fill="#3B82F6" opacity={0.35} radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="meteo" dataKey="chuvaMm" name="Chuva (mm)" fill="#60A5FA" opacity={0.3} radius={[4, 4, 0, 0]} />
                     )}
                     {seriesVis.vento && (
-                      <Line yAxisId="meteo" dataKey="ventoMaxKmh" name="Rajada (km/h)" stroke="#F59E0B" strokeWidth={2} dot={false} strokeDasharray="5 3" />
+                      <Line yAxisId="meteo" dataKey="ventoMaxKmh" name="Rajada (km/h)" stroke="#FBBF24" strokeWidth={1.8} dot={false} strokeDasharray="6 4" />
+                    )}
+                    {seriesVis.ventoMedio && (
+                      <Line yAxisId="meteo" dataKey="ventoMedioKmh" name="Vento médio (km/h)" stroke="#38BDF8" strokeWidth={1.8} dot={false} strokeDasharray="3 4" />
                     )}
                   </ComposedChart>
                 </ResponsiveContainer>
 
                 {/* Faixa de estágios por período */}
                 {estagioColors.size > 0 && (
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <div className="mt-4 border-t border-slate-800 pt-3">
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
                       Estágios por período
                     </p>
                     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -523,7 +621,7 @@ export function AnalysisDashboard() {
                         <div key={p.dia} className="flex min-w-[56px] flex-col items-center gap-1">
                           <span
                             className="grid h-7 w-9 place-items-center rounded-md text-[11px] font-bold text-white"
-                            style={{ background: p.estagio ? (estagioColors.get(p.estagio) ?? '#94A3B8') : '#CBD5E1' }}
+                            style={{ background: p.estagio ? (estagioColors.get(p.estagio) ?? '#475569') : '#334155' }}
                             title={p.estagio ?? 'Sem estágio'}
                           >
                             {p.estagio ? estagioShort(p.estagio) : '—'}
@@ -534,8 +632,8 @@ export function AnalysisDashboard() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-3">
                       {report.ocorrencias.estagios.map((s) => (
-                        <span key={s.nome} className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
-                          <span className="h-3 w-3 rounded" style={{ background: estagioColors.get(s.nome) ?? '#94A3B8' }} />
+                        <span key={s.nome} className="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span className="h-3 w-3 rounded" style={{ background: estagioColors.get(s.nome) ?? '#64748B' }} />
                           {s.nome} · {s.total}
                         </span>
                       ))}
@@ -543,23 +641,6 @@ export function AnalysisDashboard() {
                   </div>
                 )}
 
-                {report.cruzamento.correlacao.length > 1 && (
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Correlação: chuva do dia × ocorrências (tamanho = rajada máxima)
-                    </p>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <ScatterChart margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="chuvaMm" name="Chuva (mm)" type="number" tick={axisTick} />
-                        <YAxis dataKey="ocorrencias" name="Ocorrências" type="number" tick={axisTick} allowDecimals={false} />
-                        <ZAxis dataKey="ventoMaxKmh" range={[80, 500]} name="Rajada (km/h)" />
-                        <Tooltip content={<ChartTip prefix="Dia" />} cursor={{ strokeDasharray: '3 3' }} />
-                        <Scatter name="Chuva × Ocorrências" data={report.cruzamento.correlacao} fill="#0EA5E9" />
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
               </ChartCard>
             )}
 
@@ -768,7 +849,7 @@ export function AnalysisDashboard() {
       </div>
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-4 text-xs text-slate-500 sm:px-6">
+        <div className="mx-auto max-w-[1700px] px-4 py-4 text-xs text-slate-500 sm:px-6">
           COR - Centro de Operações e Resiliência · Prefeitura do Rio de Janeiro. Fonte: Alerta Rio
           (chuva), INMET/REDEMET (vento) e API de ocorrências (período selecionado).
         </div>

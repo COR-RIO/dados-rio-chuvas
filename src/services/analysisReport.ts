@@ -72,10 +72,14 @@ export interface DailyPoint {
   chuvaMm: number;
   ocorrencias: number;
   ventoMaxKmh: number;
-  /** Ocorrências ainda abertas no período (sem encerramento). */
+  /** Velocidade média máxima (km/h) no bucket — vento médio. */
+  ventoMedioKmh: number;
+  /** Abertas: abriram no período e ainda não fecharam até o fim do bucket (fecham depois ou nunca). */
   abertas: number;
-  /** Ocorrências encerradas no período. */
+  /** Encerradas: fecharam dentro do bucket (pela hora do encerramento). */
   fechadas: number;
+  /** Ainda em aberto: abriram no período e nunca foram encerradas. */
+  ativas: number;
   /** Estágio predominante das ocorrências no período (Andamento_Ocorrencia). */
   estagio: string | null;
 }
@@ -107,7 +111,8 @@ export interface AnalysisReport {
     porCorredor: CorridorPoint[];
     ranking: WindStationAgg[];
     rankingVelocidade: WindStationAgg[];
-    porDia: { dia: string; label: string; maxKmh: number }[];
+    porDia: { dia: string; label: string; maxKmh: number; maxVelocidadeMediaKmh: number }[];
+    porHora: { hora: string; maxKmh: number; maxVelocidadeMediaKmh: number }[];
   };
   ocorrencias: {
     total: number;
@@ -125,6 +130,7 @@ export interface AnalysisReport {
       atividades: number;
       abertas: number;
       fechadas: number;
+      ativas: number;
       estagio: string | null;
     }[];
     /** Estágios distintos encontrados (Andamento_Ocorrencia) com total. */
@@ -171,6 +177,27 @@ function occurrenceOpenIso(o: Occurrence): string {
 /** True se a ocorrência foi encerrada (possui data/hora de encerramento). */
 function isOccurrenceClosed(o: Occurrence): boolean {
   return !!(o.data_hora_encerramento || (o.data_encerramento && o.hora_encerramento));
+}
+
+/** Momento de encerramento da ocorrência em ISO (data_hora_encerramento ou data+hora). */
+function occurrenceCloseIso(o: Occurrence): string {
+  return o.data_hora_encerramento ?? (o.data_encerramento ? `${o.data_encerramento}T${o.hora_encerramento ?? '00:00:00'}` : '');
+}
+
+/** Timestamp em ms de um ISO (0 quando vazio/inválido). */
+function isoMs(iso: string): number {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** Fim (exclusivo) de um bucket dia/hora em ms, a partir da chave do bucket. */
+function bucketEndMs(bucket: string, granularity: 'dia' | 'hora'): number {
+  const start =
+    granularity === 'dia'
+      ? new Date(`${bucket.slice(0, 10)}T00:00:00`).getTime()
+      : new Date(`${bucket.slice(0, 13)}:00:00`).getTime();
+  return start + (granularity === 'dia' ? 86400000 : 3600000);
 }
 
 /** Chave do bucket (dia ou hora) a partir de um ISO, conforme a granularidade. */
@@ -241,6 +268,11 @@ export interface BuildAnalysisOptions {
   /** Tempo final (HH:mm) — opcional */
   horaAte?: string;
   /**
+   * Granularidade do cruzamento (dia ou hora). Quando ausente, usa hora para períodos de 1 dia
+   * e dia para períodos maiores.
+   */
+  granularidade?: 'hora' | 'dia';
+  /**
    * Ocorrências pré-carregadas (ex.: planilha .xlsx carregada pelo usuário). Quando fornecidas,
    * são usadas no lugar da API Hexagon (que só funciona na rede do COR) e filtradas pelo período.
    */
@@ -265,6 +297,8 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
       (new Date(ateY, ateM - 1, ateD).getTime() - new Date(deY, deM - 1, deD).getTime()) / 86400000
     ) + 1
   );
+  // Granularidade do cruzamento: hora por hora ou por dia (forçável pelo usuário).
+  const granularidade: 'hora' | 'dia' = opts.granularidade ?? (dias > 1 ? 'dia' : 'hora');
 
   const report: AnalysisReport = {
     periodo: { de, ate, dias },
@@ -295,6 +329,7 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
       ranking: [],
       rankingVelocidade: [],
       porDia: [],
+      porHora: [],
     },
     ocorrencias: {
       total: 0,
@@ -310,7 +345,7 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
       fonte: 'nenhuma',
     },
     cruzamento: {
-      granularidade: dias > 1 ? 'dia' : 'hora',
+      granularidade,
       serie: [],
       correlacao: [],
     },
@@ -440,11 +475,20 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
 
     const byStation = new Map<string, WindStationAgg>();
     const byDay = new Map<string, number>();
+    const byHour = new Map<string, number>();
+    const byDayMedia = new Map<string, number>();
+    const byHourMedia = new Map<string, number>();
     for (const w of series) {
       const gustKmh = Math.round(msToKmh(w.windGustMs ?? w.windSpeedMs) * 10) / 10;
       const speedKmh = Math.round(msToKmh(w.windSpeedMs) * 10) / 10;
       const day = dayKeyOf(w.observedAt);
       byDay.set(day, Math.max(byDay.get(day) ?? 0, gustKmh));
+      byDayMedia.set(day, Math.max(byDayMedia.get(day) ?? 0, speedKmh));
+      const hour = hourKeyOf(w.observedAt);
+      if (hour) {
+        byHour.set(hour, Math.max(byHour.get(hour) ?? 0, gustKmh));
+        byHourMedia.set(hour, Math.max(byHourMedia.get(hour) ?? 0, speedKmh));
+      }
 
       const agg = byStation.get(w.id) ?? {
         stationId: w.id,
@@ -490,8 +534,12 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
     });
 
     report.vento.porDia = sortByKey(
-      Array.from(byDay.entries()).map(([dia, maxKmh]) => ({ dia, label: buildDailyLabel(dia), maxKmh })),
+      Array.from(byDay.entries()).map(([dia, maxKmh]) => ({ dia, label: buildDailyLabel(dia), maxKmh, maxVelocidadeMediaKmh: byDayMedia.get(dia) ?? 0 })),
       (p) => p.dia
+    );
+    report.vento.porHora = sortByKey(
+      Array.from(byHour.entries()).map(([hora, maxKmh]) => ({ hora, maxKmh, maxVelocidadeMediaKmh: byHourMedia.get(hora) ?? 0 })),
+      (p) => p.hora
     );
 
     report.fontes.vento = 'ok';
@@ -608,12 +656,25 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
 
     // Por período (dia ou hora, conforme a granularidade do cruzamento): total, abertas,
     // fechadas e estágio predominante (Andamento_Ocorrencia).
-    const granularidadeOcorr: 'dia' | 'hora' = dias > 1 ? 'dia' : 'hora';
+    //
+    // Semântica por bucket:
+    //  - atividades = ocorrências que ABRIRAM no bucket (total).
+    //  - abertas    = abriram no bucket e ainda NÃO fecharam até o fim dele (fecham depois ou nunca).
+    //  - fechadas   = encerraram DENTRO do bucket (bucket do encerramento).
+    //  - ativas     = abriram no bucket e nunca foram encerradas (ainda em aberto).
+    const granularidadeOcorr = granularidade;
     const periodoMap = new Map<
       string,
-      { atividades: number; abertas: number; fechadas: number; estagioCounts: Map<string, number> }
+      { atividades: number; abertas: number; fechadas: number; ativas: number; estagioCounts: Map<string, number> }
     >();
     const estagioMap = new Map<string, number>();
+    const emptyAgg = () => ({
+      atividades: 0,
+      abertas: 0,
+      fechadas: 0,
+      ativas: 0,
+      estagioCounts: new Map<string, number>(),
+    });
     for (const o of ocorrencias) {
       const st = o.estagio?.trim() || 'Não informado';
       estagioMap.set(st, (estagioMap.get(st) ?? 0) + 1);
@@ -621,16 +682,32 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
       const iso = occurrenceOpenIso(o);
       const bucket = bucketKeyOf(iso, granularidadeOcorr);
       if (!bucket) continue;
-      const agg =
-        periodoMap.get(bucket) ??
-        { atividades: 0, abertas: 0, fechadas: 0, estagioCounts: new Map<string, number>() };
+
+      const closeIso = occurrenceCloseIso(o);
+      const closeMs = isoMs(closeIso);
+      const endMs = bucketEndMs(bucket, granularidadeOcorr);
+
+      const agg = periodoMap.get(bucket) ?? emptyAgg();
       agg.atividades++;
-      if (isOccurrenceClosed(o)) agg.fechadas++;
-      else agg.abertas++;
+      // Aberta = abriu aqui e ainda não fechou até o fim deste bucket (encerra depois ou nunca).
+      if (closeMs === 0 || closeMs >= endMs) agg.abertas++;
+      // Ativa = nunca encerrada (ainda em aberto).
+      if (closeMs === 0) agg.ativas++;
       if (st !== 'Não informado') {
         agg.estagioCounts.set(st, (agg.estagioCounts.get(st) ?? 0) + 1);
       }
       periodoMap.set(bucket, agg);
+
+      // Fechadas contam no bucket do ENCERRAMENTO (não no de abertura).
+      if (closeMs > 0) {
+        const closeBucket = bucketKeyOf(closeIso, granularidadeOcorr);
+        const closeDay = closeBucket.slice(0, 10);
+        if (closeBucket && closeDay >= de && closeDay <= ate) {
+          const cagg = periodoMap.get(closeBucket) ?? emptyAgg();
+          cagg.fechadas++;
+          periodoMap.set(closeBucket, cagg);
+        }
+      }
     }
 
     occ.estagios = Array.from(estagioMap.entries())
@@ -653,6 +730,7 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
           atividades: agg.atividades,
           abertas: agg.abertas,
           fechadas: agg.fechadas,
+          ativas: agg.ativas,
           estagio,
         };
       }),
@@ -666,59 +744,57 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
 
   // ---------- Cruzamento (série temporal combinada) ----------
   try {
-    const granularidade = report.cruzamento.granularidade;
-    const chuvaPorDia = new Map(report.chuva.porDia.map((p) => [p.dia, p.mm]));
-    const ventoPorDia = new Map(report.vento.porDia.map((p) => [p.dia, p.maxKmh]));
-    const occPorDia = new Map(report.ocorrencias.porDia.map((p) => [p.dia, p.total]));
-
-    if (granularidade === 'dia') {
-      const diasSet = new Set<string>([
-        ...chuvaPorDia.keys(),
-        ...ventoPorDia.keys(),
-        ...occPorDia.keys(),
-      ]);
-      report.cruzamento.serie = sortByKey(
-        Array.from(diasSet).map((dia) => ({
-          dia,
-          label: buildDailyLabel(dia),
-          chuvaMm: Math.round((chuvaPorDia.get(dia) ?? 0) * 100) / 100,
-          ocorrencias: occPorDia.get(dia) ?? 0,
-          ventoMaxKmh: Math.round((ventoPorDia.get(dia) ?? 0) * 10) / 10,
-          abertas: 0,
-          fechadas: 0,
-          estagio: null,
-        })),
-        (p) => p.dia
-      );
+    const g = report.cruzamento.granularidade;
+    const chuvaBuckets = new Map<string, number>();
+    const ventoBuckets = new Map<string, number>();
+    const ventoMediaBuckets = new Map<string, number>();
+    if (g === 'dia') {
+      for (const p of report.chuva.porDia) chuvaBuckets.set(p.dia, p.mm);
+      for (const p of report.vento.porDia) {
+        ventoBuckets.set(p.dia, p.maxKmh);
+        ventoMediaBuckets.set(p.dia, p.maxVelocidadeMediaKmh);
+      }
     } else {
-      // Período de 1 dia: granularidade por hora.
-      const chuvaPorHora = new Map(report.chuva.porHora.map((p) => [p.hora, p.mm]));
-      const occPorHora = new Map(report.ocorrencias.porHora.map((p) => [p.hora, p.total]));
-      const ventoDia = ventoPorDia.get(de) ?? 0;
-      const horas = new Set<string>([...chuvaPorHora.keys(), ...occPorHora.keys()]);
-      report.cruzamento.serie = sortByKey(
-        Array.from(horas).map((hora) => ({
-          dia: hora,
-          label: `${hora.slice(11, 13)}h`,
-          chuvaMm: Math.round((chuvaPorHora.get(hora) ?? 0) * 100) / 100,
-          ocorrencias: occPorHora.get(hora) ?? 0,
-          ventoMaxKmh: Math.round(ventoDia * 10) / 10,
-          abertas: 0,
-          fechadas: 0,
-          estagio: null,
-        })),
-        (p) => p.dia
-      );
+      for (const p of report.chuva.porHora) chuvaBuckets.set(p.hora, p.mm);
+      for (const p of report.vento.porHora) {
+        ventoBuckets.set(p.hora, p.maxKmh);
+        ventoMediaBuckets.set(p.hora, p.maxVelocidadeMediaKmh);
+      }
+    }
+    const occPeriodoByBucket = new Map(report.ocorrencias.porPeriodo.map((p) => [p.bucket, p]));
+
+    const buckets = new Set<string>([
+      ...chuvaBuckets.keys(),
+      ...ventoBuckets.keys(),
+      ...occPeriodoByBucket.keys(),
+    ]);
+    // No modo hora, descarta buckets fora do período selecionado (ex.: frame de 00:00 do dia
+    // seguinte que a API de chuva pode devolver).
+    if (g === 'hora') {
+      for (const b of Array.from(buckets)) {
+        const d = b.slice(0, 10);
+        if (d < de || d > ate) buckets.delete(b);
+      }
     }
 
-    // Preenche abertas/fechadas/estágio a partir das ocorrências por período (mesma granularidade).
-    const occPeriodoByBucket = new Map(report.ocorrencias.porPeriodo.map((p) => [p.bucket, p]));
-    for (const point of report.cruzamento.serie) {
-      const op = occPeriodoByBucket.get(point.dia);
-      point.abertas = op?.abertas ?? 0;
-      point.fechadas = op?.fechadas ?? 0;
-      point.estagio = op?.estagio ?? null;
-    }
+    report.cruzamento.serie = sortByKey(
+      Array.from(buckets).map((bucket) => {
+        const op = occPeriodoByBucket.get(bucket);
+        return {
+          dia: bucket,
+          label: g === 'dia' ? buildDailyLabel(bucket) : `${bucket.slice(11, 13)}h`,
+          chuvaMm: Math.round((chuvaBuckets.get(bucket) ?? 0) * 100) / 100,
+          ocorrencias: op?.atividades ?? 0,
+          ventoMaxKmh: Math.round((ventoBuckets.get(bucket) ?? 0) * 10) / 10,
+          ventoMedioKmh: Math.round((ventoMediaBuckets.get(bucket) ?? 0) * 10) / 10,
+          abertas: op?.abertas ?? 0,
+          fechadas: op?.fechadas ?? 0,
+          ativas: op?.ativas ?? 0,
+          estagio: op?.estagio ?? null,
+        };
+      }),
+      (p) => p.dia
+    );
 
     report.cruzamento.correlacao = report.cruzamento.serie.map((p) => ({
       chuvaMm: p.chuvaMm,
