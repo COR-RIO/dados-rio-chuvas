@@ -50,6 +50,8 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridor
         const icon = buildWindIcon(station.windDirectionDeg, level.color);
         const corridor = corridorSummary?.[station.corridor];
         const isCorridorWorstCase = corridor?.station?.id === station.id;
+        // Valor exato como a API reporta (websempre manda km/h já pronto, ex.: "11,52").
+        const speedLabel = station.windSpeedKmhRaw ?? speedKmh.toFixed(1);
 
         return (
           <Marker key={station.id} position={station.location} icon={icon}>
@@ -69,7 +71,7 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridor
                   <span style={{ fontSize: '14px', color: '#666' }}>{level.label}</span>
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Vento médio:</strong> {speedKmh.toFixed(1)} km/h
+                  <strong>Vento médio:</strong> {speedLabel} km/h
                 </p>
                 {station.windGustMs != null && (
                   <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>

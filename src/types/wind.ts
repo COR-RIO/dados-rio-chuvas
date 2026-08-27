@@ -32,6 +32,9 @@ export interface WindStation {
   messageType?: 'METAR' | 'SPECI';
   /** Mensagem/registro bruto de origem (METAR, linha do INMET), para depuração no popup. */
   raw?: string;
+  /** Velocidade exata em km/h como a fonte reporta (websempre manda "11,52" em km/h). Quando
+   * presente, os componentes exibem essa string em vez de arredondar msToKmh(windSpeedMs). */
+  windSpeedKmhRaw?: string;
 }
 
 /**

@@ -76,9 +76,10 @@ function windCardinalToDeg(cardinal: string): number | null {
 /**
  * Parseia o campo de vento "14,4 (N/NW)" -> velocidade (m/s) + direção (graus).
  * O websempre entrega a velocidade em KM/H (o site oficial rotula a coluna
- * "Vel. do Vento (Km/h)") — então converte-se km/h -> m/s (/3.6) para o WindStation.
+ * "Vel. do Vento (Km/h)") — então converte-se km/h -> m/s (/3.6) para o WindStation,
+ * mas preserva-se o valor bruto em km/h (speedKmhRaw) para exibir exatamente como a API.
  */
-function parseWind(raw: string): { speedMs: number; dirDeg: number | null } | null {
+function parseWind(raw: string): { speedMs: number; speedKmhRaw: string; dirDeg: number | null } | null {
   const s = String(raw ?? '').trim();
   if (!s || s === '-' || s === '—') return null;
   const m = /([\d.,]+)\s*\(([^)]+)\)/.exec(s);
@@ -86,7 +87,7 @@ function parseWind(raw: string): { speedMs: number; dirDeg: number | null } | nu
   const speedKmh = parseFloat(m[1].replace(',', '.'));
   if (!Number.isFinite(speedKmh)) return null;
   const speedMs = speedKmh / 3.6;
-  return { speedMs, dirDeg: windCardinalToDeg(m[2]) };
+  return { speedMs, speedKmhRaw: m[1], dirDeg: windCardinalToDeg(m[2]) };
 }
 
 /** Vento em tempo real nas estações do SEMPRE Rio (Vidigal, Guaratiba, São Cristóvão). */
@@ -126,6 +127,7 @@ export async function fetchWebsempreWind(): Promise<WindStation[]> {
         windSpeedMs: wind.speedMs,
         windGustMs: null,
         windDirectionDeg: wind.dirDeg,
+        windSpeedKmhRaw: wind.speedKmhRaw,
         raw: feature.properties?.data?.wind ?? undefined,
       });
     }

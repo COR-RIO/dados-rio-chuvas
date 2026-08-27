@@ -245,6 +245,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
             {visible.map((s) => {
               const speedKmh = msToKmh(s.windSpeedMs);
               const gustKmh = s.windGustMs != null ? msToKmh(s.windGustMs) : null;
+              const speedLabel = s.windSpeedKmhRaw ?? speedKmh.toFixed(1);
               const category = windCategoryFromSpeedKmh(gustKmh ?? speedKmh);
               const dtLabel = new Date(s.observedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
               const isSpotlighted = s.id === spotlightStationId;
@@ -272,7 +273,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                     </div>
                     <div className="text-gray-500 break-words">{s.code}{s.messageType ? ` · ${s.messageType}` : ''}</div>
                   </td>
-                  <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedKmh.toFixed(1)} km/h</td>
+                  <td className={`${cellBase} w-[90px] min-w-[90px]`}>{speedLabel} km/h</td>
                   <td className={`${cellBase} w-[90px] min-w-[90px] font-semibold`}>{gustKmh != null ? `${gustKmh.toFixed(1)} km/h` : '-'}</td>
                   <td className={`${cellBase} w-[110px] min-w-[110px]`}>
                     <span
