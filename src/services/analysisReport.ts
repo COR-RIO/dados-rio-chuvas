@@ -74,9 +74,11 @@ export interface DailyPoint {
   ventoMaxKmh: number;
   /** Velocidade média máxima (km/h) no bucket — vento médio. */
   ventoMedioKmh: number;
-  /** Abertas: abriram no bucket e não encerraram dentro dele (fecham depois ou nunca). */
+  /** Abertas: abriram no bucket e não fecharam dentro dele (fecham depois ou nunca). */
   abertas: number;
-  /** Encerradas: abriram e encerraram no MESMO bucket (Total = Abertas + Fechadas). */
+  /** Ativas: abriram em bucket anterior e ainda estavam abertas neste (em andamento). */
+  ativas: number;
+  /** Fechadas: abriram e encerraram no MESMO bucket (Total = Abertas + Ativas + Fechadas). */
   fechadas: number;
   /** Estágio predominante das ocorrências no período (Andamento_Ocorrencia). */
   estagio: string | null;
@@ -127,6 +129,7 @@ export interface AnalysisReport {
       label: string;
       atividades: number;
       abertas: number;
+      ativas: number;
       fechadas: number;
       estagio: string | null;
     }[];
@@ -188,29 +191,18 @@ function isoMs(iso: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-/** Fim (exclusivo) de um bucket dia/hora em ms, a partir da chave do bucket. */
-function bucketEndMs(bucket: string, granularity: 'dia' | 'hora'): number {
-  const start =
-    granularity === 'dia'
-      ? new Date(`${bucket.slice(0, 10)}T00:00:00`).getTime()
-      : new Date(`${bucket.slice(0, 13)}:00:00`).getTime();
-  return start + (granularity === 'dia' ? 86400000 : 3600000);
+/** True se a ocorrência cruza o período (abriu dentro dele ou abriu antes e seguia aberta no início). */
+function overlapsPeriod(o: Occurrence, de: string, ate: string): boolean {
+  const openDia = dayKeyOf(occurrenceOpenIso(o));
+  if (!openDia) return false;
+  if (openDia >= de && openDia <= ate) return true;
+  if (openDia < de) {
+    const closeIso = occurrenceCloseIso(o);
+    if (!closeIso) return true; // nunca fechou → continua aberta no período
+    return dayKeyOf(closeIso) >= de; // fechou em/ após o início do período
+  }
+  return false;
 }
-
-/** Chave do bucket (dia ou hora) a partir de um ISO, conforme a granularidade. */
-function bucketKeyOf(iso: string, granularity: 'dia' | 'hora'): string {
-  const day = dayKeyOf(iso);
-  if (!day) return '';
-  if (granularity === 'dia') return day;
-  return `${day} ${String(iso).slice(11, 13)}`;
-}
-
-/** Rótulo de exibição de um bucket (dia ou hora). */
-function bucketLabel(bucket: string, granularity: 'dia' | 'hora'): string {
-  if (granularity === 'dia') return buildDailyLabel(bucket);
-  return `${bucket.slice(11, 13)}h`;
-}
-
 function sortByKey<T>(arr: T[], key: (t: T) => string): T[] {
   return [...arr].sort((a, b) => key(a).localeCompare(key(b)));
 }
@@ -559,17 +551,21 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
 
   try {
     let ocorrencias: Occurrence[] = [];
+    // Ocorrências que CRUZAM o período (para a série temporal incluir "ativas" vindas de antes).
+    let ocorrenciasPeriodo: Occurrence[] = [];
     let fonte: AnalysisReport['ocorrencias']['fonte'] = 'nenhuma';
 
     // 1) Planilha carregada pelo usuário (funciona fora da rede do COR).
     if (opts.ocorrenciasOverride && opts.ocorrenciasOverride.length > 0) {
       ocorrencias = filterByPeriod(opts.ocorrenciasOverride);
+      ocorrenciasPeriodo = opts.ocorrenciasOverride.filter((o) => overlapsPeriod(o, de, ate));
       fonte = 'planilha-carregada';
     }
     // 2) API Hexagon (somente dentro da rede do COR).
     if (ocorrencias.length === 0) {
       try {
         ocorrencias = await fetchOccurrencesForAnalysis(de, ate, 100);
+        ocorrenciasPeriodo = ocorrencias; // a API já devolve o período escopado
         if (ocorrencias.length > 0) fonte = 'api';
       } catch (err) {
         console.warn('[Análise] Falha ao carregar ocorrências da API:', err);
@@ -578,9 +574,11 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
     // 3) Planilha local (fallback).
     if (ocorrencias.length === 0) {
       try {
-        const filtered = filterByPeriod(await loadStaticCached());
+        const full = await loadStaticCached();
+        const filtered = filterByPeriod(full);
         if (filtered.length > 0) {
           ocorrencias = filtered;
+          ocorrenciasPeriodo = full.filter((o) => overlapsPeriod(o, de, ate));
           fonte = 'planilha-local';
         }
       } catch (err) {
@@ -652,58 +650,107 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
       .sort((a, b) => a.hora.localeCompare(b.hora));
 
     // Por período (dia ou hora, conforme a granularidade do cruzamento): total, abertas,
-    // fechadas e estágio predominante (Andamento_Ocorrencia).
+    // ativas, fechadas e estágio predominante (Andamento_Ocorrencia).
     //
-    // Semântica por bucket:
-    //  - atividades = ocorrências que ABRIRAM no bucket (total).
-    //  - abertas    = abriram no bucket e NÃO encerraram dentro dele (fecham depois ou nunca).
-    //  - fechadas   = abriram e encerraram DENTRO do mesmo bucket.
-    //  Invariante: Total = Abertas + Fechadas (por bucket).
+    // Semântica por bucket (definição do COR, estilo "abertas/ativas/fechadas por hora"):
+    //  - abertas  = abriram no bucket e NÃO fecharam dentro dele (fecham depois ou nunca).
+    //  - ativas   = abriram em bucket ANTERIOR e ainda estavam abertas neste (em andamento;
+    //               o início do período pode puxar ocorrências abertas de antes).
+    //  - fechadas = abriram E fecharam DENTRO do mesmo bucket.
+    //  Invariante: atividades (total) = Abertas + Ativas + Fechadas (por bucket).
     const granularidadeOcorr = granularidade;
+
+    // Buckets cronológicos do período (dia ou hora) com início/fim em ms.
+    const periodBuckets: { key: string; label: string; start: number; end: number }[] = [];
+    if (granularidadeOcorr === 'hora') {
+      for (const day of eachDay(de, ate)) {
+        for (let h = 0; h < 24; h++) {
+          const hh = String(h).padStart(2, '0');
+          const start = new Date(`${day}T${hh}:00:00`).getTime();
+          periodBuckets.push({ key: `${day} ${hh}`, label: `${buildDailyLabel(day)} ${hh}h`, start, end: start + 3600000 });
+        }
+      }
+    } else {
+      for (const day of eachDay(de, ate)) {
+        const start = new Date(`${day}T00:00:00`).getTime();
+        periodBuckets.push({ key: day, label: buildDailyLabel(day), start, end: start + 86400000 });
+      }
+    }
+    const bucketStarts = periodBuckets.map((b) => b.start);
+    /** Índice do último bucket que começa em ou antes de `ms` (0 se `ms` for antes do período). */
+    const lastBucketOnOrBefore = (ms: number): number => {
+      let lo = 0;
+      let hi = periodBuckets.length - 1;
+      let ans = 0;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (bucketStarts[mid] <= ms) {
+          ans = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      return ans;
+    };
+
     const periodoMap = new Map<
       string,
-      { atividades: number; abertas: number; fechadas: number; estagioCounts: Map<string, number> }
+      { atividades: number; abertas: number; ativas: number; fechadas: number; estagioCounts: Map<string, number> }
     >();
     const estagioMap = new Map<string, number>();
     const emptyAgg = () => ({
       atividades: 0,
       abertas: 0,
+      ativas: 0,
       fechadas: 0,
       estagioCounts: new Map<string, number>(),
     });
+
+    // Estágios globais: apenas as ocorrências abertas no período.
     for (const o of ocorrencias) {
       const st = o.estagio?.trim() || 'Não informado';
       estagioMap.set(st, (estagioMap.get(st) ?? 0) + 1);
+    }
 
-      const iso = occurrenceOpenIso(o);
-      const bucket = bucketKeyOf(iso, granularidadeOcorr);
-      if (!bucket) continue;
+    // Agregação por bucket (usando as que cruzam o período para capturar "ativas" de antes).
+    for (const o of ocorrenciasPeriodo) {
+      const openMs = isoMs(occurrenceOpenIso(o));
+      if (!openMs) continue;
+      const closeMs = isoMs(occurrenceCloseIso(o)); // 0 = nunca encerrou
+      const st = o.estagio?.trim() || 'Não informado';
+      const startIdx = Math.max(0, lastBucketOnOrBefore(openMs));
 
-      const closeIso = occurrenceCloseIso(o);
-      const closeMs = isoMs(closeIso);
-      const endMs = bucketEndMs(bucket, granularidadeOcorr);
-
-      const agg = periodoMap.get(bucket) ?? emptyAgg();
-      agg.atividades++;
-      // Aberta = abriu aqui e não encerrou dentro deste bucket (fecha depois ou nunca).
-      // Fechada = abriu E encerrou no mesmo bucket → Total = Abertas + Fechadas.
-      if (closeMs > 0 && closeMs < endMs) {
-        agg.fechadas++;
-      } else {
-        agg.abertas++;
+      for (let i = startIdx; i < periodBuckets.length; i++) {
+        const b = periodBuckets[i];
+        if (closeMs > 0 && closeMs <= b.start) break; // já encerrou antes deste bucket
+        const openedHere = openMs >= b.start && openMs < b.end;
+        const agg = periodoMap.get(b.key) ?? emptyAgg();
+        agg.atividades++;
+        if (openedHere) {
+          // Abriu neste bucket: fechada se encerrou dentro dele; senão aberta (fecha depois ou nunca).
+          if (closeMs > 0 && closeMs < b.end) agg.fechadas++;
+          else agg.abertas++;
+        } else {
+          // Abriu em bucket anterior e segue aberta neste → ativa (em andamento).
+          agg.ativas++;
+        }
+        if (st !== 'Não informado') {
+          agg.estagioCounts.set(st, (agg.estagioCounts.get(st) ?? 0) + 1);
+        }
+        periodoMap.set(b.key, agg);
+        if (closeMs > 0 && closeMs < b.end) break; // encerrou dentro deste bucket
       }
-      if (st !== 'Não informado') {
-        agg.estagioCounts.set(st, (agg.estagioCounts.get(st) ?? 0) + 1);
-      }
-      periodoMap.set(bucket, agg);
     }
 
     occ.estagios = Array.from(estagioMap.entries())
       .map(([nome, total]) => ({ nome, total }))
       .sort((a, b) => b.total - a.total);
 
-    occ.porPeriodo = sortByKey(
-      Array.from(periodoMap.entries()).map(([bucket, agg]) => {
+    occ.porPeriodo = periodBuckets
+      .filter((b) => periodoMap.has(b.key))
+      .map((b) => {
+        const agg = periodoMap.get(b.key)!;
         let estagio: string | null = null;
         let best = -1;
         for (const [nome, total] of agg.estagioCounts) {
@@ -713,16 +760,15 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
           }
         }
         return {
-          bucket,
-          label: bucketLabel(bucket, granularidadeOcorr),
+          bucket: b.key,
+          label: b.label,
           atividades: agg.atividades,
           abertas: agg.abertas,
+          ativas: agg.ativas,
           fechadas: agg.fechadas,
           estagio,
         };
-      }),
-      (p) => p.bucket
-    );
+      });
 
     report.fontes.ocorrencias = 'ok';
   } catch (err) {
@@ -769,12 +815,16 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
         const op = occPeriodoByBucket.get(bucket);
         return {
           dia: bucket,
-          label: g === 'dia' ? buildDailyLabel(bucket) : `${bucket.slice(11, 13)}h`,
+          label:
+            g === 'dia'
+              ? buildDailyLabel(bucket)
+              : `${buildDailyLabel(bucket.slice(0, 10))} ${bucket.slice(11, 13)}h`,
           chuvaMm: Math.round((chuvaBuckets.get(bucket) ?? 0) * 100) / 100,
           ocorrencias: op?.atividades ?? 0,
           ventoMaxKmh: Math.round((ventoBuckets.get(bucket) ?? 0) * 10) / 10,
           ventoMedioKmh: Math.round((ventoMediaBuckets.get(bucket) ?? 0) * 10) / 10,
           abertas: op?.abertas ?? 0,
+          ativas: op?.ativas ?? 0,
           fechadas: op?.fechadas ?? 0,
           estagio: op?.estagio ?? null,
         };

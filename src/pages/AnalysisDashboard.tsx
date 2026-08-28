@@ -44,11 +44,11 @@ const ESTAGIO_PALETTE = ['#F59E0B', '#FBBF24', '#10B981', '#0EA5E9', '#EC4899', 
 
 /** Séries selecionáveis no gráfico "Ocorrências por período". */
 const SERIES_OPTS = [
-  { key: 'total', label: 'TOTAL', color: '#7DD3FC' },
   { key: 'abertas', label: 'Abertas', color: '#E11D48' },
-  { key: 'fechadas', label: 'Fechadas', color: '#84CC16' },
+  { key: 'ativas', label: 'Ativas', color: '#F59E0B' },
+  { key: 'fechadas', label: 'Fechadas', color: '#22C55E' },
   { key: 'chuva', label: 'Chuva (mm)', color: '#3B82F6' },
-  { key: 'vento', label: 'Rajada (km/h)', color: '#F59E0B' },
+  { key: 'vento', label: 'Rajada (km/h)', color: '#FBBF24' },
   { key: 'ventoMedio', label: 'Vento médio (km/h)', color: '#38BDF8' },
 ] as const;
 
@@ -70,6 +70,12 @@ function estagioShort(nome: string): string {
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return n.toLocaleString('pt-BR', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+
+/** Rótulo compacto do eixo X no modo hora: mostra "17h", mas com a data na meia-noite ("06/08 00h"). */
+function compactHourTick(v: unknown): string {
+  const s = String(v ?? '');
+  return s.endsWith('00h') ? s : s.slice(-3);
 }
 
 function periodLabel(de: string, ate: string): string {
@@ -247,8 +253,8 @@ export function AnalysisDashboard() {
 
   // Seletor de séries do gráfico "Ocorrências por período"
   const [seriesVis, setSeriesVis] = useState<Record<SeriesKey, boolean>>({
-    total: true,
     abertas: true,
+    ativas: true,
     fechadas: true,
     chuva: true,
     vento: true,
@@ -257,8 +263,17 @@ export function AnalysisDashboard() {
   const toggleSeries = (key: SeriesKey) =>
     setSeriesVis((v) => ({ ...v, [key]: !v[key] }));
   const showAllSeries = () =>
-    setSeriesVis({ total: true, abertas: true, fechadas: true, chuva: true, vento: true, ventoMedio: true });
+    setSeriesVis({ abertas: true, ativas: true, fechadas: true, chuva: true, vento: true, ventoMedio: true });
   const allSeriesOn = SERIES_OPTS.every((s) => seriesVis[s.key]);
+
+  // Barra de topo do empilhamento (Abertas → Ativas → Fechadas): recebe o total no topo e o raio superior.
+  const topBarKey: 'abertas' | 'ativas' | 'fechadas' | null = seriesVis.fechadas
+    ? 'fechadas'
+    : seriesVis.ativas
+      ? 'ativas'
+      : seriesVis.abertas
+        ? 'abertas'
+        : null;
 
   const estagioColors = useMemo(() => {
     const m = new Map<string, string>();
@@ -504,7 +519,7 @@ export function AnalysisDashboard() {
               <ChartCard
                 dark
                 title="Ocorrências por período"
-                subtitle={`Total, abertas e fechadas ${granularidadeEfetiva === 'hora' ? 'por hora' : 'por dia'} — Total = Abertas + Fechadas; com chuva e vento; selecione as séries`}
+                subtitle={`Abertas = abriram e não fecharam · Ativas = em andamento (abertas de antes) · Fechadas = abriram e fecharam ${granularidadeEfetiva === 'hora' ? 'na mesma hora' : 'no mesmo dia'} — Total = Abertas + Ativas + Fechadas; com chuva e vento`}
                 action={
                   <button
                     type="button"
@@ -557,25 +572,38 @@ export function AnalysisDashboard() {
 
                 <ResponsiveContainer width="100%" height={440}>
                   <ComposedChart data={report.cruzamento.serie} margin={{ top: 30, right: 12, left: 0, bottom: 0 }} barCategoryGap="30%" barGap={2} maxBarSize={30}>
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#CBD5E1' }} minTickGap={30} axisLine={false} tickLine={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: '#CBD5E1' }}
+                      interval={granularidadeEfetiva === 'hora' && report.cruzamento.serie.length <= 72 ? 0 : 'preserveEnd'}
+                      minTickGap={granularidadeEfetiva === 'hora' && report.cruzamento.serie.length <= 72 ? undefined : 40}
+                      tickFormatter={granularidadeEfetiva === 'hora' ? compactHourTick : undefined}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <YAxis yAxisId="occ" tick={axisTickClean} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <YAxis yAxisId="meteo" orientation="right" tick={axisTickCleanDim} axisLine={false} tickLine={false} width={38} />
                     <Tooltip content={<ChartTip dark />} cursor={{ stroke: '#475569', strokeDasharray: '3 3' }} />
-                    {seriesVis.total && (
-                      <Bar yAxisId="occ" dataKey="ocorrencias" name="TOTAL" fill="#7DD3FC" radius={[4, 4, 0, 0]}>
-                        <LabelList
-                          dataKey="ocorrencias"
-                          position="top"
-                          formatter={(v) => fmt(Number(v), 0)}
-                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
-                        />
+                    {seriesVis.abertas && (
+                      <Bar yAxisId="occ" dataKey="abertas" name="Abertas" stackId="occ" fill="#E11D48" radius={topBarKey === 'abertas' ? [4, 4, 0, 0] : undefined}>
+                        {topBarKey === 'abertas' && (
+                          <LabelList dataKey="ocorrencias" position="top" formatter={(v) => fmt(Number(v), 0)} style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }} />
+                        )}
                       </Bar>
                     )}
-                    {seriesVis.abertas && (
-                      <Line yAxisId="occ" dataKey="abertas" name="Abertas" stroke="#F87171" strokeWidth={2} dot={{ r: 2.5, fill: '#F87171', strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                    {seriesVis.ativas && (
+                      <Bar yAxisId="occ" dataKey="ativas" name="Ativas" stackId="occ" fill="#F59E0B" radius={topBarKey === 'ativas' ? [4, 4, 0, 0] : undefined}>
+                        {topBarKey === 'ativas' && (
+                          <LabelList dataKey="ocorrencias" position="top" formatter={(v) => fmt(Number(v), 0)} style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }} />
+                        )}
+                      </Bar>
                     )}
                     {seriesVis.fechadas && (
-                      <Line yAxisId="occ" dataKey="fechadas" name="Fechadas" stroke="#4ADE80" strokeWidth={2} dot={{ r: 2.5, fill: '#4ADE80', strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                      <Bar yAxisId="occ" dataKey="fechadas" name="Fechadas" stackId="occ" fill="#22C55E" radius={topBarKey === 'fechadas' ? [4, 4, 0, 0] : undefined}>
+                        {topBarKey === 'fechadas' && (
+                          <LabelList dataKey="ocorrencias" position="top" formatter={(v) => fmt(Number(v), 0)} style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }} />
+                        )}
+                      </Bar>
                     )}
                     {seriesVis.chuva && (
                       <Bar yAxisId="meteo" dataKey="chuvaMm" name="Chuva (mm)" fill="#60A5FA" opacity={0.3} radius={[4, 4, 0, 0]} />
@@ -597,7 +625,7 @@ export function AnalysisDashboard() {
                     </p>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {report.cruzamento.serie.map((p) => (
-                        <div key={p.dia} className="flex min-w-[56px] flex-col items-center gap-1">
+                        <div key={p.dia} className="flex min-w-[68px] flex-col items-center gap-1">
                           <span
                             className="grid h-7 w-9 place-items-center rounded-md text-[11px] font-bold text-white"
                             style={{ background: p.estagio ? (estagioColors.get(p.estagio) ?? '#475569') : '#334155' }}
@@ -605,7 +633,7 @@ export function AnalysisDashboard() {
                           >
                             {p.estagio ? estagioShort(p.estagio) : '—'}
                           </span>
-                          <span className="text-[10px] text-slate-500">{p.label}</span>
+                          <span className="whitespace-nowrap text-[10px] text-slate-500">{p.label}</span>
                         </div>
                       ))}
                     </div>
