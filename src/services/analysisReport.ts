@@ -74,12 +74,10 @@ export interface DailyPoint {
   ventoMaxKmh: number;
   /** Velocidade média máxima (km/h) no bucket — vento médio. */
   ventoMedioKmh: number;
-  /** Abertas: abriram no período e ainda não fecharam até o fim do bucket (fecham depois ou nunca). */
+  /** Abertas: abriram no bucket e não encerraram dentro dele (fecham depois ou nunca). */
   abertas: number;
-  /** Encerradas: fecharam dentro do bucket (pela hora do encerramento). */
+  /** Encerradas: abriram e encerraram no MESMO bucket (Total = Abertas + Fechadas). */
   fechadas: number;
-  /** Ainda em aberto: abriram no período e nunca foram encerradas. */
-  ativas: number;
   /** Estágio predominante das ocorrências no período (Andamento_Ocorrencia). */
   estagio: string | null;
 }
@@ -130,7 +128,6 @@ export interface AnalysisReport {
       atividades: number;
       abertas: number;
       fechadas: number;
-      ativas: number;
       estagio: string | null;
     }[];
     /** Estágios distintos encontrados (Andamento_Ocorrencia) com total. */
@@ -659,20 +656,19 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
     //
     // Semântica por bucket:
     //  - atividades = ocorrências que ABRIRAM no bucket (total).
-    //  - abertas    = abriram no bucket e ainda NÃO fecharam até o fim dele (fecham depois ou nunca).
-    //  - fechadas   = encerraram DENTRO do bucket (bucket do encerramento).
-    //  - ativas     = abriram no bucket e nunca foram encerradas (ainda em aberto).
+    //  - abertas    = abriram no bucket e NÃO encerraram dentro dele (fecham depois ou nunca).
+    //  - fechadas   = abriram e encerraram DENTRO do mesmo bucket.
+    //  Invariante: Total = Abertas + Fechadas (por bucket).
     const granularidadeOcorr = granularidade;
     const periodoMap = new Map<
       string,
-      { atividades: number; abertas: number; fechadas: number; ativas: number; estagioCounts: Map<string, number> }
+      { atividades: number; abertas: number; fechadas: number; estagioCounts: Map<string, number> }
     >();
     const estagioMap = new Map<string, number>();
     const emptyAgg = () => ({
       atividades: 0,
       abertas: 0,
       fechadas: 0,
-      ativas: 0,
       estagioCounts: new Map<string, number>(),
     });
     for (const o of ocorrencias) {
@@ -689,25 +685,17 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
 
       const agg = periodoMap.get(bucket) ?? emptyAgg();
       agg.atividades++;
-      // Aberta = abriu aqui e ainda não fechou até o fim deste bucket (encerra depois ou nunca).
-      if (closeMs === 0 || closeMs >= endMs) agg.abertas++;
-      // Ativa = nunca encerrada (ainda em aberto).
-      if (closeMs === 0) agg.ativas++;
+      // Aberta = abriu aqui e não encerrou dentro deste bucket (fecha depois ou nunca).
+      // Fechada = abriu E encerrou no mesmo bucket → Total = Abertas + Fechadas.
+      if (closeMs > 0 && closeMs < endMs) {
+        agg.fechadas++;
+      } else {
+        agg.abertas++;
+      }
       if (st !== 'Não informado') {
         agg.estagioCounts.set(st, (agg.estagioCounts.get(st) ?? 0) + 1);
       }
       periodoMap.set(bucket, agg);
-
-      // Fechadas contam no bucket do ENCERRAMENTO (não no de abertura).
-      if (closeMs > 0) {
-        const closeBucket = bucketKeyOf(closeIso, granularidadeOcorr);
-        const closeDay = closeBucket.slice(0, 10);
-        if (closeBucket && closeDay >= de && closeDay <= ate) {
-          const cagg = periodoMap.get(closeBucket) ?? emptyAgg();
-          cagg.fechadas++;
-          periodoMap.set(closeBucket, cagg);
-        }
-      }
     }
 
     occ.estagios = Array.from(estagioMap.entries())
@@ -730,7 +718,6 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
           atividades: agg.atividades,
           abertas: agg.abertas,
           fechadas: agg.fechadas,
-          ativas: agg.ativas,
           estagio,
         };
       }),
@@ -789,7 +776,6 @@ export async function buildAnalysisReport(opts: BuildAnalysisOptions): Promise<A
           ventoMedioKmh: Math.round((ventoMediaBuckets.get(bucket) ?? 0) * 10) / 10,
           abertas: op?.abertas ?? 0,
           fechadas: op?.fechadas ?? 0,
-          ativas: op?.ativas ?? 0,
           estagio: op?.estagio ?? null,
         };
       }),

@@ -47,7 +47,6 @@ const SERIES_OPTS = [
   { key: 'total', label: 'TOTAL', color: '#7DD3FC' },
   { key: 'abertas', label: 'Abertas', color: '#E11D48' },
   { key: 'fechadas', label: 'Fechadas', color: '#84CC16' },
-  { key: 'ativas', label: 'Ativas (em aberto)', color: '#F472B6' },
   { key: 'chuva', label: 'Chuva (mm)', color: '#3B82F6' },
   { key: 'vento', label: 'Rajada (km/h)', color: '#F59E0B' },
   { key: 'ventoMedio', label: 'Vento médio (km/h)', color: '#38BDF8' },
@@ -251,7 +250,6 @@ export function AnalysisDashboard() {
     total: true,
     abertas: true,
     fechadas: true,
-    ativas: true,
     chuva: true,
     vento: true,
     ventoMedio: true,
@@ -259,7 +257,7 @@ export function AnalysisDashboard() {
   const toggleSeries = (key: SeriesKey) =>
     setSeriesVis((v) => ({ ...v, [key]: !v[key] }));
   const showAllSeries = () =>
-    setSeriesVis({ total: true, abertas: true, fechadas: true, ativas: true, chuva: true, vento: true, ventoMedio: true });
+    setSeriesVis({ total: true, abertas: true, fechadas: true, chuva: true, vento: true, ventoMedio: true });
   const allSeriesOn = SERIES_OPTS.every((s) => seriesVis[s.key]);
 
   const estagioColors = useMemo(() => {
@@ -506,7 +504,7 @@ export function AnalysisDashboard() {
               <ChartCard
                 dark
                 title="Ocorrências por período"
-                subtitle={`Total, abertas e fechadas ${granularidadeEfetiva === 'hora' ? 'por hora' : 'por dia'} — com chuva e vento; selecione as séries`}
+                subtitle={`Total, abertas e fechadas ${granularidadeEfetiva === 'hora' ? 'por hora' : 'por dia'} — Total = Abertas + Fechadas; com chuva e vento; selecione as séries`}
                 action={
                   <button
                     type="button"
@@ -574,29 +572,10 @@ export function AnalysisDashboard() {
                       </Bar>
                     )}
                     {seriesVis.abertas && (
-                      <Line yAxisId="occ" dataKey="abertas" name="Abertas" stroke="#F87171" strokeWidth={2.5} dot={{ r: 2.5, fill: '#F87171', strokeWidth: 0 }} activeDot={{ r: 4 }}>
-                        <LabelList
-                          dataKey="abertas"
-                          position="top"
-                          offset={8}
-                          formatter={(v) => fmt(Number(v), 0)}
-                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
-                        />
-                      </Line>
+                      <Line yAxisId="occ" dataKey="abertas" name="Abertas" stroke="#F87171" strokeWidth={2} dot={{ r: 2.5, fill: '#F87171', strokeWidth: 0 }} activeDot={{ r: 4 }} />
                     )}
                     {seriesVis.fechadas && (
-                      <Line yAxisId="occ" dataKey="fechadas" name="Fechadas" stroke="#4ADE80" strokeWidth={2.5} dot={{ r: 2.5, fill: '#4ADE80', strokeWidth: 0 }} activeDot={{ r: 4 }}>
-                        <LabelList
-                          dataKey="fechadas"
-                          position="bottom"
-                          offset={8}
-                          formatter={(v) => fmt(Number(v), 0)}
-                          style={{ fontSize: 12, fontWeight: 700, fill: '#F8FAFC' }}
-                        />
-                      </Line>
-                    )}
-                    {seriesVis.ativas && (
-                      <Line yAxisId="occ" dataKey="ativas" name="Ativas (em aberto)" stroke="#F472B6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                      <Line yAxisId="occ" dataKey="fechadas" name="Fechadas" stroke="#4ADE80" strokeWidth={2} dot={{ r: 2.5, fill: '#4ADE80', strokeWidth: 0 }} activeDot={{ r: 4 }} />
                     )}
                     {seriesVis.chuva && (
                       <Bar yAxisId="meteo" dataKey="chuvaMm" name="Chuva (mm)" fill="#60A5FA" opacity={0.3} radius={[4, 4, 0, 0]} />
