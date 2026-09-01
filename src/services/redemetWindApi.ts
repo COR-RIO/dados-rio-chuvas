@@ -15,9 +15,92 @@ interface RedemetWindRecord {
 }
 
 interface RedemetWindResponse {
-  success: boolean;
-  data?: RedemetWindRecord[];
+  success?: boolean;
+  status?: boolean;
+  data?: RedemetWindRecord[] | { data?: RedemetWindRecord[]; [key: string]: unknown };
   error?: string;
+  message?: string | number;
+}
+
+function extractRawText(record: Record<string, unknown>): string {
+  if (typeof record?.mens === 'string') return record.mens;
+  if (typeof record?.message === 'string') return record.message;
+  if (typeof record?.metar === 'string') return record.metar;
+  if (typeof record?.raw === 'string') return record.raw;
+  return '';
+}
+
+function parseWindGroup(rawText: string): { windDirectionDeg: number | null; windSpeedMs: number; windGustMs: number | null } | null {
+  const match = /\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)\b/.exec(rawText || '');
+  if (!match) return null;
+
+  const [, dir, speedRaw, , gustRaw, unit] = match;
+  const factor = unit === 'KT' ? 0.514444 : 1;
+  return {
+    windDirectionDeg: dir === 'VRB' ? null : Number(dir),
+    windSpeedMs: Number((Number(speedRaw) * factor).toFixed(1)),
+    windGustMs: gustRaw ? Number((Number(gustRaw) * factor).toFixed(1)) : null,
+  };
+}
+
+function parseObservedAt(record: Record<string, unknown>, rawText: string): string {
+  const dateField = typeof record?.validade_inicial === 'string' ? record.validade_inicial :
+    typeof record?.recebimento === 'string' ? record.recebimento :
+    typeof record?.hora === 'string' ? record.hora : null;
+
+  if (dateField) {
+    const iso = String(dateField).replace(' ', 'T');
+    const withZone = /Z$/.test(iso) ? iso : `${iso}Z`;
+    const parsed = new Date(withZone);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+
+  const match = /\b(\d{2})(\d{2})(\d{2})Z\b/.exec(rawText || '');
+  if (!match) return new Date().toISOString();
+
+  const [, dayStr, hourStr, minStr] = match;
+  const now = new Date();
+  let year = now.getUTCFullYear();
+  let month = now.getUTCMonth();
+  const day = Number(dayStr);
+  if (day > now.getUTCDate() + 2) {
+    month -= 1;
+    if (month < 0) {
+      month = 11;
+      year -= 1;
+    }
+  }
+  return new Date(Date.UTC(year, month, day, Number(hourStr), Number(minStr))).toISOString();
+}
+
+function extractMessageType(rawText: string): 'METAR' | 'SPECI' {
+  return /^SPECI\b/i.test((rawText || '').trim()) ? 'SPECI' : 'METAR';
+}
+
+function extractIcao(record: Record<string, unknown>, rawText: string): string | null {
+  if (typeof record?.id_localidade === 'string') return record.id_localidade.toUpperCase();
+  if (typeof record?.icao === 'string') return record.icao.toUpperCase();
+  if (typeof record?.localidade === 'string') return record.localidade.toUpperCase();
+  const match = /\b([A-Z]{4})\b/.exec(rawText || '');
+  return match ? match[1] : null;
+}
+
+function normalizeRedemetRecords(json: RedemetWindResponse | unknown): RedemetWindRecord[] {
+  if (!json || typeof json !== 'object') return [];
+
+  const candidate = json as Record<string, unknown>;
+  const dataValue = candidate.data;
+
+  if (Array.isArray(dataValue)) return dataValue as RedemetWindRecord[];
+
+  if (dataValue && typeof dataValue === 'object') {
+    const nested = dataValue as Record<string, unknown>;
+    if (Array.isArray(nested.data)) return nested.data as RedemetWindRecord[];
+    if (Array.isArray(nested.mensagens)) return nested.mensagens as RedemetWindRecord[];
+  }
+
+  if (Array.isArray(candidate)) return candidate as RedemetWindRecord[];
+  return [];
 }
 
 function mapRecordsToStations(records: RedemetWindRecord[]): WindStation[] {
@@ -25,23 +108,38 @@ function mapRecordsToStations(records: RedemetWindRecord[]): WindStation[] {
 
   return records
     .map((record): WindStation | null => {
-      const airport = byIcao.get(record.icao);
+      const normalized = (
+        typeof record.icao === 'string' && typeof record.observedAt === 'string' && typeof record.windSpeedMs === 'number'
+          ? record
+          : {
+              icao: extractIcao(record as Record<string, unknown>, extractRawText(record as Record<string, unknown>)),
+              observedAt: parseObservedAt(record as Record<string, unknown>, extractRawText(record as Record<string, unknown>)),
+              windSpeedMs: parseWindGroup(extractRawText(record as Record<string, unknown>))?.windSpeedMs ?? 0,
+              windGustMs: parseWindGroup(extractRawText(record as Record<string, unknown>))?.windGustMs ?? null,
+              windDirectionDeg: parseWindGroup(extractRawText(record as Record<string, unknown>))?.windDirectionDeg ?? null,
+              messageType: extractMessageType(extractRawText(record as Record<string, unknown>)),
+              raw: extractRawText(record as Record<string, unknown>),
+            }
+      ) as RedemetWindRecord;
+
+      if (!normalized.icao) return null;
+
+      const airport = byIcao.get(normalized.icao);
       if (!airport) return null;
+
       return {
-        // Inclui observedAt no id: consultas históricas trazem várias leituras por estação
-        // (uma por hora), então o icao sozinho não identifica um registro único.
-        id: `redemet-${record.icao}-${record.observedAt}`,
+        id: `redemet-${normalized.icao}-${normalized.observedAt}`,
         name: airport.label,
         source: 'redemet',
-        code: record.icao,
+        code: normalized.icao,
         corridor: airport.corridor,
         location: airport.location,
-        observedAt: record.observedAt,
-        windSpeedMs: record.windSpeedMs,
-        windGustMs: record.windGustMs,
-        windDirectionDeg: record.windDirectionDeg,
-        messageType: record.messageType,
-        raw: record.raw,
+        observedAt: normalized.observedAt,
+        windSpeedMs: normalized.windSpeedMs,
+        windGustMs: normalized.windGustMs,
+        windDirectionDeg: normalized.windDirectionDeg,
+        messageType: normalized.messageType,
+        raw: normalized.raw,
       };
     })
     .filter((s): s is WindStation => s != null);
@@ -51,7 +149,7 @@ async function fetchRedemetWindRecords(extraQuery: string): Promise<WindStation[
   const icaoList = WIND_BELT_AIRPORTS.map((a) => a.icao).join(',');
   const url = `${REDEMET_WIND_URL}?icao=${encodeURIComponent(icaoList)}${extraQuery}`;
 
-  let json: RedemetWindResponse;
+  let json: RedemetWindResponse | unknown;
   try {
     const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
     json = await response.json();
@@ -60,12 +158,16 @@ async function fetchRedemetWindRecords(extraQuery: string): Promise<WindStation[
     return [];
   }
 
-  if (!json.success || !json.data) {
-    if (json.error) console.warn('REDEMET indisponível:', json.error);
+  const normalizedRecords = normalizeRedemetRecords(json);
+  if (!normalizedRecords.length) {
+    const response = json as RedemetWindResponse | undefined;
+    if (response?.error || response?.message) {
+      console.warn('REDEMET indisponível:', response.error ?? response.message);
+    }
     return [];
   }
 
-  return mapRecordsToStations(json.data);
+  return mapRecordsToStations(normalizedRecords);
 }
 
 /** Mantém só a leitura mais recente por ICAO. A consulta "ao vivo" pode devolver mais de um

@@ -1,106 +1,104 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      // Nominatim (geocoding) – evita CORS; User-Agent obrigatório para evitar 429
-      '/api/nominatim': {
-        target: 'https://nominatim.openstreetmap.org',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/nominatim/, ''),
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('User-Agent', 'DadosRioChuvas/1.0 (https://github.com)');
-          });
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const historicalProxy = env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app';
+  const redemetApiKey = env.REDEMET_API_KEY || env.VITE_REDEMET_API_KEY;
+
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api/nominatim': {
+          target: 'https://nominatim.openstreetmap.org',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/nominatim/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => {
+              proxyReq.setHeader('User-Agent', 'DadosRioChuvas/1.0 (https://github.com)');
+            });
+          },
+        },
+        '/api/ocorrencias-abertas': {
+          target: 'https://apisimaa.computei.srv.br',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/ocorrencias-abertas/, ''),
+        },
+        '/api/ocorrencias-hexagon': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/ocorrencias-hexagon/, '/.netlify/functions/ocorrencias-hexagon'),
+        },
+        '/api/historical-rain': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/historical-rain/, '/.netlify/functions/historical-rain'),
+        },
+        '/api/websempre-weather': {
+          target: 'https://websempre.rio.rj.gov.br',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/websempre-weather/, '/json/dados_meteorologicos'),
+        },
+        '/api/redemet-wind': {
+          target: 'https://api-redemet.decea.mil.br',
+          changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              const url = new URL(req.url || '/', 'http://localhost');
+              const icao = url.searchParams.get('icao');
+              if (!icao || !redemetApiKey) return;
+
+              const params = new URLSearchParams(url.searchParams);
+              params.set('api_key', redemetApiKey);
+              proxyReq.path = `/mensagens/metar/${icao.toUpperCase()}?${params.toString()}`;
+            });
+          },
+        },
+        '/api/wind-events-history': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/wind-events-history/, '/.netlify/functions/wind-events-history'),
+        },
+        '/api/inmet': {
+          target: 'https://apitempo.inmet.gov.br',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/inmet/, ''),
+        },
+        '/api/v1/rain/historical': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/v1\/rain\/historical/, '/.netlify/functions/historical-rain'),
+        },
+        '/api/v1/rain': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/v1\/rain/, '/.netlify/functions/v1-rain'),
+        },
+        '/api/v1/wind': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/v1\/wind/, '/.netlify/functions/v1-wind'),
+        },
+        '/api/v1/radar': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/v1\/radar/, '/.netlify/functions/v1-radar'),
+        },
+        '/api/json/chuvas': {
+          target: 'https://websempre.rio.rj.gov.br',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/json\/chuvas/, '/json/chuvas'),
+        },
+        '/api': {
+          target: 'https://websempre.rio.rj.gov.br',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
-      // Ocorrências abertas (Simaa) – tempo real, sem login
-      '/api/ocorrencias-abertas': {
-        target: 'https://apisimaa.computei.srv.br',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ocorrencias-abertas/, ''),
-      },
-      // Ocorrências históricas (Hexagon) em dev: proxy para a function no Netlify (esconde
-      // IP/usuário/senha — ver netlify/functions/ocorrencias-hexagon.js). Rota específica antes
-      // do catch-all /api-ocorrencias-abertas acima e do genérico /api abaixo.
-      '/api/ocorrencias-hexagon': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ocorrencias-hexagon/, '/.netlify/functions/ocorrencias-hexagon'),
-      },
-      // GCP: em dev, proxy para a function no Netlify (caminho direto evita HTML)
-      '/api/historical-rain': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/historical-rain/, '/.netlify/functions/historical-rain'),
-      },
-      // Vento (REDEMET) em dev: proxy para a function no Netlify (esconde a API key)
-      '/api/redemet-wind': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/redemet-wind/, '/.netlify/functions/redemet-wind'),
-      },
-      // SEMPRE Rio (dados meteorológicos em tempo real) em dev: proxy direto para o host (a API
-      // é pública, só não tem CORS — o Vite adiciona). Em prod, netlify.toml roteia para a
-      // function websempre-weather.
-      '/api/websempre-weather': {
-        target: 'https://websempre.rio.rj.gov.br',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/websempre-weather/, '/json/dados_meteorologicos'),
-      },
-      // Histórico de vento forte/muito-forte (BigQuery) em dev: proxy para a function no Netlify.
-      '/api/wind-events-history': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/wind-events-history/, '/.netlify/functions/wind-events-history'),
-      },
-      // INMET (estações automáticas) – API pública, só evita CORS em dev
-      '/api/inmet': {
-        target: 'https://apitempo.inmet.gov.br',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/inmet/, ''),
-      },
-      // API pública v1 (uso por outros projetos) em dev: proxy para as functions no Netlify.
-      // Ordem importa: rotas mais específicas antes das mais genéricas.
-      '/api/v1/rain/historical': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1\/rain\/historical/, '/.netlify/functions/historical-rain'),
-      },
-      '/api/v1/rain': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1\/rain/, '/.netlify/functions/v1-rain'),
-      },
-      '/api/v1/wind': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1\/wind/, '/.netlify/functions/v1-wind'),
-      },
-      '/api/v1/radar': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1\/radar/, '/.netlify/functions/v1-radar'),
-      },
-      // Chuva em tempo real: proxy direto para a API pública da Prefeitura do Rio, sem CORS no
-      // navegador e sem depender do Netlify. A rota interna /api/json/chuvas continua igual para o app.
-      '/api/json/chuvas': {
-        target: 'https://websempre.rio.rj.gov.br',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/json\/chuvas/, '/json/chuvas'),
-      },
-      // Fallback genérico (outras rotas /api/* não mapeadas acima)
-      '/api': {
-        target: 'https://websempre.rio.rj.gov.br',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
     },
-  },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
+    optimizeDeps: {
+      exclude: ['lucide-react'],
+    },
+  };
 });
