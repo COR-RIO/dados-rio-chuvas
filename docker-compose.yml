@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dados-rio-app
+    ports:
+      - "3000:3000"
+    environment:
+      # Node environment
+      NODE_ENV: production
+      PORT: 3000
+      
+      # Google Cloud
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/credentials.json
+      
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_KEY: ${SUPABASE_KEY}
+      
+      # Google Maps
+      VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY}
+      
+      # Other APIs
+      ALERTA_RIO_API_KEY: ${ALERTA_RIO_API_KEY}
+      INMET_TOKEN: ${INMET_TOKEN}
+      WIND_API_URL: ${WIND_API_URL}
+      
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - dados-rio
+
+  # Optional: Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: dados-rio-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - dados-rio
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  dados-rio:
+    driver: bridge
