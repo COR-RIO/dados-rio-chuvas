@@ -1,13 +1,15 @@
 import { RainStation } from '../types/rain';
 
-// URL da API da Prefeitura do Rio de Janeiro (via Netlify Function com cache curto de 20s na
-// borda — ver netlify/functions/rain-realtime.js). URL estável de propósito: variar a query
-// string (ex.: cache-busting com timestamp) faria cada pedido "furar" o cache da borda e voltar
-// a martelar o servidor lento da Prefeitura a cada carregamento, que era o problema original.
-const RIO_RAIN_API_URL = '/api/json/chuvas';
+// Em produção, o browser não deve falar direto com a API da Prefeitura porque ela bloqueia CORS
+// e limita requisições. O frontend deve usar o endpoint interno do backend da VPS, que faz o proxy
+// em servidor e serve o JSON já pronto para o navegador. VITE_RAIN_API_URL continua disponível para
+// casos especiais, mas o padrão seguro é /api/json/chuvas.
+const DEFAULT_RAIN_API_URL = '/api/json/chuvas';
+const OFFICIAL_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
+const FALLBACK_RAIN_API_URL = '/api/json/chuvas';
 
 function buildRainApiUrl(): string {
-  return RIO_RAIN_API_URL;
+  return import.meta.env.VITE_RAIN_API_URL || DEFAULT_RAIN_API_URL;
 }
 
 // Interface para a resposta da API
@@ -33,94 +35,102 @@ interface RioRainApiResponse {
 }
 
 export const fetchRainData = async (): Promise<RainStation[]> => {
-  try {
-    console.log('Buscando dados de chuva em tempo real da Prefeitura do Rio...');
-    const url = buildRainApiUrl();
-    console.log('URL da API:', url);
-    
-    // Sem headers/opções anti-cache: o proxy (rain-realtime.js) já cacheia por 20s na borda
-    // (dado suficientemente "tempo real" pra estações que reportam a cada 5-15min) — deixar o
-    // browser/CDN reaproveitar essa resposta é o que torna carregamentos repetidos rápidos.
-    const response = await fetch(url, {
-      method: 'GET',
-      mode: 'cors',
-      headers: { Accept: 'application/json' },
-    });
+  const urls = [buildRainApiUrl(), FALLBACK_RAIN_API_URL];
 
-    console.log('Status da resposta:', response.status, response.statusText);
+  for (const url of urls) {
+    try {
+      console.log('Buscando dados de chuva em tempo real da Prefeitura do Rio...');
+      console.log('URL da API:', url);
 
-    if (!response.ok) {
-      throw new Error(`Erro na API da Prefeitura do Rio: ${response.status} - ${response.statusText}`);
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: { Accept: 'application/json' },
+      });
+
+      console.log('Status da resposta:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`Erro na API da Prefeitura do Rio: ${response.status} - ${response.statusText}`);
+      }
+
+      const data: RioRainApiResponse = await response.json();
+      console.log('Dados brutos recebidos:', data);
+
+      // Validação da estrutura da resposta
+      if (!data.objects || !Array.isArray(data.objects)) {
+        console.error('Estrutura de dados inválida:', data);
+        throw new Error('Resposta da API não contém dados válidos');
+      }
+
+      console.log(`Dados carregados: ${data.objects.length} estações meteorológicas`);
+
+      // Filtra apenas estações pluviométricas e converte para o formato interno
+      const stations: RainStation[] = data.objects
+        .filter(station => station.kind === 'pluviometric')
+        .map((station, index) => ({
+          id: `rio-${station.name.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+          name: station.name,
+          location: station.location,
+          read_at: station.read_at,
+          is_new: station.is_new,
+          data: {
+            m05: station.data.m05 || 0,
+            m15: station.data.m15 || 0,
+            h01: station.data.h01 || 0,
+            h02: station.data.h02 || 0,
+            h03: station.data.h03 || 0,
+            h04: station.data.h04 || 0,
+            h24: station.data.h24 || 0,
+            h96: station.data.h96 || 0,
+            mes: station.data.mes || 0
+          }
+        }));
+
+      if (stations.length === 0) {
+        throw new Error('Nenhuma estação pluviométrica encontrada nos dados');
+      }
+
+      console.log(`Processadas ${stations.length} estações pluviométricas`);
+      return stations;
+    } catch (error) {
+      console.warn(`Falha ao consultar ${url}:`, error);
+      if (url === FALLBACK_RAIN_API_URL) {
+        console.error('Erro ao buscar dados de chuva da API da Prefeitura:', error);
+        return [];
+      }
+      // Tenta a URL de fallback somente se a origem oficial falhar.
     }
-
-    const data: RioRainApiResponse = await response.json();
-    console.log('Dados brutos recebidos:', data);
-    
-    // Validação da estrutura da resposta
-    if (!data.objects || !Array.isArray(data.objects)) {
-      console.error('Estrutura de dados inválida:', data);
-      throw new Error('Resposta da API não contém dados válidos');
-    }
-
-    console.log(`Dados carregados: ${data.objects.length} estações meteorológicas`);
-
-    // Filtra apenas estações pluviométricas e converte para o formato interno
-    const stations: RainStation[] = data.objects
-      .filter(station => station.kind === 'pluviometric')
-      .map((station, index) => ({
-        id: `rio-${station.name.toLowerCase().replace(/\s+/g, '-')}-${index}`,
-        name: station.name,
-        location: station.location,
-        read_at: station.read_at,
-        is_new: station.is_new,
-        data: {
-          m05: station.data.m05 || 0,
-          m15: station.data.m15 || 0,
-          h01: station.data.h01 || 0,
-          h02: station.data.h02 || 0,
-          h03: station.data.h03 || 0,
-          h04: station.data.h04 || 0,
-          h24: station.data.h24 || 0,
-          h96: station.data.h96 || 0,
-          mes: station.data.mes || 0
-        }
-      }));
-
-    if (stations.length === 0) {
-      throw new Error('Nenhuma estação pluviométrica encontrada nos dados');
-    }
-
-    console.log(`Processadas ${stations.length} estações pluviométricas`);
-    return stations;
-
-  } catch (error) {
-    console.error('Erro ao buscar dados de chuva da API da Prefeitura:', error);
-    
-    // Em caso de erro, retorna array vazio para evitar quebrar a aplicação
-    return [];
   }
+
+  return [];
 };
 
 // Função para verificar se a API está disponível
 export const checkApiAvailability = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(buildRainApiUrl(), {
-      method: 'GET',
-      mode: 'cors',
-      headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      },
-      cache: 'no-store'
-    });
-    
-    return response.ok;
-  } catch (error) {
-    console.warn('API da Prefeitura do Rio não disponível:', error);
-    return false;
+  const urls = [buildRainApiUrl(), FALLBACK_RAIN_API_URL];
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        cache: 'no-store'
+      });
+
+      if (response.ok) return true;
+    } catch (error) {
+      console.warn(`API da Prefeitura do Rio não disponível em ${url}:`, error);
+    }
   }
+
+  return false;
 };
 
 // Função para obter informações sobre a última atualização

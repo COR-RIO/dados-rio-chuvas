@@ -85,12 +85,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/v1\/radar/, '/.netlify/functions/v1-radar'),
       },
-      // Chuva em tempo real: proxy pra function no Netlify (cache curto de 20s na borda —
-      // ver netlify/functions/rain-realtime.js). Rota específica antes do catch-all /api abaixo.
+      // Chuva em tempo real: proxy direto para a API pública da Prefeitura do Rio, sem CORS no
+      // navegador e sem depender do Netlify. A rota interna /api/json/chuvas continua igual para o app.
       '/api/json/chuvas': {
-        target: process.env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app',
+        target: 'https://websempre.rio.rj.gov.br',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/json\/chuvas/, '/.netlify/functions/rain-realtime'),
+        rewrite: (path) => path.replace(/^\/api\/json\/chuvas/, '/json/chuvas'),
       },
       // Fallback genérico (outras rotas /api/* não mapeadas acima)
       '/api': {

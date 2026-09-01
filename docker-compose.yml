@@ -12,8 +12,10 @@ services:
       # Node environment
       NODE_ENV: production
       PORT: 3000
+      VITE_RAIN_API_URL: /api/json/chuvas
+      VITE_WEBSEMPRE_WIND_URL: /api/websempre-weather
       
-      # Google Cloud
+      #Google Cloud
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
       GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/credentials.json
       
@@ -28,7 +30,6 @@ services:
       ALERTA_RIO_API_KEY: ${ALERTA_RIO_API_KEY}
       INMET_TOKEN: ${INMET_TOKEN}
       WIND_API_URL: ${WIND_API_URL}
-      
     volumes:
       - ./credentials:/app/credentials:ro
       - ./data:/app/data:ro

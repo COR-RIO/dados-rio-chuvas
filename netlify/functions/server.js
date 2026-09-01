@@ -10,6 +10,10 @@ const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const projectRoot = path.resolve(__dirname, '../..');
+const distPath = path.join(projectRoot, 'dist');
+const functionsDir = path.join(projectRoot, 'netlify', 'functions');
+const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
 
 // Middleware
 app.use(express.json());
@@ -27,7 +31,6 @@ app.use((req, res, next) => {
 });
 
 // Serve frontend estático
-const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 }
@@ -35,6 +38,26 @@ if (fs.existsSync(distPath)) {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Proxy da chuva oficial da Prefeitura do Rio, sem CORS e com cache curto
+app.get('/api/json/chuvas', async (req, res) => {
+  try {
+    const upstream = await fetch(RIO_RAIN_API_URL, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!upstream.ok) {
+      return res.status(503).json({ error: 'usage_exceeded', message: 'Fonte de chuva indisponível' });
+    }
+
+    const data = await upstream.json();
+    res.set('Cache-Control', 'public, max-age=20, s-maxage=20');
+    return res.json(data);
+  } catch (error) {
+    console.error('Proxy chuva falhou:', error);
+    return res.status(503).json({ error: 'upstream_error', message: 'Falha ao consultar dados de chuva' });
+  }
 });
 
 // Helper para converter Express Request para formato Netlify Event
@@ -67,8 +90,6 @@ function sendNetlifyResponse(res, result) {
 }
 
 // Dinamicamente carrega e registra as funções Netlify
-const functionsDir = path.join(__dirname, 'netlify', 'functions');
-
 // Map de funções carregadas
 const functions = {};
 
@@ -147,7 +168,7 @@ if (functions['wind-events-sync']) {
 }
 
 // SPA fallback - rota catch-all para servir index.html
-app.get('*', (req, res) => {
+app.get(/^(?!\/api).*/, (req, res) => {
   const indexPath = path.join(distPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
