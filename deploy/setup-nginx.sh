@@ -37,12 +37,12 @@ sudo nginx -t
 sudo systemctl reload nginx
 echo "nginx recarregado"
 
-if sudo test -d "/etc/letsencrypt/live/${DOMAIN}"; then
-  echo "certificado ja existe para ${DOMAIN}, pulando certbot"
-else
-  sudo certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --redirect --register-unsafely-without-email
-  echo "certificado emitido"
-fi
+# certbot é idempotente: se ja existir certificado valido pro dominio ele so
+# garante que o bloco HTTPS esta presente NESTE site (reaproveitando o cert),
+# sem reemitir. Pular esse passo quando o certificado existe (mas pode ter
+# sido emitido por outro site/config antigo) deixava o site sem bloco 443.
+sudo certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos --redirect --register-unsafely-without-email
+echo "certificado garantido para ${DOMAIN}"
 
 sudo nginx -t
 sudo systemctl reload nginx
