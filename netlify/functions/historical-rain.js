@@ -206,7 +206,7 @@ function getBigQueryClient() {
 }
 
 function buildQuery(params) {
-  const projectId = process.env.GCP_PROJECT_ID || 'alertadb-cor';
+  const projectId = process.env.GCP_PROJECT_ID || 'pivotal-mile-258015';
   const dataset = process.env.BIGQUERY_DATASET || 'alertadb_cor_raw';
   const table = process.env.BIGQUERY_TABLE || 'pluviometricos';
   const fullTable = `\`${projectId}.${dataset}.${table}\``;
@@ -308,7 +308,7 @@ exports.handler = async (event) => {
   }
 
   const params = event.queryStringParameters || {};
-  const location = process.env.BIGQUERY_LOCATION || 'us-west1';
+  const location = process.env.BIGQUERY_LOCATION || 'US';
 
   try {
     const bigquery = getBigQueryClient();

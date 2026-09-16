@@ -31,10 +31,10 @@ function loadDotEnv() {
 loadDotEnv();
 
 // --- Config ---
-const PROJECT_ID = process.env.GCP_PROJECT_ID || 'alertadb-cor';
+const PROJECT_ID = process.env.GCP_PROJECT_ID || 'pivotal-mile-258015';
 const DATASET = process.env.BIGQUERY_DATASET || 'alertadb_cor_raw';
 const TABLE = process.env.WIND_EVENTS_TABLE || 'vento_eventos_fortes';
-const LOCATION = process.env.BIGQUERY_LOCATION || 'us-west1';
+const LOCATION = process.env.BIGQUERY_LOCATION || 'US';
 const REDEMET_API_KEY = process.env.REDEMET_API_KEY;
 
 const EARLIEST_DATE = '2003-01-01'; // API-REDEMET tem dados desde 01/01/2003 (confirmado na doc oficial)

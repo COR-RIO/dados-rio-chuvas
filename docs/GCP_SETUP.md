@@ -16,10 +16,10 @@ No painel da Netlify: **Site settings → Environment variables**:
 | Variável | Obrigatório | Descrição |
 |----------|-------------|-----------|
 | `GOOGLE_APPLICATION_CREDENTIALS_JSON` | Sim* | Conteúdo do `credentials.json` em **uma única linha** (JSON minificado). |
-| `GCP_PROJECT_ID` | Não | Projeto GCP (ex: `alertadb-cor`). Se omitido, usa o `project_id` do JSON. |
+| `GCP_PROJECT_ID` | Não | Projeto GCP (default no código: `pivotal-mile-258015`). Se omitido, usa o `project_id` do JSON. |
 | `BIGQUERY_DATASET` | Não | Nome do dataset no BigQuery (default no projeto: `alertadb_cor_raw`). |
 | `BIGQUERY_TABLE` | Não | Nome da tabela (default no projeto: `pluviometricos`). |
-| `BIGQUERY_LOCATION` | Não | Localização do dataset (default no projeto: `us-west1`). |
+| `BIGQUERY_LOCATION` | Não | Localização do dataset (default no projeto: `US`). |
 | `BIGQUERY_DATE_COLUMN` | Não | Nome da coluna de data/hora (default no projeto: `dia`). |
 | `BIGQUERY_STATION_ID_COLUMN` | Não | Nome da coluna de ID da estação (default no projeto: `estacao_id`). |
 | `BIGQUERY_STATION_NAME_COLUMN` | Não | Nome da coluna de nome da estação (default no projeto: `estacao`). |
@@ -75,10 +75,10 @@ Crie um arquivo `.env` (não commitado) na raiz do projeto:
 ```env
 # Caminho para o arquivo de credenciais (mais simples localmente)
 GOOGLE_APPLICATION_CREDENTIALS=./credentials/credentials.json
-GCP_PROJECT_ID=alertadb-cor
+GCP_PROJECT_ID=pivotal-mile-258015
 BIGQUERY_DATASET=alertadb_cor_raw
 BIGQUERY_TABLE=pluviometricos
-BIGQUERY_LOCATION=us-west1
+BIGQUERY_LOCATION=US
 BIGQUERY_DATE_COLUMN=dia
 BIGQUERY_STATION_ID_COLUMN=estacao_id
 BIGQUERY_STATION_NAME_COLUMN=estacao

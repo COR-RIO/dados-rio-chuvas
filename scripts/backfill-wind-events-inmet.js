@@ -33,10 +33,10 @@ function loadDotEnv() {
 }
 loadDotEnv();
 
-const PROJECT_ID = process.env.GCP_PROJECT_ID || 'alertadb-cor';
+const PROJECT_ID = process.env.GCP_PROJECT_ID || 'pivotal-mile-258015';
 const DATASET = process.env.BIGQUERY_DATASET || 'alertadb_cor_raw';
 const TABLE = process.env.WIND_EVENTS_TABLE || 'vento_eventos_fortes';
-const LOCATION = process.env.BIGQUERY_LOCATION || 'us-west1';
+const LOCATION = process.env.BIGQUERY_LOCATION || 'US';
 const INMET_TOKEN = process.env.INMET_TOKEN || process.env.VITE_INMET_TOKEN;
 const INMET_BASE = 'https://apitempo.inmet.gov.br';
 

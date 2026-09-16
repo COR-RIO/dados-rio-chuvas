@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultFrom = '2009-02-15 22:00:00.000';
 const defaultTo = '2009-02-18 02:00:00.000';
 
-function buildQuery(dateFrom, dateTo) {
+function buildQuery(dateFrom, dateTo, fullTable) {
   const from = dateFrom ? `${dateFrom.replace(/^(\d{4}-\d{2}-\d{2})$/, '$1 00:00:00.000')}` : defaultFrom;
   const to = dateTo ? `${dateTo.replace(/^(\d{4}-\d{2}-\d{2})$/, '$1 23:59:59.999')}` : defaultTo;
   return `
@@ -32,7 +32,7 @@ SELECT DISTINCT
   h24,
   estacao,
   estacao_id
-FROM \`alertadb-cor.alertadb_cor_raw.pluviometricos\`
+FROM ${fullTable}
 WHERE dia >= '${from}' AND dia <= '${to}'
 ORDER BY dia ASC
 LIMIT 1000
@@ -61,8 +61,9 @@ function getClient() {
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     path.join(__dirname, '..', 'credentials', 'credentials.json');
   if (fs.existsSync(keyPath)) {
+    const fileCreds = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
     return new BigQuery({
-      projectId: process.env.GCP_PROJECT_ID || 'alertadb-cor',
+      projectId: process.env.GCP_PROJECT_ID || fileCreds.project_id,
       keyFilename: keyPath,
     });
   }
@@ -76,14 +77,18 @@ function getClient() {
 async function main() {
   const dateFrom = process.argv[2];
   const dateTo = process.argv[3];
-  const query = buildQuery(dateFrom, dateTo);
+  const bigquery = getClient();
+  const dataset = process.env.BIGQUERY_DATASET || 'alertadb_cor_raw';
+  const table = process.env.BIGQUERY_TABLE || 'pluviometricos';
+  const fullTable = `\`${bigquery.projectId}.${dataset}.${table}\``;
+  const query = buildQuery(dateFrom, dateTo, fullTable);
 
   console.log('Conectando ao BigQuery (GCP)...\n');
+  console.log('Projeto:', bigquery.projectId, '\n');
   if (dateFrom || dateTo) console.log('Período:', dateFrom || defaultFrom, 'a', dateTo || defaultTo, '\n');
   console.log('Query:\n', query, '\n');
 
-  const bigquery = getClient();
-  const location = process.env.BIGQUERY_LOCATION || 'us-west1';
+  const location = process.env.BIGQUERY_LOCATION || 'US';
 
   try {
     const [rows] = await bigquery.query({
