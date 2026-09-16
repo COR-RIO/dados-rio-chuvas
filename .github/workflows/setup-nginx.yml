@@ -1,0 +1,31 @@
+name: Configurar nginx + SSL
+
+on:
+  workflow_dispatch: {}
+
+env:
+  DEPLOY_HOST: 35.226.102.32
+  DEPLOY_USER: cor
+  DEPLOY_PATH: /home/cor/dados-rio-chuvas
+
+jobs:
+  setup-nginx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sincronizar script de setup
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p $DEPLOY_PATH/deploy"
+          scp -i ~/.ssh/id_ed25519 deploy/setup-nginx.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/setup-nginx.sh"
+
+      - name: Rodar setup de nginx + certbot
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "$DEPLOY_USER@$DEPLOY_HOST" "bash $DEPLOY_PATH/deploy/setup-nginx.sh"
