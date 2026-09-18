@@ -66,6 +66,7 @@ const SCHEMA = [
   { name: 'categoria', type: 'STRING', mode: 'NULLABLE' },
   { name: 'raw', type: 'STRING', mode: 'NULLABLE' },
   { name: 'fetched_at', type: 'TIMESTAMP', mode: 'REQUIRED' },
+  { name: 'fonte', type: 'STRING', mode: 'NULLABLE' },
 ];
 
 async function main() {
