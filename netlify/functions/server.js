@@ -62,9 +62,11 @@ app.get('/api/json/chuvas', async (req, res) => {
 
 // Helper para converter Express Request para formato Netlify Event
 function createNetlifyEvent(req) {
+  const queryIdx = req.url.indexOf('?');
   return {
     httpMethod: req.method,
     path: req.path,
+    rawQuery: queryIdx >= 0 ? req.url.slice(queryIdx + 1) : '',
     queryStringParameters: req.query || null,
     headers: req.headers,
     body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body),
@@ -146,6 +148,29 @@ Object.entries(functions).forEach(([name, handler]) => {
     }
   });
 });
+
+// inmet-proxy espera ser chamada em qualquer sub-caminho de /api/inmet/ (ex.: /api/inmet/estacoes/T,
+// /api/inmet/token/estacao/...) com o caminho original preservado em event.path — é assim que o
+// redirect wildcard do Netlify (netlify.toml: "/api/inmet/*" -> inmet-proxy, rewrite) funciona, e
+// é o que src/services/inmetWindApi.ts chama. O loop genérico acima só registra rotas EXATAS
+// (/api/<nome-do-arquivo>, ou seja /api/inmet-proxy), que nunca casam com esses sub-caminhos —
+// sem esta rota dedicada, toda consulta de vento do INMET dá 404 nesta implantação (Express/VPS).
+if (functions['inmet-proxy']) {
+  app.get('/api/inmet/*', async (req, res) => {
+    try {
+      const event = createNetlifyEvent(req);
+      const result = await functions['inmet-proxy'](event);
+      sendNetlifyResponse(res, result);
+    } catch (error) {
+      console.error('Erro em /api/inmet/*:', error);
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: error.message,
+      });
+    }
+  });
+  console.log('✓ Rota dedicada registrada: GET /api/inmet/*');
+}
 
 // Agendador para funções cron (ex: wind-events-sync a cada 15 min)
 if (functions['wind-events-sync']) {
