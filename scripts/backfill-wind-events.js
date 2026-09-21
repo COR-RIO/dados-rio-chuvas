@@ -216,7 +216,7 @@ function buildRows(records, chunkStart) {
     const icao = extractIcao(record, rawText);
     if (!wind || !icao || !AIRPORT_BY_ICAO.has(icao)) continue;
 
-    // Maior valor entre vento médio e rajada, checado independente — não só a rajada com fallback
+    // Maior valor entre Vento atual e rajada, checado independente — não só a rajada com fallback
     // pra média quando falta rajada, pra não perder um evento onde a média sozinha já é forte.
     const speedKmh = wind.windSpeedMs * 3.6;
     const gustKmhOrNull = wind.windGustMs != null ? wind.windGustMs * 3.6 : null;

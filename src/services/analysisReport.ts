@@ -54,7 +54,7 @@ export interface WindStationAgg {
   corridor: WindCorridor;
   /** Rajada máxima no período (km/h). */
   maxGustKmh: number;
-  /** Velocidade média máxima no período (km/h) — vento médio. */
+  /** Velocidade média máxima no período (km/h) — Vento atual. */
   maxVelocidadeMediaKmh: number;
   readings: number;
 }
@@ -72,7 +72,7 @@ export interface DailyPoint {
   chuvaMm: number;
   ocorrencias: number;
   ventoMaxKmh: number;
-  /** Velocidade média máxima (km/h) no bucket — vento médio. */
+  /** Velocidade média máxima (km/h) no bucket — Vento atual. */
   ventoMedioKmh: number;
   /** Abertas: abriram no bucket e não fecharam dentro dele (fecham depois ou nunca). */
   abertas: number;

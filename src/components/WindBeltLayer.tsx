@@ -71,7 +71,7 @@ export const WindBeltLayer: React.FC<WindBeltLayerProps> = ({ stations, corridor
                   <span style={{ fontSize: '14px', color: '#666' }}>{level.label}</span>
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>
-                  <strong>Vento médio:</strong> {speedLabel} km/h
+                  <strong>Vento atual:</strong> {speedLabel} km/h
                 </p>
                 {station.windGustMs != null && (
                   <p style={{ margin: '4px 0', fontSize: '14px', color: '#333' }}>

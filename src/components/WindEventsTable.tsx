@@ -180,7 +180,7 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
                 Estação
               </th>
               <th className={`${headerBase} w-[60px] min-w-[60px] truncate`} onClick={() => handleSort('wind_speed_ms')}>
-                Vento méd.
+                Vento atual
               </th>
               <th className={`${headerBase} w-[65px] min-w-[65px] truncate`} onClick={() => handleSort('wind_gust_ms')}>
                 Rajada

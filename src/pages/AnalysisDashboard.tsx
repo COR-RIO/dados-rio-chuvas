@@ -49,7 +49,7 @@ const SERIES_OPTS = [
   { key: 'fechadas', label: 'Fechadas', color: '#22C55E' },
   { key: 'chuva', label: 'Chuva (mm)', color: '#3B82F6' },
   { key: 'vento', label: 'Rajada (km/h)', color: '#FBBF24' },
-  { key: 'ventoMedio', label: 'Vento médio (km/h)', color: '#38BDF8' },
+  { key: 'ventoMedio', label: 'Vento atual (km/h)', color: '#38BDF8' },
 ] as const;
 
 type SeriesKey = (typeof SERIES_OPTS)[number]['key'];
@@ -498,7 +498,7 @@ export function AnalysisDashboard() {
                 accent="amber"
               />
               <KpiCard
-                label="Maior vento médio"
+                label="Maior vento atual"
                 value={report.vento.maxVelocidadeMediaKmh ? fmt(report.vento.maxVelocidadeMediaKmh.maxVelocidadeMediaKmh) : '—'}
                 unit="km/h"
                 hint={report.vento.maxVelocidadeMediaKmh?.name ?? 'sem dados'}
@@ -612,7 +612,7 @@ export function AnalysisDashboard() {
                       <Line yAxisId="meteo" dataKey="ventoMaxKmh" name="Rajada (km/h)" stroke="#FBBF24" strokeWidth={1.8} dot={false} strokeDasharray="6 4" />
                     )}
                     {seriesVis.ventoMedio && (
-                      <Line yAxisId="meteo" dataKey="ventoMedioKmh" name="Vento médio (km/h)" stroke="#38BDF8" strokeWidth={1.8} dot={false} strokeDasharray="3 4" />
+                      <Line yAxisId="meteo" dataKey="ventoMedioKmh" name="Vento atual (km/h)" stroke="#38BDF8" strokeWidth={1.8} dot={false} strokeDasharray="3 4" />
                     )}
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -712,7 +712,7 @@ export function AnalysisDashboard() {
             <div className="grid gap-5 lg:grid-cols-2">
               <ChartCard
                 title="Ranking de vento por estação"
-                subtitle="Rajada máxima e vento médio no período (km/h)"
+                subtitle="Rajada máxima e vento atual no período (km/h)"
               >
                 {report.vento.ranking.length === 0 ? (
                   <EmptyNote text="Sem dados de vento para o período." />
@@ -724,7 +724,7 @@ export function AnalysisDashboard() {
                       <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: '#334155' }} />
                       <Tooltip content={<ChartTip />} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="maxVelocidadeMediaKmh" name="Vento médio (km/h)" fill="#38BDF8" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="maxVelocidadeMediaKmh" name="Vento atual (km/h)" fill="#38BDF8" radius={[0, 4, 4, 0]} />
                       <Bar dataKey="maxGustKmh" name="Rajada máx. (km/h)" fill="#F59E0B" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>

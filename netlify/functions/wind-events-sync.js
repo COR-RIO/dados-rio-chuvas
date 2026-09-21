@@ -98,7 +98,7 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Maior valor entre vento médio e rajada, em km/h — checa os dois independente (não só a rajada
+/** Maior valor entre Vento atual e rajada, em km/h — checa os dois independente (não só a rajada
  * com fallback pra média quando falta rajada), pra não perder um evento onde a média sozinha já
  * cruza o limiar de forte/muito-forte. */
 function strongestKmh(speedMs, gustMs) {
