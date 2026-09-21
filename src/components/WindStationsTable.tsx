@@ -219,7 +219,7 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                 Estação
               </th>
               <th className={`${headerBase} w-[90px] min-w-[90px]`} onClick={() => handleSort('windSpeedMs')}>
-                Vento méd.
+                Vento Atual
               </th>
               <th className={`${headerBase} w-[90px] min-w-[90px]`} onClick={() => handleSort('windGustMs')}>
                 Rajada

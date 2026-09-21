@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Map as MapIcon, BarChart3 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Map as MapIcon, BarChart3, Info } from 'lucide-react';
 import MapTab from './MapTab';
 import AnalysisDashboard from './pages/AnalysisDashboard';
 
@@ -14,6 +14,19 @@ const TABS: { id: AppTab; label: string; icon: typeof MapIcon; description: stri
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('mapa');
+  // Ação "Ver cidade inteira": o MapTab registra a função de foco quando o mapa está pronto
+  // (e desregistra ao desmontar, ex. trocar pra aba Análise) — o botão em si mora aqui no
+  // header, fora do mapa, pra não poluir a área de visualização.
+  const [focusCityHandler, setFocusCityHandler] = useState<(() => void) | null>(null);
+  const handleFocusCityHandlerChange = useCallback((handler: (() => void) | null) => {
+    setFocusCityHandler(() => handler);
+  }, []);
+
+  // Botão "Mostrar painel"/"Ocultar painel": troca de rótulo conforme o estado atual do painel
+  // de contexto. Como o valor é um objeto (não uma função crua), não precisa do truque de
+  // embrulhar pra escapar da checagem "função em setState = updater" — setState guarda o objeto
+  // como veio.
+  const [contextPanelToggle, setContextPanelToggle] = useState<{ isOpen: boolean; onToggle: () => void } | null>(null);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden">
@@ -33,6 +46,33 @@ function App() {
             <p className="text-[10px] text-slate-500 truncate">Chuva · Vento · Ocorrências</p>
           </div>
         </div>
+
+        {activeTab === 'mapa' && (focusCityHandler || contextPanelToggle) && (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {contextPanelToggle && (
+              <button
+                type="button"
+                onClick={contextPanelToggle.onToggle}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 sm:px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
+                title={contextPanelToggle.isOpen ? 'Ocultar painel de contexto' : 'Mostrar painel de contexto'}
+              >
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">{contextPanelToggle.isOpen ? 'Ocultar painel' : 'Mostrar painel'}</span>
+              </button>
+            )}
+            {focusCityHandler && (
+              <button
+                type="button"
+                onClick={focusCityHandler}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 sm:px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
+                title="Ajustar vista para a cidade do Rio inteira"
+              >
+                <MapIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Ver cidade inteira</span>
+              </button>
+            )}
+          </div>
+        )}
 
         <nav className="ml-auto flex items-center" aria-label="Navegação do sistema">
           {TABS.map((tab) => {
@@ -62,7 +102,14 @@ function App() {
       </header>
 
       <main className="flex-1 min-h-0 relative">
-        {activeTab === 'mapa' ? <MapTab /> : <AnalysisDashboard />}
+        {activeTab === 'mapa' ? (
+          <MapTab
+            onFocusCityHandlerChange={handleFocusCityHandlerChange}
+            onContextPanelToggleChange={setContextPanelToggle}
+          />
+        ) : (
+          <AnalysisDashboard />
+        )}
       </main>
     </div>
   );

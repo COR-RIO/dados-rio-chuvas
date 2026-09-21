@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause } from 'lucide-react';
+import { Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
@@ -1158,9 +1158,9 @@ export const HistoricalTimelineControl: React.FC<HistoricalTimelineControlProps>
   );
 };
 
-const BAIRROS_BOUNDS_PROPS: L.FitBoundsOptions = { padding: [24, 24], maxZoom: 12 };
+export const BAIRROS_BOUNDS_PROPS: L.FitBoundsOptions = { padding: [24, 24], maxZoom: 12 };
 
-function boundsFromBairros(bairrosData: { features: Array<{ geometry: { type?: string; coordinates: number[][] | number[][][] | number[][][][] } }> }): L.LatLngBounds | null {
+export function boundsFromBairros(bairrosData: { features: Array<{ geometry: { type?: string; coordinates: number[][] | number[][][] | number[][][][] } }> }): L.LatLngBounds | null {
   if (!bairrosData?.features?.length) return null;
   const points: [number, number][] = [];
   const features = Array.isArray(bairrosData.features) ? bairrosData.features : [];
@@ -1208,32 +1208,6 @@ export const FitCityOnLoad: React.FC<FitCityOnLoadProps> = ({ boundsData }) => {
     }
   }, [map, boundsData]);
   return null;
-};
-
-interface FocusCityButtonProps {
-  boundsData: BoundsGeoJson;
-}
-
-export const FocusCityButton: React.FC<FocusCityButtonProps> = ({ boundsData }) => {
-  const map = useMap();
-
-  const handleFocus = () => {
-    if (!boundsData) return;
-    const bounds = boundsFromBairros(boundsData);
-    if (bounds) map.fitBounds(bounds, BAIRROS_BOUNDS_PROPS);
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleFocus}
-      className="absolute top-24 left-1/2 z-[1400] flex min-w-0 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition-colors hover:bg-gray-50 active:bg-gray-100 sm:top-28"
-      title="Ajustar vista para a cidade do Rio inteira"
-    >
-      <Map className="w-4 h-4 shrink-0" />
-      <span className="truncate">Ver cidade inteira</span>
-    </button>
-  );
 };
 
 interface OccurrenceFiltersProps {

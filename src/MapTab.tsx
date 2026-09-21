@@ -1,4 +1,4 @@
-import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, AlertCircle, Info, Beaker, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRainData, type RainDataMode } from './hooks/useRainData';
 import { LeafletMap } from './components/LeafletMap';
@@ -19,7 +19,17 @@ import {
 import { fetchOccurrencesForMap } from './services/ocorrenciasApi';
 import { fetchOcorrenciasAbertas } from './services/ocorrenciasAbertasApi';
 
-function MapTab() {
+interface MapTabProps {
+  /** Recebe a função "focar cidade inteira" quando o mapa está pronto (null ao desmontar) — o
+   * botão em si mora no header do app, fora do MapTab. */
+  onFocusCityHandlerChange?: (handler: (() => void) | null) => void;
+  /** Recebe o estado do painel de contexto (aberto/fechado + função de alternar) enquanto o
+   * MapTab está montado (null ao desmontar) — o botão em si mora no header do app, e troca de
+   * rótulo ("Mostrar painel"/"Ocultar painel") conforme isOpen. */
+  onContextPanelToggleChange?: (state: { isOpen: boolean; onToggle: () => void } | null) => void;
+}
+
+function MapTab({ onFocusCityHandlerChange, onContextPanelToggleChange }: MapTabProps) {
   const [useMockDemo, setUseMockDemo] = useState(false);
   const [dataMode, setDataMode] = useState<RainDataMode>('auto');
   const today = new Date().toISOString().slice(0, 10);
@@ -163,6 +173,15 @@ function MapTab() {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [showMapLegend, setShowMapLegend] = useState(true);
   const [showHeaderPanel, setShowHeaderPanel] = useState(false);
+
+  // O botão "Mostrar painel"/"Ocultar painel" mora no header do app — manda o estado atual +
+  // função de alternar como um objeto (não uma função crua) pra não cair na pegadinha de função
+  // em useState sendo tratada como updater (ver comentário equivalente em LeafletMap.tsx).
+  useEffect(() => {
+    onContextPanelToggleChange?.({ isOpen: showHeaderPanel, onToggle: () => setShowHeaderPanel((v) => !v) });
+    return () => onContextPanelToggleChange?.(null);
+  }, [showHeaderPanel, onContextPanelToggleChange]);
+
   const isDarkMap = mapType === 'escuro';
   const isSatelliteMap = mapType === 'satelite';
   const isHighContrastMap = isDarkMap || isSatelliteMap;
@@ -533,22 +552,9 @@ function MapTab() {
             setSortField(field);
             setSortDirection(direction);
           }}
+          onFocusCityHandlerChange={onFocusCityHandlerChange}
         />
 
-
-        {!showHeaderPanel && (
-          <div className="absolute top-3 left-3 z-[2000]">
-            <button
-              type="button"
-              onClick={() => setShowHeaderPanel(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/60 bg-white/80 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-md backdrop-blur hover:bg-white"
-              title="Mostrar painel de contexto"
-            >
-              <Info className="w-3.5 h-3.5" />
-              Mostrar painel
-            </button>
-          </div>
-        )}
 
         {showHeaderPanel && (
           <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 z-[2000] pointer-events-none">
@@ -597,14 +603,6 @@ function MapTab() {
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
                   <button
                     type="button"
-                    onClick={() => setShowHeaderPanel(false)}
-                    className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonNeutralClass}`}
-                    title="Ocultar painel"
-                  >
-                    Ocultar painel
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setUseMockDemo((v) => !v)}
                     className={`inline-flex items-center gap-1.5 sm:gap-2 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium transition-colors shrink-0 ${headerButtonMockClass}`}
                     title={useMockDemo ? 'Voltar aos dados em tempo real' : 'Usar dados de exemplo'}
@@ -640,6 +638,15 @@ function MapTab() {
                   >
                     <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
                     Atualizar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowHeaderPanel(false)}
+                    className={`inline-flex items-center justify-center rounded-lg p-1.5 sm:p-2 transition-colors shrink-0 ${headerButtonNeutralClass}`}
+                    aria-label="Fechar painel"
+                    title="Fechar painel"
+                  >
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>

@@ -29,8 +29,9 @@ import {
   MapDataWindowToggle,
   HistoricalViewModeToggle,
   HistoricalTimelineControl,
-  FocusCityButton,
   FitCityOnLoad,
+  BAIRROS_BOUNDS_PROPS,
+  boundsFromBairros,
   OccurrencesToggle,
   OccurrenceSourceSelector,
   OccurrencePlanilhaUpload,
@@ -135,6 +136,9 @@ interface LeafletMapProps {
   sortField?: SortField;
   sortDirection?: SortDirection;
   onSortChange?: (field: SortField, direction: SortDirection) => void;
+  /** Expõe a ação "Ver cidade inteira" pro chamador (o botão mora no header do app, fora do
+   * mapa) — chamado com a função quando o mapa está pronto e com null ao desmontar/trocar de aba. */
+  onFocusCityHandlerChange?: (handler: (() => void) | null) => void;
 }
 
 // Componente para criar polígonos dos bairros
@@ -453,6 +457,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   sortField,
   sortDirection,
   onSortChange,
+  onFocusCityHandlerChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -601,10 +606,27 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const mapTypeConfig = MAP_TYPES.find((t: { id: MapTypeId }) => t.id === mapType) ?? MAP_TYPES[0];
   // Bairros/zonas NÃO bloqueiam mais o mapa: tiles, chuva, vento e radar já toleram esses dados
   // ausentes (ZoneRainLayer/BairroPolygons só renderizam quando `data &&`, FitCityOnLoad/
-  // FocusCityButton ignoram boundsData nulo). Bloquear tudo atrás de um spinner até um GeoJSON
+  // handleFocusCity ignoram boundsData nulo). Bloquear tudo atrás de um spinner até um GeoJSON
   // externo (ArcGIS da Prefeitura) responder é o que deixava o carregamento inicial lento.
   const loadingAny = loading || loadingZonas;
   const boundsData = zonasData ?? bairrosData;
+
+  // "Ver cidade inteira" mora no header do app (fora do mapa) — expõe a ação via callback em vez
+  // de renderizar o botão aqui, pra tirar poluição visual de cima do mapa.
+  const handleFocusCity = useCallback(() => {
+    if (!boundsData || !mapRef.current) return;
+    const bounds = boundsFromBairros(boundsData);
+    if (bounds) mapRef.current.fitBounds(bounds, BAIRROS_BOUNDS_PROPS);
+  }, [boundsData]);
+
+  useEffect(() => {
+    // Passa a função "crua" (sem embrulhar em outra arrow function): quem recebe isso do outro
+    // lado é, no fim da cadeia, um setState — e setState já trata um valor função como updater,
+    // desembrulhando uma camada sozinho. Embrulhar aqui de novo faria o estado guardar uma função
+    // que só RETORNA handleFocusCity em vez de chamá-la, e o clique no botão viraria um no-op.
+    onFocusCityHandlerChange?.(handleFocusCity);
+    return () => onFocusCityHandlerChange?.(null);
+  }, [handleFocusCity, onFocusCityHandlerChange]);
 
   // Dispara a busca do histórico de vento junto do "Aplicar" já existente (mesmo botão que
   // aplica o período pra chuva/ocorrências) — sem UI nova pra aprender. onApplyHistoricalFilter
@@ -964,7 +986,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           <RadarLayer radar={radarSource} imageUrl={radarData.currentImageUrl} />
         )}
         <FitCityOnLoad boundsData={boundsData} />
-        <FocusCityButton boundsData={boundsData} />
         <MapAutoFocus alerts={mapAlerts} />
         <AlertBanner alerts={mapAlerts} onDismiss={handleDismissAlert} />
         {showWind && autoWindFocus && (
