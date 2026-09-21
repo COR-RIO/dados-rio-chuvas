@@ -95,10 +95,12 @@ function sendNetlifyResponse(res, result) {
 // Map de funções carregadas
 const functions = {};
 
-// Carrega todas as funções .js (exceto testes)
+// Carrega todas as funções .js (exceto testes e este próprio arquivo — server.js mora dentro de
+// netlify/functions, então sem essa exclusão ele se auto-requer aqui, recarregando a si mesmo
+// recursivamente até estourar a call stack, já que o cache é limpo antes de cada require abaixo).
 if (fs.existsSync(functionsDir)) {
   fs.readdirSync(functionsDir)
-    .filter(file => file.endsWith('.js') && !file.startsWith('__'))
+    .filter(file => file.endsWith('.js') && !file.startsWith('__') && file !== path.basename(__filename))
     .forEach(file => {
       try {
         const functionName = file.replace('.js', '');
@@ -156,20 +158,22 @@ Object.entries(functions).forEach(([name, handler]) => {
 // (/api/<nome-do-arquivo>, ou seja /api/inmet-proxy), que nunca casam com esses sub-caminhos —
 // sem esta rota dedicada, toda consulta de vento do INMET dá 404 nesta implantação (Express/VPS).
 if (functions['inmet-proxy']) {
-  app.get('/api/inmet/*', async (req, res) => {
+  // Express 5 (path-to-regexp v6+) exige nome no wildcard — "/api/inmet/*" sozinho
+  // derruba o processo inteiro no boot com "Missing parameter name" (path-to-regexp).
+  app.get('/api/inmet/*splat', async (req, res) => {
     try {
       const event = createNetlifyEvent(req);
       const result = await functions['inmet-proxy'](event);
       sendNetlifyResponse(res, result);
     } catch (error) {
-      console.error('Erro em /api/inmet/*:', error);
+      console.error('Erro em /api/inmet/*splat:', error);
       res.status(500).json({
         error: 'Internal Server Error',
         message: error.message,
       });
     }
   });
-  console.log('✓ Rota dedicada registrada: GET /api/inmet/*');
+  console.log('✓ Rota dedicada registrada: GET /api/inmet/*splat');
 }
 
 // Agendador para funções cron (ex: wind-events-sync a cada 15 min)
