@@ -831,7 +831,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           flex flex-col min-w-0 transition-all duration-300 ease-in-out overflow-x-hidden
           fixed right-0 top-0 bottom-0
           ${isTableExpanded
-            ? 'w-[95vw] md:w-[600px] lg:w-[650px] max-w-[700px] md:right-3 md:top-3 md:bottom-3 z-[2200] md:z-[2200] bg-white'
+            ? 'w-[95vw] md:w-[600px] lg:w-[650px] max-w-[700px] md:absolute md:right-3 md:top-3 md:bottom-3 z-[2200] md:z-[2200] bg-white'
             : 'w-[92vw] max-w-[420px] md:w-[min(500px,calc(100vw-24px))] md:absolute md:top-3 md:right-3 md:bottom-3 z-[2100] md:z-[1400]'
           }
           ${isMobileView ? (showSidebar ? 'translate-x-0' : 'translate-x-full') : showSidebar ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'}
@@ -868,7 +868,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-touch min-w-0">
-            <div className="px-3 pt-3 pb-2 border-b border-gray-200 bg-white sticky top-0 z-10 flex items-center justify-between gap-2">
+            <div className="px-3 pt-3 pb-2 border-b border-gray-200 bg-white sticky top-0 z-20 flex items-center justify-between gap-2">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] text-gray-700">
                 <button
                   type="button"
