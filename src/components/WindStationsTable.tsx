@@ -227,10 +227,10 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
               <th className={`${headerBase} w-[110px] min-w-[110px]`} onClick={() => handleSort('category')}>
                 Categoria
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('observed_at')}>
+              <th className={`${headerBase} w-[150px] min-w-[150px]`} onClick={() => handleSort('observedAt')}>
                 Atualizado
               </th>
-              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('wind_direction_deg')}>
+              <th className={`${headerBase} w-[95px] min-w-[95px]`} onClick={() => handleSort('windDirectionDeg')}>
                 Direção
               </th>
               <th className={`${headerBase} w-[180px] min-w-[180px]`} onClick={() => handleSort('corridor')}>
@@ -283,11 +283,11 @@ export const WindStationsTable: React.FC<WindStationsTableProps> = ({
                       {WIND_CATEGORY_LABELS[category]}
                     </span>
                   </td>
-                  <td className={`${cellBase} w-[95px] min-w-[95px]`}>
-                    {s.windDirectionDeg != null ? `${windDirectionToCardinal(s.windDirectionDeg)} (${s.windDirectionDeg}°)` : 'VRB'}
-                  </td>
                   <td className={`${cellBase} w-[150px] min-w-[150px]`} title={dtLabel}>
                     {dtLabel}
+                  </td>
+                  <td className={`${cellBase} w-[95px] min-w-[95px]`}>
+                    {s.windDirectionDeg != null ? `${windDirectionToCardinal(s.windDirectionDeg)} (${s.windDirectionDeg}°)` : 'VRB'}
                   </td>
                   <td className={`${cellBase} w-[180px] min-w-[180px]`} title={WIND_CORRIDOR_LABELS[s.corridor]}>
                     {WIND_CORRIDOR_LABELS[s.corridor]}
