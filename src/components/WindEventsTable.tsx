@@ -188,11 +188,11 @@ export const WindEventsTable: React.FC<WindEventsTableProps> = ({ events, loadin
               <th className={`${headerBase} w-[85px] min-w-[85px] truncate`} onClick={() => handleSort('categoria')}>
                 Categoria
               </th>
-              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('wind_direction_deg')}>
-                Direção
-              </th>
-              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('observed_at')}>
+              <th className={`${headerBase} w-[70px] min-w-[70px] truncate`} onClick={() => handleSort('observed_at')}>
                 Atualizado
+              </th>
+              <th className={`${headerBase} w-[100px] min-w-[100px] truncate`} onClick={() => handleSort('wind_direction_deg')}>
+                Direção
               </th>
               <th className={`${headerBase} w-[110px] min-w-[110px] truncate`} onClick={() => handleSort('corredor')}>
                 Corredor
