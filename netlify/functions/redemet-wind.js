@@ -5,8 +5,8 @@
  *
  * Variáveis de ambiente:
  * - REDEMET_API_KEY: chave obtida em https://api-redemet.decea.mil.br (cadastro necessário)
- * - REDEMET_PROXY_URL (opcional): URL desta mesma function em outra implantação, usada antes da
- *   consulta direta — ver fetchViaProxy.
+ * - REDEMET_PROXY_URL (opcional): URL desta mesma function em outra implantação, usada como
+ *   fallback quando a consulta direta falha — ver fetchViaProxy.
  *
  * Query params:
  * - icao: lista de códigos ICAO separados por vírgula (ex.: SBGL,SBRJ,SBGR)
@@ -37,6 +37,9 @@ const KT_TO_MS = 0.514444;
 // inteiramente na página 2 e sumir do resultado sem nenhum erro visível (foi o caso de SBSC).
 const REDEMET_PAGE_SIZE = 200;
 const REDEMET_MAX_PAGES = 20; // proteção contra loop longo/abuso — cobre até ~4000 registros
+// Por requisição. Sem isso, um host que não alcança a API-REDEMET ficaria preso no timeout de
+// conexão padrão do Node antes de cair no proxy de fallback (REDEMET_PROXY_URL).
+const REDEMET_TIMEOUT_MS = 8000;
 
 function extractMetarRecords(json) {
   const candidates = [json?.data?.data, json?.data, json?.mensagens, json];
@@ -50,6 +53,7 @@ function extractMetarRecords(json) {
 async function fetchAllRedemetPages(baseUrl) {
   const firstResponse = await fetch(`${baseUrl}&page_tam=${REDEMET_PAGE_SIZE}&page=1`, {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(REDEMET_TIMEOUT_MS),
   });
   if (!firstResponse.ok) {
     return { records: [], response: firstResponse };
@@ -63,6 +67,7 @@ async function fetchAllRedemetPages(baseUrl) {
   for (let page = 2; page <= pagesToFetch; page++) {
     const pageResponse = await fetch(`${baseUrl}&page_tam=${REDEMET_PAGE_SIZE}&page=${page}`, {
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(REDEMET_TIMEOUT_MS),
     });
     // Preferir resultado parcial a falhar a consulta inteira por causa de uma página.
     if (!pageResponse.ok) continue;
@@ -147,11 +152,11 @@ function describeFetchError(err) {
 }
 
 /**
- * Repassa a consulta para outra implantação desta mesma function (REDEMET_PROXY_URL). Existe
- * porque a VPS de produção não consegue conectar na API-REDEMET ("fetch failed"), enquanto a
- * implantação no Netlify consegue com o mesmo código. Devolve null se o proxy falhar, para o
- * chamador cair na consulta direta. NÃO definir essa variável na implantação que serve de
- * proxy (ela chamaria a si mesma).
+ * Fallback: repassa a consulta para outra implantação desta mesma function (REDEMET_PROXY_URL)
+ * quando a consulta direta falha. Existe porque a VPS de produção não consegue conectar na
+ * API-REDEMET ("fetch failed"), enquanto a implantação no Netlify consegue com o mesmo código.
+ * Devolve null se o proxy também falhar. NÃO definir essa variável na implantação que serve
+ * de proxy (ela chamaria a si mesma).
  */
 async function fetchViaProxy(proxyUrl, { icao, dataIni, dataFim, isHistoryRequest }) {
   const query = new URLSearchParams({ icao });
@@ -219,11 +224,19 @@ exports.handler = async (event) => {
     };
   }
 
-  if (process.env.REDEMET_PROXY_URL) {
-    const proxied = await fetchViaProxy(process.env.REDEMET_PROXY_URL, { icao, dataIni, dataFim, isHistoryRequest });
-    if (proxied) return proxied;
-    // Proxy falhou: segue para a consulta direta abaixo.
-  }
+  // Consulta direta falhou: tenta o proxy (se configurado) antes de devolver o erro.
+  const failWithFallback = async (message) => {
+    console.error('REDEMET error:', message);
+    if (process.env.REDEMET_PROXY_URL) {
+      const proxied = await fetchViaProxy(process.env.REDEMET_PROXY_URL, { icao, dataIni, dataFim, isHistoryRequest });
+      if (proxied) return proxied;
+    }
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ success: false, error: message || 'Erro ao consultar REDEMET' }),
+    };
+  };
 
   try {
     // Conforme doc oficial (ajuda.decea.mil.br/base-de-conhecimento/api-redemet-mensagem-metar):
@@ -236,11 +249,7 @@ exports.handler = async (event) => {
     const { records, response } = await fetchAllRedemetPages(baseUrl);
 
     if (!response.ok) {
-      return {
-        statusCode: 200,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ success: false, error: `REDEMET retornou ${response.status}` }),
-      };
+      return failWithFallback(`REDEMET retornou ${response.status}`);
     }
 
     const stations = records
@@ -267,12 +276,6 @@ exports.handler = async (event) => {
       body: JSON.stringify({ success: true, data: stations }),
     };
   } catch (err) {
-    const message = describeFetchError(err);
-    console.error('REDEMET error:', message);
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ success: false, error: message || 'Erro ao consultar REDEMET' }),
-    };
+    return failWithFallback(describeFetchError(err));
   }
 };
