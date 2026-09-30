@@ -5,6 +5,8 @@
  *
  * Variáveis de ambiente:
  * - REDEMET_API_KEY: chave obtida em https://api-redemet.decea.mil.br (cadastro necessário)
+ * - REDEMET_PROXY_URL (opcional): URL desta mesma function em outra implantação, usada antes da
+ *   consulta direta — ver fetchViaProxy.
  *
  * Query params:
  * - icao: lista de códigos ICAO separados por vírgula (ex.: SBGL,SBRJ,SBGR)
@@ -138,6 +140,42 @@ function parseObservedAt(record, rawText) {
   return new Date(Date.UTC(year, month, day, Number(hourStr), Number(minStr))).toISOString();
 }
 
+/** "fetch failed" do Node esconde o motivo real (timeout, DNS, conexão recusada) em err.cause. */
+function describeFetchError(err) {
+  const cause = err?.cause?.code || err?.cause?.message;
+  return cause ? `${err.message} (${cause})` : err?.message;
+}
+
+/**
+ * Repassa a consulta para outra implantação desta mesma function (REDEMET_PROXY_URL). Existe
+ * porque a VPS de produção não consegue conectar na API-REDEMET ("fetch failed"), enquanto a
+ * implantação no Netlify consegue com o mesmo código. Devolve null se o proxy falhar, para o
+ * chamador cair na consulta direta. NÃO definir essa variável na implantação que serve de
+ * proxy (ela chamaria a si mesma).
+ */
+async function fetchViaProxy(proxyUrl, { icao, dataIni, dataFim, isHistoryRequest }) {
+  const query = new URLSearchParams({ icao });
+  if (isHistoryRequest) {
+    query.set('data_ini', dataIni);
+    query.set('data_fim', dataFim);
+  }
+
+  try {
+    const response = await fetch(`${proxyUrl}?${query}`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`proxy retornou ${response.status}`);
+    const json = await response.json();
+    if (!json?.success) throw new Error(json?.error || 'proxy devolveu success=false');
+    return {
+      statusCode: 200,
+      headers: { ...CORS_HEADERS, 'Cache-Control': isHistoryRequest ? CACHE_CONTROL_HISTORY : CACHE_CONTROL_LIVE },
+      body: JSON.stringify(json),
+    };
+  } catch (err) {
+    console.error('REDEMET proxy error:', describeFetchError(err));
+    return null;
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
@@ -179,6 +217,12 @@ exports.handler = async (event) => {
       headers: CORS_HEADERS,
       body: JSON.stringify({ success: false, error: 'data_ini/data_fim devem estar no formato YYYYMMDDHH' }),
     };
+  }
+
+  if (process.env.REDEMET_PROXY_URL) {
+    const proxied = await fetchViaProxy(process.env.REDEMET_PROXY_URL, { icao, dataIni, dataFim, isHistoryRequest });
+    if (proxied) return proxied;
+    // Proxy falhou: segue para a consulta direta abaixo.
   }
 
   try {
@@ -223,11 +267,12 @@ exports.handler = async (event) => {
       body: JSON.stringify({ success: true, data: stations }),
     };
   } catch (err) {
-    console.error('REDEMET error:', err.message);
+    const message = describeFetchError(err);
+    console.error('REDEMET error:', message);
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
-      body: JSON.stringify({ success: false, error: err.message || 'Erro ao consultar REDEMET' }),
+      body: JSON.stringify({ success: false, error: message || 'Erro ao consultar REDEMET' }),
     };
   }
 };

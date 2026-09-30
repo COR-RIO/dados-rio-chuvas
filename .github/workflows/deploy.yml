@@ -44,6 +44,7 @@ jobs:
           VITE_GEOCODE_OCORRENCIAS=true
           VITE_OCORRENCIAS_PLANILHA_URL=planilhas/ocorrencias.xlsx
           REDEMET_API_KEY=${{ secrets.REDEMET_API_KEY }}
+          REDEMET_PROXY_URL=https://chovendo-agora.netlify.app/api/redemet-wind
           VITE_INMET_TOKEN=${{ secrets.INMET_TOKEN }}
           EOF
 
