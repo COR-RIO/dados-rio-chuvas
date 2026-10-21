@@ -22,6 +22,10 @@ import { getRainLevel } from '../utils/rainLevel';
 import { ZoneRainLayer } from './ZoneRainLayer';
 import { WindBeltLayer } from './WindBeltLayer';
 import { RadarLayer } from './RadarLayer';
+import { ForecastModelLayer, type ForecastMapModel } from './ForecastModelLayer';
+import { ForecastPanel } from './ForecastPanel';
+import { useForecastModels } from '../hooks/useForecastModels';
+import { FORECAST_MODELS, type ForecastModelId } from '../services/forecastModelsApi';
 import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
   MapLayers,
@@ -41,6 +45,7 @@ import {
   WindCategoryFilter,
   WindLegend,
   RadarSourceControl,
+  ForecastLayerControl,
   RadarTimeControl,
   RadarMapLegend,
 } from './MapControls';
@@ -194,6 +199,12 @@ const BairroPolygons: React.FC<{ bairrosData: any; showHexagons: boolean }> = ({
 
 // Cor da bolinha por nível de influência 0-4 (mesma paleta: 15 min, 1h e acumulado)
 const INFLUENCE_COLORS = RAIN_LEVEL_PALETTE;
+
+/** Modelos da camada de previsão no mapa (o AIFS fica de fora: não traz rajada). Constantes no
+ * módulo pra manter identidade estável — o hook refaz a busca quando a lista muda. */
+const FORECAST_MAP_MODELS: ForecastModelId[] = ['ecmwf_ifs', 'gfs_seamless', 'icon_seamless'];
+const NO_MODELS: ForecastModelId[] = [];
+const FORECAST_MODEL_LABELS = Object.fromEntries(FORECAST_MODELS.map((m) => [m.id, m.label])) as Record<ForecastModelId, string>;
 
 // Legenda compacta de chuva (mesma paleta em qualquer critério — só os limites mudam).
 const RAIN_LEGEND_SHORT: Array<{ label: string; color: string }> = [
@@ -466,6 +477,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showInfluenceLines, setShowInfluenceLines] = useState(true);
   const [showWind, setShowWind] = useState(true);
   const [autoWindFocus, setAutoWindFocus] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
+  const [forecastModel, setForecastModel] = useState<ForecastMapModel>('max');
+  const [forecastWindowHours, setForecastWindowHours] = useState(12);
+  const [forecastPointId, setForecastPointId] = useState('praca-bandeira');
   const [windCategoryFilter, setWindCategoryFilter] = useState<WindCategory[]>([...WIND_CATEGORY_ORDER]);
   const windData = useWindData();
   const historicalWindData = useHistoricalWindData();
@@ -511,13 +526,30 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   useEffect(() => {
     setRadarSource(historicalMode ? 'off' : 'mendanha');
   }, [historicalMode]);
-  const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences' | 'wind-events'>('stations');
+  const [sidebarView, setSidebarView] = useState<'stations' | 'occurrences' | 'wind-events' | 'forecast'>('stations');
   const [windEvents, setWindEvents] = useState<WindEventRecord[]>([]);
   const [windEventsLoading, setWindEventsLoading] = useState(false);
   const showHexagons = false;
   const isMobileInitial = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
   const [showSidebar, setShowSidebar] = useState(!isMobileInitial);
   const [showFiltersPanel, setShowFiltersPanel] = useState(!isMobileInitial);
+  // Só busca quando a camada ou a aba de previsão estão em uso (lista vazia = hook não consulta a
+  // API). 5 dias, como o "Comparar previsões" do Windy.
+  const forecastData = useForecastModels(
+    showForecast || sidebarView === 'forecast' ? FORECAST_MAP_MODELS : NO_MODELS,
+    5
+  );
+  const handleSelectForecastPoint = useCallback((pointId: string) => {
+    setForecastPointId(pointId);
+    setSidebarView('forecast');
+    setShowSidebar(true);
+  }, []);
+  // Ocorrências ocultas no mapa = aba "Ocorrências" some do painel; se ela estava aberta, volta
+  // pra Estações.
+  const occurrencesTabVisible = showOccurrences ?? false;
+  useEffect(() => {
+    if (!occurrencesTabVisible) setSidebarView((v) => (v === 'occurrences' ? 'stations' : v));
+  }, [occurrencesTabVisible]);
   const [isMobileView, setIsMobileView] = useState(isMobileInitial);
   const [mapDataWindowInternal, setMapDataWindowInternal] = useState<MapDataWindow>('both');
   const [isTableExpanded, setIsTableExpanded] = useState(false);
@@ -715,6 +747,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   />
                 </>
               )}
+              <ForecastLayerControl
+                value={showForecast}
+                onChange={setShowForecast}
+                model={forecastModel}
+                onModelChange={setForecastModel}
+                windowHours={forecastWindowHours}
+                onWindowHoursChange={setForecastWindowHours}
+                loading={forecastData.loading}
+                error={forecastData.error}
+              />
               <RadarSourceControl
                 value={radarSource}
                 onChange={setRadarSource}
@@ -845,7 +887,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   ? 'Dados das estações'
                   : sidebarView === 'occurrences'
                     ? 'Ocorrências'
-                    : 'Vento'}
+                    : sidebarView === 'forecast'
+                      ? 'Previsão dos modelos'
+                      : 'Vento'}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -880,17 +924,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 >
                   Estações
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSidebarView('occurrences')}
-                  className={`px-2.5 py-1 rounded-md font-medium ${sidebarView === 'occurrences'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-transparent text-gray-700 hover:bg-white'
-                    }`}
-                  disabled={!occurrences || occurrences.length === 0}
-                >
-                  Ocorrências
-                </button>
+                {occurrencesTabVisible && (
+                  <button
+                    type="button"
+                    onClick={() => setSidebarView('occurrences')}
+                    className={`px-2.5 py-1 rounded-md font-medium ${sidebarView === 'occurrences'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-transparent text-gray-700 hover:bg-white'
+                      }`}
+                    disabled={!occurrences || occurrences.length === 0}
+                  >
+                    Ocorrências
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setSidebarView('wind-events')}
@@ -901,6 +947,20 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   title={historicalMode ? 'Eventos de vento forte/muito-forte no período (histórico, BigQuery)' : 'Estações do cinturão de vento ao vivo'}
                 >
                   Vento
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSidebarView('forecast');
+                    setShowForecast(true);
+                  }}
+                  className={`px-2.5 py-1 rounded-md font-medium ${sidebarView === 'forecast'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-transparent text-gray-700 hover:bg-white'
+                    }`}
+                  title="Comparar modelos de previsão (ECMWF, GFS, ICON) — como no Windy"
+                >
+                  Previsão
                 </button>
               </div>
 
@@ -942,6 +1002,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               )}
               {sidebarView === 'occurrences' && (
                 <OccurrenceTable occurrences={occurrences} embedded onFocusLocation={focusMapOnLocation} />
+              )}
+              {sidebarView === 'forecast' && (
+                <ForecastPanel
+                  data={forecastData.data}
+                  loading={forecastData.loading}
+                  error={forecastData.error}
+                  enabledModels={FORECAST_MAP_MODELS}
+                  windowHours={forecastWindowHours}
+                  selectedPointId={forecastPointId}
+                  onSelectPoint={setForecastPointId}
+                  onFocusLocation={focusMapOnLocation}
+                />
               )}
               {sidebarView === 'wind-events' && (
                 historicalMode ? (
@@ -1008,8 +1080,41 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           showAccumulated={(historicalMode && historicalViewMode === 'accumulated' && hasAccumulated)}
         />
         <OccurrenceMarkers occurrences={appliedShowOccurrences && (showOccurrences ?? false) ? occurrences : undefined} />
+        {showForecast && (
+          <ForecastModelLayer
+            data={forecastData.data}
+            enabledModels={FORECAST_MAP_MODELS}
+            model={forecastModel}
+            windowHours={forecastWindowHours}
+            onSelectPoint={handleSelectForecastPoint}
+          />
+        )}
         {showWind && <WindBeltLayer stations={filteredWindStations} corridorSummary={activeWindData.corridorSummary} />}
       </MapContainer>
+
+      {/* Horizonte da previsão (empilhado logo acima da legenda de chuva) — deixa claro que as
+          etiquetas tracejadas são PREVISÃO e para quantas horas (troca direto aqui). */}
+      {showForecast && (
+        <div
+          className="absolute bottom-[7.75rem] left-1/2 -translate-x-1/2 z-[1400] bg-white/95 backdrop-blur rounded-lg shadow-md border border-indigo-200 px-2.5 py-1.5 flex items-center gap-2 max-w-[95vw] overflow-x-auto"
+          style={{ fontFamily: 'Arial, sans-serif' }}
+        >
+          <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">
+            Previsão ({forecastModel === 'max' ? 'maior entre ECMWF/GFS/ICON' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
+          </span>
+          {[6, 12, 24].map((h) => (
+            <button
+              key={h}
+              type="button"
+              onClick={() => setForecastWindowHours(h)}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold ${forecastWindowHours === h ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              {h} h
+            </button>
+          ))}
+          {forecastData.loading && <span className="text-[10px] text-gray-500 whitespace-nowrap">carregando…</span>}
+        </div>
+      )}
 
       {/* Legenda de chuva discreta, sempre visível (telão do COR não tem quem clique em
           "Mostrar filtros"/"Mostrar legenda") — uma tira só, empilhada acima da legenda do radar,

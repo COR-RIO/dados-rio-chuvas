@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause } from 'lucide-react';
+import { Layers, Hexagon, Route, Clock3, CalendarDays, Timer, BarChart3, AlertTriangle, Maximize2, Upload, X, Wind, Radar, Play, Pause, CloudRain } from 'lucide-react';
 import { MAP_TYPES, type BoundsGeoJson, type MapDataWindow, type HistoricalViewMode, type MapTypeId } from './mapControlTypes';
 import type { RadarSourceId } from '../hooks/useRadarFrames';
 import { getInfluenceLegendItems } from '../utils/influenceTheme';
@@ -14,6 +14,8 @@ import {
   WIND_CATEGORY_ORDER,
   type WindCategory,
 } from '../types/wind';
+import { FORECAST_MODELS, type ForecastModelId } from '../services/forecastModelsApi';
+import type { ForecastMapModel } from './ForecastModelLayer';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -119,6 +121,94 @@ export const WindLayerToggle: React.FC<WindLayerToggleProps> = ({ value, onChang
           Ocultar
         </button>
       </div>
+    </div>
+  );
+};
+
+const FORECAST_WINDOW_OPTIONS = [6, 12, 24];
+
+interface ForecastLayerControlProps {
+  value: boolean;
+  onChange: (show: boolean) => void;
+  model: ForecastMapModel;
+  onModelChange: (model: ForecastMapModel) => void;
+  windowHours: number;
+  onWindowHoursChange: (hours: number) => void;
+  loading?: boolean;
+  error?: string | null;
+}
+
+/** Previsão dos modelos numéricos (ECMWF/GFS/ICON) nos pontos de acompanhamento — mesma fonte
+ * da aba Previsão. Desligada por padrão pra não misturar previsão com chuva observada. */
+export const ForecastLayerControl: React.FC<ForecastLayerControlProps> = ({
+  value,
+  onChange,
+  model,
+  onModelChange,
+  windowHours,
+  onWindowHoursChange,
+  loading = false,
+  error = null,
+}) => {
+  const btn = (active: boolean) =>
+    `px-2 py-1 rounded text-xs font-medium transition-colors ${
+      active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`;
+  const modelOptions: { id: ForecastMapModel; label: string; title: string }[] = [
+    { id: 'max', label: 'Maior', title: 'Maior acumulado entre ECMWF, GFS e ICON (cenário mais pessimista)' },
+    ...FORECAST_MODELS.filter((m) => m.id !== 'ecmwf_aifs025_single').map((m) => ({
+      id: m.id as ForecastModelId,
+      label: m.label,
+      title: m.description,
+    })),
+  ];
+
+  return (
+    <div className={controlBoxClass} style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div
+        className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700"
+        title="Chuva acumulada prevista pelos modelos numéricos (como no Windy) nos pontos de acompanhamento."
+      >
+        <CloudRain className="w-3.5 h-3.5" />
+        Previsão dos modelos
+      </div>
+      <div className="flex gap-1">
+        <button type="button" onClick={() => onChange(true)} className={`flex-1 ${btn(value)}`}>
+          Mostrar
+        </button>
+        <button type="button" onClick={() => onChange(false)} className={`flex-1 ${btn(!value)}`}>
+          Ocultar
+        </button>
+      </div>
+      {value && (
+        <>
+          <p className="mt-2 mb-1 text-[10px] font-semibold uppercase text-gray-500">Modelo</p>
+          <div className="flex flex-wrap gap-1">
+            {modelOptions.map((o) => (
+              <button key={o.id} type="button" title={o.title} onClick={() => onModelChange(o.id)} className={btn(model === o.id)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 mb-1 text-[10px] font-semibold uppercase text-gray-500">Próximas</p>
+          <div className="flex gap-1">
+            {FORECAST_WINDOW_OPTIONS.map((h) => (
+              <button key={h} type="button" onClick={() => onWindowHoursChange(h)} className={`flex-1 ${btn(windowHours === h)}`}>
+                {h} h
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-gray-500">
+            Etiqueta tracejada = previsão (mm acumulados; rajada em kt quando ≥ 22). Clique para comparar modelos.
+          </p>
+          {loading && <p className="mt-1 text-[10px] text-gray-500">Carregando previsões…</p>}
+          {error && (
+            <p className="mt-1 text-[10px] text-amber-700 font-medium" role="alert">
+              {error}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 };

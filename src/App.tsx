@@ -1,14 +1,16 @@
 import { useCallback, useState } from 'react';
-import { Map as MapIcon, BarChart3, Info } from 'lucide-react';
+import { Map as MapIcon, BarChart3, CloudRain, Info } from 'lucide-react';
 import MapTab from './MapTab';
 import AnalysisDashboard from './pages/AnalysisDashboard';
+import ForecastDashboard from './pages/ForecastDashboard';
 
-export type AppTab = 'mapa' | 'analise';
+export type AppTab = 'mapa' | 'previsao' | 'analise';
 
 /** Links de navegação do header (como um site institucional). Para adicionar uma nova seção,
  * basta inserir um item aqui e renderizá-lo no <main> abaixo. */
 const TABS: { id: AppTab; label: string; icon: typeof MapIcon; description: string }[] = [
   { id: 'mapa', label: 'Mapa', icon: MapIcon, description: 'Monitoramento em tempo real' },
+  { id: 'previsao', label: 'Previsão', icon: CloudRain, description: 'Comparar modelos de previsão (ECMWF, GFS, ICON)' },
   { id: 'analise', label: 'Análise Institucional', icon: BarChart3, description: 'Cruzamento de chuva, vento e ocorrências' },
 ];
 
@@ -107,6 +109,8 @@ function App() {
             onFocusCityHandlerChange={handleFocusCityHandlerChange}
             onContextPanelToggleChange={setContextPanelToggle}
           />
+        ) : activeTab === 'previsao' ? (
+          <ForecastDashboard />
         ) : (
           <AnalysisDashboard />
         )}
