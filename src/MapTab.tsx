@@ -182,15 +182,10 @@ function MapTab({ onFocusCityHandlerChange, onContextPanelToggleChange }: MapTab
     return () => onContextPanelToggleChange?.(null);
   }, [showHeaderPanel, onContextPanelToggleChange]);
 
-  const isDarkMap = mapType === 'escuro';
   const isSatelliteMap = mapType === 'satelite';
-  const isHighContrastMap = isDarkMap || isSatelliteMap;
+  const isHighContrastMap = isSatelliteMap;
 
-  const headerPanelClass = isDarkMap
-    ? 'bg-slate-900/88 border-slate-500'
-    : isSatelliteMap
-      ? 'bg-black/62 border-white/35'
-      : 'bg-white/92 border-gray-200';
+  const headerPanelClass = isSatelliteMap ? 'bg-black/62 border-white/35' : 'bg-white/92 border-gray-200';
   const headerTitleClass = isHighContrastMap ? 'text-white' : 'text-gray-900';
   const headerMetaClass = isHighContrastMap ? 'text-gray-200' : 'text-gray-600';
   const headerButtonNeutralClass = isHighContrastMap

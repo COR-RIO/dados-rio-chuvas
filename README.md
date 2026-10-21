@@ -58,7 +58,7 @@ netlify/functions/        # historical-rain (BigQuery)
 
 ## 🌧️ Funcionalidades
 
-- **Mapa Leaflet** (Rua, Satélite, Escuro) com foco no Rio de Janeiro
+- **Mapa Leaflet** (Rua, Satélite) com foco no Rio de Janeiro
 - **Zonas pluviométricas** (GeoJSON oficial): cada zona colorida pelo nível de chuva da estação
 - **Bolinhas** nas estações com a mesma paleta de cores
 - **Dados no mapa:** 15 min (m15), 1 h (h01) ou **Ambos** (zonas = 15 min, bolinhas = 1 h)
