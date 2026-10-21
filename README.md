@@ -66,7 +66,7 @@ netlify/functions/        # historical-rain (BigQuery)
 - **Sem chuva:** zona sem preenchimento (mapa visível); demais níveis com cor sólida
 - **Modo histórico (GCP):** instantâneo (uma data + horário) ou acumulado no período (De/Até)
 - **Fonte em tempo real:** Alerta Rio (API); fallback e histórico: BigQuery (GCP)
-- **Previsão por modelos (ECMWF, GFS, ICON):** aba Previsão + camada no mapa, como o "Comparar previsões" do Windy — ver [docs/FORECAST_MODELS.md](./docs/FORECAST_MODELS.md)
+- **Previsão por modelos (ECMWF, meteoblue, GFS, ICON):** aba Previsão + camada no mapa, como o "Comparar previsões" do Windy — ver [docs/FORECAST_MODELS.md](./docs/FORECAST_MODELS.md)
 
 ## 📊 Paleta de cores (níveis de chuva)
 
@@ -96,6 +96,6 @@ Mesma paleta para 15 min, 1 h e acumulado (zonas, bolinhas, tabela e legendas).
 
 ## 📄 Documentação adicional
 
-- [docs/FORECAST_MODELS.md](./docs/FORECAST_MODELS.md) — Previsão por modelos numéricos: fonte (Open-Meteo), cálculo dos blocos de 3 h, mapa e diferenças em relação ao Windy
+- [docs/FORECAST_MODELS.md](./docs/FORECAST_MODELS.md) — Previsão por modelos numéricos: fontes (Open-Meteo e meteoblue), configuração da chave do meteoblue, cálculo dos blocos de 3 h, mapa e diferenças em relação ao Windy
 - [GCP_SETUP.md](./GCP_SETUP.md) — Credenciais e variáveis para dados históricos (BigQuery)
 - [GOOGLE_MAPS_SETUP.md](./GOOGLE_MAPS_SETUP.md) — Configuração do Google Maps (opcional; o app usa Leaflet por padrão)

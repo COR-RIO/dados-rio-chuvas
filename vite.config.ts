@@ -85,6 +85,11 @@ export default defineConfig(async ({ mode, command, isPreview }) => {
             });
           },
         },
+        '/api/meteoblue-forecast': {
+          target: historicalProxy,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/meteoblue-forecast/, '/.netlify/functions/meteoblue-forecast'),
+        },
         '/api/wind-events-history': {
           target: historicalProxy,
           changeOrigin: true,

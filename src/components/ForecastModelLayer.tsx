@@ -67,7 +67,7 @@ interface ForecastModelLayerProps {
 
 export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, enabledModels, model, windowHours, onSelectPoint }) => {
   if (!data) return null;
-  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id));
+  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id) && !data.modelErrors[m.id]);
 
   return (
     <>

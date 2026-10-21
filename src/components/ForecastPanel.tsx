@@ -32,7 +32,8 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
   onSelectPoint,
   onFocusLocation,
 }) => {
-  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id));
+  const failedModels = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id) && data?.modelErrors[m.id]);
+  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id) && !data?.modelErrors[m.id]);
   const now = nowInRio();
   const point = FORECAST_POINTS.find((p) => p.id === selectedPointId) ?? FORECAST_POINTS[0];
 
@@ -66,6 +67,12 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
           </p>
         )}
       </div>
+
+      {failedModels.map((m) => (
+        <p key={m.id} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+          {m.label} indisponível: {data.modelErrors[m.id]}
+        </p>
+      ))}
 
       {/* Resumo: chuva acumulada e maior rajada na janela, por ponto e modelo */}
       <table className="w-full border-collapse tabular-nums">

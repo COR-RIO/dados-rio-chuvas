@@ -62,6 +62,14 @@
   status = 200
   force = true
 
+# Previsão meteoblue (aba Previsão / camada do mapa) — Function esconde METEOBLUE_API_KEY e cacheia
+# 1 h para economizar créditos. Ver netlify/functions/meteoblue-forecast.js e docs/FORECAST_MODELS.md.
+[[redirects]]
+  from = "/api/meteoblue-forecast"
+  to = "/.netlify/functions/meteoblue-forecast"
+  status = 200
+  force = true
+
 # Dados meteorológicos em tempo real (SEMPRE Rio / Prefeitura) — proxy que adiciona CORS.
 # Ver netlify/functions/websempre-weather.js.
 [[redirects]]

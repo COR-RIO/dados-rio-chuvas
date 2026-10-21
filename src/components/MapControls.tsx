@@ -155,7 +155,7 @@ export const ForecastLayerControl: React.FC<ForecastLayerControlProps> = ({
       active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
     }`;
   const modelOptions: { id: ForecastMapModel; label: string; title: string }[] = [
-    { id: 'max', label: 'Maior', title: 'Maior acumulado entre ECMWF, GFS e ICON (cenário mais pessimista)' },
+    { id: 'max', label: 'Maior', title: 'Maior acumulado entre ECMWF, meteoblue, GFS e ICON (cenário mais pessimista)' },
     ...FORECAST_MODELS.filter((m) => m.id !== 'ecmwf_aifs025_single').map((m) => ({
       id: m.id as ForecastModelId,
       label: m.label,

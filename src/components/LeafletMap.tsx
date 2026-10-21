@@ -202,7 +202,7 @@ const INFLUENCE_COLORS = RAIN_LEVEL_PALETTE;
 
 /** Modelos da camada de previsão no mapa (o AIFS fica de fora: não traz rajada). Constantes no
  * módulo pra manter identidade estável — o hook refaz a busca quando a lista muda. */
-const FORECAST_MAP_MODELS: ForecastModelId[] = ['ecmwf_ifs', 'gfs_seamless', 'icon_seamless'];
+const FORECAST_MAP_MODELS: ForecastModelId[] = ['ecmwf_ifs', 'meteoblue', 'gfs_seamless', 'icon_seamless'];
 const NO_MODELS: ForecastModelId[] = [];
 const FORECAST_MODEL_LABELS = Object.fromEntries(FORECAST_MODELS.map((m) => [m.id, m.label])) as Record<ForecastModelId, string>;
 
@@ -1100,7 +1100,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           style={{ fontFamily: 'Arial, sans-serif' }}
         >
           <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">
-            Previsão ({forecastModel === 'max' ? 'maior entre ECMWF/GFS/ICON' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
+            Previsão ({forecastModel === 'max' ? 'maior entre os modelos' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
           </span>
           {[6, 12, 24].map((h) => (
             <button

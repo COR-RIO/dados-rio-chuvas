@@ -16,13 +16,16 @@ const RAIN_THRESHOLD_OPTIONS = [0.5, 1, 2, 5];
 
 
 export default function ForecastDashboard() {
-  const [enabledModels, setEnabledModels] = useState<ForecastModelId[]>(['ecmwf_ifs', 'gfs_seamless', 'icon_seamless']);
+  const [enabledModels, setEnabledModels] = useState<ForecastModelId[]>(['ecmwf_ifs', 'meteoblue', 'gfs_seamless', 'icon_seamless']);
   const [summaryDays, setSummaryDays] = useState(2);
   const [rainThreshold, setRainThreshold] = useState(1);
   const [selectedPointId, setSelectedPointId] = useState('praca-bandeira');
 
   const { data, loading, error, refresh } = useForecastModels(enabledModels, FORECAST_DAYS);
-  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id));
+  // Modelo que falhou (ex.: meteoblue sem chave) sai das tabelas e vira aviso — senão apareceria
+  // como "sem chuva".
+  const failedModels = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id) && data?.modelErrors[m.id]);
+  const models = FORECAST_MODELS.filter((m) => enabledModels.includes(m.id) && !data?.modelErrors[m.id]);
   const now = nowInRio();
 
   const allDays = useMemo(() => {
@@ -117,6 +120,13 @@ export default function ForecastDashboard() {
       </div>
 
       <div className="mx-auto max-w-[1700px] space-y-5 px-4 py-6 sm:px-6">
+        {failedModels.map((m) => (
+          <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            {m.label} indisponível: {data?.modelErrors[m.id]}
+          </div>
+        ))}
+
         {error && (
           <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <AlertTriangle className="h-5 w-5 shrink-0" />

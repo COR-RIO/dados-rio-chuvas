@@ -8,11 +8,14 @@ import { fetchWithTimeout } from '../utils/fetchWithTimeout';
  * NOAA GFS, DWD ICON) numa API sem chave e com CORS, então o browser chama direto. Uma única
  * requisição traz todos os pontos × modelos (latitude/longitude separados por vírgula).
  *
- * O meteoblue (que aparece no Windy) é um produto comercial sem dado aberto — não entra aqui.
+ * O meteoblue (que aparece no Windy) é comercial e exige API key — vem por outra rota, a Netlify
+ * Function meteoblue-forecast (esconde a chave e cacheia 1 h pra economizar créditos). Se a chave
+ * não estiver configurada, só o meteoblue fica indisponível; os outros modelos seguem normais.
  */
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
+const METEOBLUE_URL = '/api/meteoblue-forecast';
 
-export type ForecastModelId = 'ecmwf_ifs' | 'ecmwf_aifs025_single' | 'gfs_seamless' | 'icon_seamless';
+export type ForecastModelId = 'ecmwf_ifs' | 'ecmwf_aifs025_single' | 'gfs_seamless' | 'icon_seamless' | 'meteoblue';
 
 export interface ForecastModel {
   id: ForecastModelId;
@@ -23,6 +26,12 @@ export interface ForecastModel {
 
 export const FORECAST_MODELS: ForecastModel[] = [
   { id: 'ecmwf_ifs', label: 'ECMWF', description: 'ECMWF IFS HRES 9 km (Europa)', color: '#2563EB' },
+  {
+    id: 'meteoblue',
+    label: 'meteoblue',
+    description: 'meteoblue multimodelo (Suíça) — o mesmo do Windy; requer METEOBLUE_API_KEY',
+    color: '#0891B2',
+  },
   { id: 'gfs_seamless', label: 'GFS', description: 'NOAA GFS 13–25 km (EUA)', color: '#DC2626' },
   { id: 'icon_seamless', label: 'ICON', description: 'DWD ICON 13 km (Alemanha)', color: '#16A34A' },
   {
@@ -77,7 +86,21 @@ export interface PointModelForecast {
 export interface ForecastModelsResult {
   /** forecasts[pointId][modelId] */
   forecasts: Record<string, Partial<Record<ForecastModelId, ForecastSlot[]>>>;
+  /** Modelos que falharam (ex.: meteoblue sem chave) — os demais continuam em `forecasts`. */
+  modelErrors: Partial<Record<ForecastModelId, string>>;
   fetchedAt: Date;
+}
+
+interface MeteoblueResponse {
+  points?: {
+    time: string[];
+    precipitation: (number | null)[];
+    temperature: (number | null)[];
+    windspeed: (number | null)[];
+    winddirection: (number | null)[];
+    gust: (number | null)[];
+  }[];
+  error?: string;
 }
 
 interface OpenMeteoLocation {
@@ -133,11 +156,11 @@ function toThreeHourSlots(times: string[], series: Record<string, (number | null
   return slots.filter((s) => s.rainMm != null || s.tempC != null);
 }
 
-export async function fetchForecastModels(
+async function fetchOpenMeteo(
   points: ForecastPoint[],
   models: ForecastModelId[],
   forecastDays: number
-): Promise<ForecastModelsResult> {
+): Promise<ForecastModelsResult['forecasts']> {
   const params = new URLSearchParams({
     latitude: points.map((p) => p.lat).join(','),
     longitude: points.map((p) => p.lng).join(','),
@@ -172,6 +195,60 @@ export async function fetchForecastModels(
     }
     forecasts[point.id] = byModel;
   });
+  return forecasts;
+}
 
-  return { forecasts, fetchedAt: new Date() };
+/** meteoblue via Netlify Function. A série horária já vem no fuso de Brasília e em nós; a chuva
+ * horária é tratada como acumulado da hora anterior, igual ao Open-Meteo. */
+async function fetchMeteoblue(points: ForecastPoint[]): Promise<Record<string, ForecastSlot[]>> {
+  const params = new URLSearchParams({
+    lat: points.map((p) => p.lat).join(','),
+    lon: points.map((p) => p.lng).join(','),
+  });
+  // cache padrão do browser: a function já devolve Cache-Control de 1 h (economiza créditos).
+  const res = await fetchWithTimeout(`${METEOBLUE_URL}?${params}`, { cache: 'default' }, 25000);
+  const body: MeteoblueResponse = await res.json();
+  if (!res.ok || body.error || !body.points) {
+    throw new Error(body.error || `meteoblue respondeu ${res.status}`);
+  }
+  const result: Record<string, ForecastSlot[]> = {};
+  points.forEach((point, idx) => {
+    const p = body.points?.[idx];
+    if (!p) return;
+    result[point.id] = toThreeHourSlots(p.time, {
+      precipitation: p.precipitation,
+      wind_gusts_10m: p.gust,
+      wind_speed_10m: p.windspeed,
+      wind_direction_10m: p.winddirection,
+      temperature_2m: p.temperature,
+    });
+  });
+  return result;
+}
+
+export async function fetchForecastModels(
+  points: ForecastPoint[],
+  models: ForecastModelId[],
+  forecastDays: number
+): Promise<ForecastModelsResult> {
+  const openMeteoModels = models.filter((m) => m !== 'meteoblue');
+  const [openMeteo, meteoblue] = await Promise.allSettled([
+    openMeteoModels.length ? fetchOpenMeteo(points, openMeteoModels, forecastDays) : Promise.resolve({}),
+    models.includes('meteoblue') ? fetchMeteoblue(points) : Promise.resolve(null),
+  ]);
+
+  // Open-Meteo é a fonte principal: se ela falha, o erro sobe (tela mostra o aviso geral).
+  if (openMeteo.status === 'rejected') throw openMeteo.reason;
+  const forecasts = openMeteo.value as ForecastModelsResult['forecasts'];
+  const modelErrors: ForecastModelsResult['modelErrors'] = {};
+
+  if (meteoblue.status === 'rejected') {
+    modelErrors.meteoblue = meteoblue.reason instanceof Error ? meteoblue.reason.message : String(meteoblue.reason);
+  } else if (meteoblue.value) {
+    for (const [pointId, slots] of Object.entries(meteoblue.value)) {
+      forecasts[pointId] = { ...forecasts[pointId], meteoblue: slots };
+    }
+  }
+
+  return { forecasts, modelErrors, fetchedAt: new Date() };
 }

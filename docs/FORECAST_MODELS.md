@@ -1,4 +1,4 @@
-# Previsão por modelos numéricos (ECMWF, GFS, ICON)
+# Previsão por modelos numéricos (ECMWF, meteoblue, GFS, ICON)
 
 Compara a previsão de chuva e rajada de vários modelos numéricos nos pontos acompanhados pela
 meteorologia do COR — a mesma leitura que era feita à mão no "Comparar previsões" do Windy
@@ -14,6 +14,11 @@ Aparece em três lugares, todos com a mesma fonte e o mesmo cálculo:
 
 ## De onde vêm os dados
 
+São duas fontes, buscadas em paralelo. Se o meteoblue falhar (ex.: chave não configurada), só
+ele some das telas com o aviso "meteoblue indisponível: …"; os outros modelos continuam.
+
+### 1. Open-Meteo — ECMWF, GFS, ICON, AIFS
+
 **Open-Meteo** — `https://api.open-meteo.com/v1/forecast` ([docs](https://open-meteo.com/en/docs)).
 
 - Agrega a saída oficial dos modelos (ECMWF open data, NOAA GFS, DWD ICON) numa API única.
@@ -23,22 +28,57 @@ Aparece em três lugares, todos com a mesma fonte e o mesmo cálculo:
   (`customer-api.open-meteo.com` + `&apikey=`).
 
 Por que não o Windy direto: a [Point Forecast API do Windy](https://api.windy.com/point-forecast/docs)
-é paga e não traz o meteoblue. O **meteoblue** (que aparece no Windy) é proprietário, sem dado
-aberto — não está disponível aqui.
+é paga e não traz o meteoblue.
+
+### 2. meteoblue — API própria, com chave
+
+O meteoblue (o modelo que aparece no topo do "Comparar previsões" do Windy) é comercial e **exige
+API key**. O browser não chama direto: passa pela Netlify Function
+`netlify/functions/meteoblue-forecast.js` (rota `/api/meteoblue-forecast`), que:
+
+- esconde a chave (mesmo esquema do REDEMET);
+- faz 1 chamada por ponto em `https://my.meteoblue.com/packages/<pacote>?lat=…&lon=…&apikey=…&format=json&tz=America/Sao_Paulo&windspeed=kn&forecast_days=5`;
+- devolve a série horária de todos os pontos num formato igual ao do Open-Meteo;
+- põe **cache de 1 h na borda** — cada ponto consome créditos, então com 8 pontos são ~200
+  chamadas/dia no máximo, não importa quantas pessoas estejam com o site aberto.
+
+**Configuração (Netlify → Site settings → Environment variables):**
+
+| Variável | Obrigatória | Valor |
+|---|---|---|
+| `METEOBLUE_API_KEY` | sim | Chave da conta meteoblue |
+| `METEOBLUE_PACKAGE` | não | Pacote da Forecast API. Padrão `basic-1h_wind-1h` (`basic-1h` = chuva, temperatura, vento; `wind-1h` = rajada). Se o plano não incluir `wind-1h`, use `basic-1h` — a rajada fica em branco |
+
+**Como conseguir a chave:** em [meteoblue Weather API](https://content.meteoblue.com/en/business-solutions/weather-apis/free-weather-api)
+existe um plano **gratuito por 1 ano** para uso não comercial (cota de créditos/chamadas limitada
+— a página da meteoblue cita números diferentes, confira na conta). Para uso institucional
+contínuo, avalie o plano pago; o consumo previsto está acima (~200 chamadas/dia). Se a conta
+exigir assinatura de URL (`&sig=`), a function ainda não implementa — a resposta será
+"This api key requires signature validation".
+
+Em dev, o Vite encaminha `/api/meteoblue-forecast` para a function publicada (`VITE_HISTORICAL_RAIN_PROXY`),
+então a chave só precisa estar no Netlify.
+
+> ⚠️ **A validar quando a chave estiver ativa:** a function assume que a chuva horária do meteoblue
+> é o acumulado da hora **anterior** (como no Open-Meteo) e que a rajada vem no campo `gust`. Compare
+> um ponto com o Windy e ajuste `fetchPoint` em `meteoblue-forecast.js` se necessário.
 
 ### Modelos
 
 | `id` no código | Modelo | Resolução | Observações |
 |---|---|---|---|
 | `ecmwf_ifs` | ECMWF IFS HRES (Europa) | 9 km | Horário até 90 h, depois 3-horário. Roda a cada 6 h |
+| `meteoblue` | meteoblue multimodelo (Suíça) | ~ | Via Netlify Function, exige `METEOBLUE_API_KEY` (ver acima) |
 | `gfs_seamless` | NOAA GFS (EUA) | 13–25 km | Roda a cada 6 h |
 | `icon_seamless` | DWD ICON (Alemanha) | 13 km | Roda a cada 3 h |
 | `ecmwf_aifs025_single` | ECMWF AIFS (IA) | 25 km | **Só 6-horário** (o Open-Meteo interpola pra hora a hora, por isso espalha chuva fraca em vários blocos). **Não traz rajada.** Desligado por padrão na aba Previsão e fora do mapa |
 
-Para incluir outro modelo, adicione-o em `FORECAST_MODELS` (`src/services/forecastModelsApi.ts`)
-com o `id` aceito pelo parâmetro `models` do Open-Meteo.
+Para incluir outro modelo do Open-Meteo, adicione-o em `FORECAST_MODELS`
+(`src/services/forecastModelsApi.ts`) com o `id` aceito pelo parâmetro `models` do Open-Meteo.
 
-### Variáveis pedidas
+A ordem das colunas segue a planilha manual: ECMWF, meteoblue, GFS, ICON.
+
+### Variáveis pedidas (Open-Meteo)
 
 `precipitation`, `wind_gusts_10m`, `wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, com
 `wind_speed_unit=kn` (nós, como o Windy) e `timezone=America/Sao_Paulo`.
@@ -66,7 +106,7 @@ aparece automaticamente na aba, no mapa e no painel.
 
 ### Blocos de 3 h (mesma convenção do Windy)
 
-O Open-Meteo entrega série **horária**, em que a chuva da hora H é o acumulado da hora anterior
+As duas fontes entregam série **horária**, em que a chuva da hora H é o acumulado da hora anterior
 (H-1 → H). O app agrupa em blocos de 3 h nos horários 00, 03, 06 … 21, e **o horário do bloco é o
 fim do intervalo**:
 
@@ -90,8 +130,9 @@ etiqueta no mapa mostra a soma da chuva nesses blocos (ex.: `3,1 mm/12h`) e a ma
 quando ≥ 22 kt. O período exato ("De Qua 21/10 15h até Qui 22/10 03h") aparece no topo da aba
 Previsão do painel de dados, e os blocos correspondentes ficam destacados em lilás nas faixas.
 
-No seletor de modelo do mapa, **"Maior"** mostra o maior acumulado entre ECMWF, GFS e ICON em
-cada ponto (cenário mais pessimista); a rajada é a maior entre os três.
+No seletor de modelo do mapa, **"Maior"** mostra o maior acumulado entre ECMWF, meteoblue, GFS e
+ICON em cada ponto (cenário mais pessimista); a rajada é a maior entre eles. Modelo indisponível
+fica de fora da comparação.
 
 ### Cores
 
@@ -106,7 +147,10 @@ cada ponto (cenário mais pessimista); a rajada é a maior entre os três.
 - O hook `useForecastModels` busca ao abrir e repete a cada **30 min** (as rodadas saem a cada 3–6 h).
 - No mapa, **só busca quando a camada ou a aba Previsão do painel estão em uso** — a camada vem
   desligada por padrão para não misturar previsão com chuva observada no telão.
-- Timeout de 20 s (`fetchWithTimeout`); erro aparece na tela, sem derrubar o resto do mapa.
+- Timeout de 20 s no Open-Meteo e 25 s no meteoblue (`fetchWithTimeout`); erro aparece na tela,
+  sem derrubar o resto do mapa.
+- O meteoblue usa o cache do browser + 1 h de cache na borda do Netlify; repetir o refresh não
+  gasta créditos novos dentro dessa hora.
 
 ## Diferenças esperadas em relação ao Windy
 
@@ -132,7 +176,8 @@ observada): `https://previous-runs-api.open-meteo.com/v1/forecast?...&hourly=pre
 
 | Arquivo | Papel |
 |---|---|
-| `src/services/forecastModelsApi.ts` | Modelos, pontos, chamada ao Open-Meteo e agregação em blocos de 3 h |
+| `src/services/forecastModelsApi.ts` | Modelos, pontos, chamadas ao Open-Meteo e ao meteoblue, agregação em blocos de 3 h |
+| `netlify/functions/meteoblue-forecast.js` | Proxy do meteoblue (esconde a chave, cache de 1 h). Rota em `netlify.toml`; proxy de dev em `vite.config.ts` |
 | `src/hooks/useForecastModels.ts` | Busca + refresh de 30 min |
 | `src/utils/forecastFormat.ts` | Fuso de Brasília, blocos encerrados, janela do mapa, cores e formatação |
 | `src/pages/ForecastDashboard.tsx` | Aba **Previsão** do cabeçalho |
