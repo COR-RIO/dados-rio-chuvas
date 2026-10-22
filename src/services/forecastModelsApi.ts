@@ -156,6 +156,30 @@ function toThreeHourSlots(times: string[], series: Record<string, (number | null
   return slots.filter((s) => s.rainMm != null || s.tempC != null);
 }
 
+// O Open-Meteo gratuito às vezes responde "The service is overloaded" (429/5xx) por alguns
+// segundos — tenta de novo com espera crescente antes de desistir.
+const OPEN_METEO_RETRY_DELAYS_MS = [2000, 5000];
+
+async function fetchOpenMeteoWithRetry(url: string) {
+  for (let attempt = 0; ; attempt++) {
+    let message: string;
+    let retryable: boolean;
+    try {
+      const res = await fetchWithTimeout(url, undefined, 20000);
+      const body = await res.json().catch(() => null);
+      if (res.ok && !body?.error) return body;
+      message = body?.reason || `Open-Meteo respondeu ${res.status}`;
+      // 4xx que não seja 429 = parâmetro inválido, não adianta repetir.
+      retryable = res.status === 429 || res.status >= 500 || /overload/i.test(message);
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+      retryable = true; // timeout / rede
+    }
+    if (!retryable || attempt >= OPEN_METEO_RETRY_DELAYS_MS.length) throw new Error(message);
+    await new Promise((r) => setTimeout(r, OPEN_METEO_RETRY_DELAYS_MS[attempt]));
+  }
+}
+
 async function fetchOpenMeteo(
   points: ForecastPoint[],
   models: ForecastModelId[],
@@ -171,11 +195,7 @@ async function fetchOpenMeteo(
     forecast_days: String(forecastDays),
   });
 
-  const res = await fetchWithTimeout(`${OPEN_METEO_URL}?${params}`, undefined, 20000);
-  const body = await res.json();
-  if (!res.ok || body?.error) {
-    throw new Error(body?.reason || `Open-Meteo respondeu ${res.status}`);
-  }
+  const body = await fetchOpenMeteoWithRetry(`${OPEN_METEO_URL}?${params}`);
   // Com um único ponto a API devolve um objeto em vez de array.
   const locations: OpenMeteoLocation[] = Array.isArray(body) ? body : [body];
 
@@ -237,10 +257,18 @@ export async function fetchForecastModels(
     models.includes('meteoblue') ? fetchMeteoblue(points) : Promise.resolve(null),
   ]);
 
-  // Open-Meteo é a fonte principal: se ela falha, o erro sobe (tela mostra o aviso geral).
-  if (openMeteo.status === 'rejected') throw openMeteo.reason;
-  const forecasts = openMeteo.value as ForecastModelsResult['forecasts'];
+  // Se só uma das fontes falha, os modelos dela viram aviso e a outra segue na tela; se as duas
+  // falham (ou só uma foi pedida e falhou), o erro sobe e o hook mantém a última previsão boa.
   const modelErrors: ForecastModelsResult['modelErrors'] = {};
+  let forecasts: ForecastModelsResult['forecasts'] = {};
+  if (openMeteo.status === 'fulfilled') {
+    forecasts = openMeteo.value as ForecastModelsResult['forecasts'];
+  } else if (meteoblue.status === 'fulfilled' && meteoblue.value) {
+    const reason = openMeteo.reason instanceof Error ? openMeteo.reason.message : String(openMeteo.reason);
+    for (const m of openMeteoModels) modelErrors[m] = reason;
+  } else {
+    throw openMeteo.reason;
+  }
 
   if (meteoblue.status === 'rejected') {
     modelErrors.meteoblue = meteoblue.reason instanceof Error ? meteoblue.reason.message : String(meteoblue.reason);

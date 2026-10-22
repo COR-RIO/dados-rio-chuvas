@@ -29,6 +29,37 @@ const CORS_HEADERS = {
 
 // O meteoblue recalcula o multimodelo de hora em hora — 1 h de cache economiza créditos sem perder rodada.
 const CACHE_CONTROL = 'public, max-age=1800, s-maxage=3600, stale-while-revalidate=600';
+
+// Cache em memória por ponto: o Cache-Control acima só vale na CDN do Netlify — na VPS (server.js)
+// e no dev (plugin do Vite) cada abertura de página/tela gastaria 1 chamada por ponto. Com isso,
+// todas as telas compartilham 1 chamada por ponto a cada METEOBLUE_CACHE_MINUTES (padrão 180).
+// Se o meteoblue falhar (ex.: créditos esgotados), devolve o último dado bom em vez de erro.
+const CACHE_TTL_MS = (Number(process.env.METEOBLUE_CACHE_MINUTES) || 180) * 60 * 1000;
+const STALE_MAX_MS = 24 * 60 * 60 * 1000;
+const cache = new Map(); // key -> { at, data }
+const inFlight = new Map(); // key -> Promise (evita chamadas duplicadas simultâneas)
+
+async function getPoint(pkg, apiKey, lat, lon) {
+  const key = `${pkg}:${lat.toFixed(4)},${lon.toFixed(4)}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  if (inFlight.has(key)) return inFlight.get(key);
+  const p = fetchPoint(pkg, apiKey, lat, lon)
+    .then((data) => {
+      cache.set(key, { at: Date.now(), data });
+      return data;
+    })
+    .catch((err) => {
+      if (hit && Date.now() - hit.at < STALE_MAX_MS) {
+        console.warn(`meteoblue-forecast: usando cache antigo (${key}):`, err.message);
+        return hit.data;
+      }
+      throw err;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
 const MAX_POINTS = 20;
 const TIMEOUT_MS = 15000;
 
@@ -105,7 +136,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const points = await Promise.all(lats.map((lat, i) => fetchPoint(pkg, apiKey, lat, lons[i])));
+    const points = await Promise.all(lats.map((lat, i) => getPoint(pkg, apiKey, lat, lons[i])));
     return reply(200, { points }, CACHE_CONTROL);
   } catch (err) {
     console.error('meteoblue-forecast error:', err.message);

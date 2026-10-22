@@ -39,8 +39,10 @@ API key**. O browser não chama direto: passa pela Netlify Function
 - esconde a chave (mesmo esquema do REDEMET);
 - faz 1 chamada por ponto em `https://my.meteoblue.com/packages/<pacote>?lat=…&lon=…&apikey=…&format=json&tz=America/Sao_Paulo&windspeed=kmh&forecast_days=5`;
 - devolve a série horária de todos os pontos num formato igual ao do Open-Meteo;
-- põe **cache de 1 h na borda** — cada ponto consome créditos, então com 8 pontos são ~200
-  chamadas/dia no máximo, não importa quantas pessoas estejam com o site aberto.
+- guarda **cache em memória por ponto** (padrão 3 h, `METEOBLUE_CACHE_MINUTES`) — cada ponto
+  consome créditos, então com 8 pontos são ~64 chamadas/dia, não importa quantas telas estejam
+  abertas. Se o meteoblue falhar (ex.: créditos esgotados), devolve o último dado bom (até 24 h).
+  No Netlify também há 1 h de cache na borda (`Cache-Control`), mas na VPS só o cache em memória vale.
 
 **Configuração** — onde pôr a chave:
 
@@ -135,9 +137,24 @@ etiqueta no mapa mostra a soma da chuva nesses blocos (ex.: `3,1 mm/12h`) e a ma
 quando ≥ 40 km/h. O período exato ("De Qua 21/10 15h até Qui 22/10 03h") aparece no topo da aba
 Previsão do painel de dados, e os blocos correspondentes ficam destacados em lilás nas faixas.
 
-No seletor de modelo do mapa, **"Maior"** mostra o maior acumulado entre ECMWF, meteoblue, GFS e
-ICON em cada ponto (cenário mais pessimista); a rajada é a maior entre eles. Modelo indisponível
-fica de fora da comparação.
+No seletor de modelo do mapa, **"Consenso"** (padrão) resume ECMWF, meteoblue, GFS e ICON em cada ponto:
+
+```
+0,3 mm /24h
+máx 5,7 ECMWF · 1/4 ≥5 mm
+```
+
+- **Número principal = mediana** dos acumulados (rajada também pela mediana). Mediana e não média:
+  chuva não é simétrica — se um modelo prevê 30 mm e três preveem 0, a média dá 7,5 mm, cenário que
+  nenhum modelo prevê; a mediana também não infla quando um modelo exagera (ex.: GFS em convecção).
+- **Máximo com o nome do modelo**: o pior cenário continua visível, sem misturar chuva de um modelo
+  com rajada de outro.
+- **Concordância**: quantos modelos preveem ≥ 5 mm (`CONSENSUS_THRESHOLD_MM` em `ForecastModelLayer.tsx`).
+- **Borda vermelha** quando algum modelo passa de 5 mm mas a mediana não — o sinal de alerta não
+  some só porque a maioria discorda. O popup repete o resumo e lista cada modelo.
+
+Modelo indisponível ou sem dados para a janela fica de fora da mediana e da contagem (o tooltip avisa).
+Lembrete: o meteoblue já é um multimodelo, então pesa um pouco mais na concordância.
 
 **Sem dados × 0 mm:** `summarizeWindow` conta quantos blocos da janela vieram com chuva. Nenhum →
 "sem dados" (etiqueta amarela no mapa, aviso no painel); alguns → total com `*` (parcial, tooltip
@@ -158,8 +175,8 @@ diz quantos blocos faltam). `0` é previsão de "sem chuva", não falta de dado.
   desligada por padrão para não misturar previsão com chuva observada no telão.
 - Timeout de 20 s no Open-Meteo e 25 s no meteoblue (`fetchWithTimeout`); erro aparece na tela,
   sem derrubar o resto do mapa.
-- O meteoblue usa o cache do browser + 1 h de cache na borda do Netlify; repetir o refresh não
-  gasta créditos novos dentro dessa hora.
+- O meteoblue usa o cache em memória do servidor (3 h) + cache do browser; repetir o refresh não
+  gasta créditos novos dentro desse período.
 
 ## Diferenças esperadas em relação ao Windy
 
@@ -186,7 +203,7 @@ observada): `https://previous-runs-api.open-meteo.com/v1/forecast?...&hourly=pre
 | Arquivo | Papel |
 |---|---|
 | `src/services/forecastModelsApi.ts` | Modelos, pontos, chamadas ao Open-Meteo e ao meteoblue, agregação em blocos de 3 h |
-| `netlify/functions/meteoblue-forecast.js` | Proxy do meteoblue (esconde a chave, cache de 1 h). Rota em `netlify.toml`; proxy de dev em `vite.config.ts` |
+| `netlify/functions/meteoblue-forecast.js` | Proxy do meteoblue (esconde a chave, cache em memória de 3 h). Na VPS via `server.js`; em dev via plugin em `vite.config.ts` |
 | `src/hooks/useForecastModels.ts` | Busca + refresh de 30 min |
 | `src/utils/forecastFormat.ts` | Fuso de Brasília, blocos encerrados, janela do mapa, cores e formatação |
 | `src/pages/ForecastDashboard.tsx` | Aba **Previsão** do cabeçalho |

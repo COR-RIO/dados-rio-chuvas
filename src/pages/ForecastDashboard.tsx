@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CloudRain, Loader2, RefreshCw, AlertTriangle, MapPin, Info } from 'lucide-react';
 import { ModelStrip } from '../components/ForecastModelStrip';
+import { ForecastGuide } from '../components/ForecastGuide';
 import { dayLabel, fmtMm, gustClass, isPast, nowInRio, rainClass } from '../utils/forecastFormat';
 import { useForecastModels } from '../hooks/useForecastModels';
 import {
@@ -130,7 +131,9 @@ export default function ForecastDashboard() {
         {error && (
           <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <AlertTriangle className="h-5 w-5 shrink-0" />
-            Não foi possível buscar as previsões: {error}
+            {data
+              ? `Falha ao atualizar (${error}). Mostrando a previsão das ${data.fetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — nova tentativa automática em até 30 min ou clique em atualizar.`
+              : `Não foi possível buscar as previsões: ${error}. Tente atualizar em alguns minutos.`}
           </div>
         )}
 
@@ -286,6 +289,8 @@ export default function ForecastDashboard() {
             </div>
           </section>
         )}
+
+        <ForecastGuide />
 
         <p className="flex items-start gap-2 text-[11px] text-slate-500">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />

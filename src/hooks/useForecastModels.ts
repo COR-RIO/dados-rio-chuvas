@@ -27,6 +27,7 @@ export function useForecastModels(models: ForecastModelId[], forecastDays: numbe
       setData(result);
       setError(null);
     } catch (err) {
+      // `data` não é limpo: a tela segue com a última previsão boa e mostra o erro como aviso.
       setError(err instanceof Error ? err.message : 'Erro ao buscar previsões');
     } finally {
       setLoading(false);

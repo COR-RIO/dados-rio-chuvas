@@ -5,6 +5,7 @@ import { LeafletMap } from './components/LeafletMap';
 import { RainStationCard } from './components/RainStationCard';
 import { InfoModal } from './components/InfoModal';
 import { InfluenceLegend } from './components/InfluenceLegend';
+import { ForecastGuide } from './components/ForecastGuide';
 import type { MapTypeId, HistoricalViewMode } from './components/mapControlTypes';
 import type { SortField, SortDirection } from './components/RainDataTable';
 import { findClosestTimestamp } from './utils/historicalTimestamp';
@@ -702,6 +703,13 @@ function MapTab({ onFocusCityHandlerChange, onContextPanelToggleChange }: MapTab
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Guia da previsão dos modelos (camada "Previsão dos modelos" + painel Previsão do mapa) */}
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
+          <ForecastGuide defaultOpen={false} />
         </div>
       </section>
 

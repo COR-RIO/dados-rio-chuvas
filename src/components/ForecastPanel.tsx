@@ -94,6 +94,14 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
         )}
       </div>
 
+      {error && (
+        <p className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+          Falha ao atualizar ({error}). Mostrando a previsão das{' '}
+          {data.fetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}; nova tentativa automática em
+          até 30 min.
+        </p>
+      )}
+
       {failedModels.map((m) => (
         <p key={m.id} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
           {m.label} indisponível: {data.modelErrors[m.id]}
@@ -131,9 +139,9 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
                     {s.totalMm == null ? (
                       <span className="text-[10px] italic text-amber-700">sem dados</span>
                     ) : s.totalMm === 0 && s.missingBlocks === 0 ? (
-                      <span className="inline-flex flex-col items-end leading-tight">
-                        <span className="text-[10px] font-semibold text-slate-500">sem chuva</span>
-                        <span className="text-[9px] text-slate-400">{nextRainLabel(s)}</span>
+                      // 0 = sem chuva prevista; quando começa fica no tooltip, pra não poluir a tabela.
+                      <span className={`rounded px-1 font-bold ${rainClass(0)}`} title={nextRainLabel(s)}>
+                        0
                       </span>
                     ) : (
                       <span className={`rounded px-1 font-bold ${rainClass(s.totalMm)}`}>
