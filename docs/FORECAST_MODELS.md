@@ -42,12 +42,17 @@ API key**. O browser não chama direto: passa pela Netlify Function
 - põe **cache de 1 h na borda** — cada ponto consome créditos, então com 8 pontos são ~200
   chamadas/dia no máximo, não importa quantas pessoas estejam com o site aberto.
 
-**Configuração (Netlify → Site settings → Environment variables):**
+**Configuração** — onde pôr a chave:
+
+- **VPS (produção):** secret `METEOBLUE_API_KEY` no GitHub (Settings → Secrets and variables → Actions);
+  o `deploy.yml` escreve no `.env` do servidor e o `server.js` expõe `/api/meteoblue-forecast`.
+- **Dev local:** `METEOBLUE_API_KEY=…` no `.env`; o Vite roda a function localmente (plugin em `vite.config.ts`).
+- **Netlify (se usar):** Site settings → Environment variables.
 
 | Variável | Obrigatória | Valor |
 |---|---|---|
 | `METEOBLUE_API_KEY` | sim | Chave da conta meteoblue |
-| `METEOBLUE_PACKAGE` | não | Pacote da Forecast API. Padrão `basic-1h_wind-1h` (`basic-1h` = chuva, temperatura, vento; `wind-1h` = rajada). Se o plano não incluir `wind-1h`, use `basic-1h` — a rajada fica em branco |
+| `METEOBLUE_PACKAGE` | não | Pacote da Forecast API. Padrão `basic-1h_wind-3h` (`basic-1h` = chuva, temperatura, vento; `wind-3h` = rajada a cada 3 h, encaixada nos blocos de 3 h). É o que o plano Free-trial libera — `wind-1h` exige plano pago; com ele, use `basic-1h_wind-1h` |
 
 **Como conseguir a chave:** em [meteoblue Weather API](https://content.meteoblue.com/en/business-solutions/weather-apis/free-weather-api)
 existe um plano **gratuito por 1 ano** para uso não comercial (cota de créditos/chamadas limitada
@@ -56,8 +61,7 @@ contínuo, avalie o plano pago; o consumo previsto está acima (~200 chamadas/di
 exigir assinatura de URL (`&sig=`), a function ainda não implementa — a resposta será
 "This api key requires signature validation".
 
-Em dev, o Vite encaminha `/api/meteoblue-forecast` para a function publicada (`VITE_HISTORICAL_RAIN_PROXY`),
-então a chave só precisa estar no Netlify.
+Em dev, o Vite chama a function direto (sem proxy pro Netlify), então a chave precisa estar no `.env` local.
 
 > ⚠️ **A validar quando a chave estiver ativa:** a function assume que a chuva horária do meteoblue
 > é o acumulado da hora **anterior** (como no Open-Meteo) e que a rajada vem no campo `gust`. Compare

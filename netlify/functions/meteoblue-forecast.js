@@ -9,9 +9,9 @@
  *
  * Variáveis de ambiente:
  *   METEOBLUE_API_KEY  (obrigatória) chave em https://www.meteoblue.com/en/weather-api
- *   METEOBLUE_PACKAGE  (opcional) pacote da Forecast API; padrão "basic-1h_wind-1h"
- *                      (basic-1h = chuva/temperatura/vento; wind-1h = rajada). Se o plano não
- *                      incluir wind-1h, use "basic-1h" — a rajada fica em branco.
+ *   METEOBLUE_PACKAGE  (opcional) pacote da Forecast API; padrão "basic-1h_wind-3h"
+ *                      (basic-1h = chuva/temperatura/vento; wind-3h = rajada de 3 h, liberado no
+ *                      Free-trial). Plano pago com wind-1h: "basic-1h_wind-1h" (rajada horária).
  *
  * GET ?lat=-22.9,-22.8&lon=-43.2,-43.4  ->  { points: [{ time, precipitation, temperature,
  *   windspeed, winddirection, gust }] }  (mesma ordem dos pontos pedidos; time em "YYYY-MM-DDTHH:mm",
@@ -63,14 +63,24 @@ async function fetchPoint(pkg, apiKey, lat, lon) {
     throw new Error(body.error_message || `meteoblue respondeu ${res.status}`);
   }
   const d = body.data_1h || {};
+  // "2026-10-21 15:00" -> "2026-10-21T15:00" (mesmo formato do Open-Meteo)
+  const toIso = (t) => String(t).replace(' ', 'T').slice(0, 16);
+  const time = (d.time || []).map(toIso);
+  let gust = d.gust || d.windgusts || [];
+  // wind-3h: rajada só nas horas 00, 03, 06… — encaixa na hora de mesmo horário (as demais ficam
+  // null); o app agrega em blocos de 3 h pelo máximo, então cada bloco recebe exatamente 1 valor.
+  const d3 = body.data_3h;
+  if (!gust.length && d3 && d3.gust) {
+    const byTime = new Map(d3.time.map((t, i) => [toIso(t), d3.gust[i]]));
+    gust = time.map((t) => byTime.get(t) ?? null);
+  }
   return {
-    // "2026-10-21 15:00" -> "2026-10-21T15:00" (mesmo formato do Open-Meteo)
-    time: (d.time || []).map((t) => String(t).replace(' ', 'T').slice(0, 16)),
+    time,
     precipitation: d.precipitation || [],
     temperature: d.temperature || [],
     windspeed: d.windspeed || [],
     winddirection: d.winddirection || [],
-    gust: d.gust || d.windgusts || [],
+    gust,
   };
 }
 
@@ -84,9 +94,9 @@ exports.handler = async (event) => {
 
   const apiKey = process.env.METEOBLUE_API_KEY;
   if (!apiKey) {
-    return reply(200, { error: 'METEOBLUE_API_KEY não configurada no Netlify' });
+    return reply(200, { error: 'METEOBLUE_API_KEY não configurada no servidor' });
   }
-  const pkg = process.env.METEOBLUE_PACKAGE || 'basic-1h_wind-1h';
+  const pkg = process.env.METEOBLUE_PACKAGE || 'basic-1h_wind-3h';
 
   const lats = parseList(event.queryStringParameters?.lat);
   const lons = parseList(event.queryStringParameters?.lon);

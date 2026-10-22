@@ -46,6 +46,7 @@ jobs:
           REDEMET_API_KEY=${{ secrets.REDEMET_API_KEY }}
           REDEMET_PROXY_URL=https://chovendo-agora.netlify.app/api/redemet-wind
           VITE_INMET_TOKEN=${{ secrets.INMET_TOKEN }}
+          METEOBLUE_API_KEY=${{ secrets.METEOBLUE_API_KEY }}
           EOF
 
       - name: Escrever credentials.json no servidor

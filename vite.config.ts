@@ -1,5 +1,6 @@
 import net from 'node:net';
-import { defineConfig, loadEnv } from 'vite';
+import { createRequire } from 'node:module';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const DEV_PORT = 5173;
@@ -28,6 +29,25 @@ const findFreePort = async (start: number) => {
   throw new Error(`Nenhuma porta livre entre ${start} e ${start + 49}`);
 };
 
+// meteoblue em dev: roda a própria function localmente com METEOBLUE_API_KEY do .env (em produção
+// a VPS registra /api/meteoblue-forecast via netlify/functions/server.js) — não depende do Netlify.
+const meteobluePlugin = (apiKey?: string): Plugin => ({
+  name: 'meteoblue-forecast-dev',
+  configureServer(server) {
+    if (apiKey) process.env.METEOBLUE_API_KEY = apiKey;
+    const { handler } = createRequire(import.meta.url)('./netlify/functions/meteoblue-forecast.js');
+    server.middlewares.use('/api/meteoblue-forecast', async (req, res) => {
+      const url = new URL(req.url || '/', 'http://localhost');
+      const result = await handler({
+        httpMethod: req.method,
+        queryStringParameters: Object.fromEntries(url.searchParams),
+      });
+      res.writeHead(result.statusCode, result.headers);
+      res.end(result.body);
+    });
+  },
+});
+
 export default defineConfig(async ({ mode, command, isPreview }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const devPort = command === 'serve' && !isPreview ? await findFreePort(DEV_PORT) : DEV_PORT;
@@ -35,7 +55,7 @@ export default defineConfig(async ({ mode, command, isPreview }) => {
   const redemetApiKey = env.REDEMET_API_KEY || env.VITE_REDEMET_API_KEY;
 
   return {
-    plugins: [react()],
+    plugins: [react(), meteobluePlugin(env.METEOBLUE_API_KEY)],
     server: {
       port: devPort,
       strictPort: true,
@@ -84,11 +104,6 @@ export default defineConfig(async ({ mode, command, isPreview }) => {
               proxyReq.path = `/mensagens/metar/${icao.toUpperCase()}?${params.toString()}`;
             });
           },
-        },
-        '/api/meteoblue-forecast': {
-          target: historicalProxy,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/meteoblue-forecast/, '/.netlify/functions/meteoblue-forecast'),
         },
         '/api/wind-events-history': {
           target: historicalProxy,
