@@ -69,10 +69,10 @@ export interface ForecastSlot {
   hour: number;
   /** Chuva acumulada no bloco (hour-3, hour] — null se o modelo não cobre o horário. */
   rainMm: number | null;
-  /** Maior rajada no bloco, em nós (kt — mesma unidade do Windy). */
-  gustKt: number | null;
-  /** Vento médio no horário `hour`, em nós. */
-  windKt: number | null;
+  /** Maior rajada no bloco, em km/h. */
+  gustKmh: number | null;
+  /** Vento médio no horário `hour`, em km/h. */
+  windKmh: number | null;
   windDirDeg: number | null;
   tempC: number | null;
 }
@@ -146,8 +146,8 @@ function toThreeHourSlots(times: string[], series: Record<string, (number | null
       date,
       hour,
       rainMm: rain == null ? null : round1(rain),
-      gustKt: gust == null ? null : Math.round(gust),
-      windKt: speed[i] == null ? null : Math.round(speed[i] as number),
+      gustKmh: gust == null ? null : Math.round(gust),
+      windKmh: speed[i] == null ? null : Math.round(speed[i] as number),
       windDirDeg: dir[i] ?? null,
       tempC: temp[i] == null ? null : Math.round(temp[i] as number),
     });
@@ -166,7 +166,7 @@ async function fetchOpenMeteo(
     longitude: points.map((p) => p.lng).join(','),
     hourly: HOURLY_VARS.join(','),
     models: models.join(','),
-    wind_speed_unit: 'kn',
+    wind_speed_unit: 'kmh',
     timezone: 'America/Sao_Paulo',
     forecast_days: String(forecastDays),
   });
@@ -198,7 +198,7 @@ async function fetchOpenMeteo(
   return forecasts;
 }
 
-/** meteoblue via Netlify Function. A série horária já vem no fuso de Brasília e em nós; a chuva
+/** meteoblue via Netlify Function. A série horária já vem no fuso de Brasília e em km/h; a chuva
  * horária é tratada como acumulado da hora anterior, igual ao Open-Meteo. */
 async function fetchMeteoblue(points: ForecastPoint[]): Promise<Record<string, ForecastSlot[]>> {
   const params = new URLSearchParams({

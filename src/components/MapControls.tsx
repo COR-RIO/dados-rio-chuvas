@@ -16,6 +16,7 @@ import {
 } from '../types/wind';
 import { FORECAST_MODELS, type ForecastModelId } from '../services/forecastModelsApi';
 import type { ForecastMapModel } from './ForecastModelLayer';
+import { FORECAST_WINDOW_OPTIONS } from '../utils/forecastFormat';
 
 interface MapLayersProps {
   value: MapTypeId;
@@ -125,7 +126,6 @@ export const WindLayerToggle: React.FC<WindLayerToggleProps> = ({ value, onChang
   );
 };
 
-const FORECAST_WINDOW_OPTIONS = [6, 12, 24];
 
 interface ForecastLayerControlProps {
   value: boolean;
@@ -199,7 +199,7 @@ export const ForecastLayerControl: React.FC<ForecastLayerControlProps> = ({
             ))}
           </div>
           <p className="mt-2 text-[10px] text-gray-500">
-            Etiqueta tracejada = previsão (mm acumulados; rajada em kt quando ≥ 22). Clique para comparar modelos.
+            Etiqueta tracejada = previsão (mm acumulados; rajada em km/h quando ≥ 40). Clique para comparar modelos.
           </p>
           {loading && <p className="mt-1 text-[10px] text-gray-500">Carregando previsões…</p>}
           {error && (

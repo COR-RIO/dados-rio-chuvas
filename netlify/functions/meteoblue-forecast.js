@@ -15,7 +15,7 @@
  *
  * GET ?lat=-22.9,-22.8&lon=-43.2,-43.4  ->  { points: [{ time, precipitation, temperature,
  *   windspeed, winddirection, gust }] }  (mesma ordem dos pontos pedidos; time em "YYYY-MM-DDTHH:mm",
- *   fuso de Brasília; vento/rajada em nós). Sem chave: { error } com status 200, para o app só
+ *   fuso de Brasília; vento/rajada em km/h). Sem chave: { error } com status 200, para o app só
  * marcar o meteoblue como indisponível sem derrubar os outros modelos.
  *
  * Em dev, o Vite proxya para a function publicada (ver vite.config.ts, "/api/meteoblue-forecast").
@@ -51,7 +51,7 @@ async function fetchPoint(pkg, apiKey, lat, lon) {
     apikey: apiKey,
     format: 'json',
     tz: 'America/Sao_Paulo',
-    windspeed: 'kn',
+    windspeed: 'kmh',
     forecast_days: '5',
   });
   const res = await fetch(`https://my.meteoblue.com/packages/${pkg}?${params}`, {

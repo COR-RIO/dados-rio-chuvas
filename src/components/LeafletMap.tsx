@@ -26,6 +26,7 @@ import { ForecastModelLayer, type ForecastMapModel } from './ForecastModelLayer'
 import { ForecastPanel } from './ForecastPanel';
 import { useForecastModels } from '../hooks/useForecastModels';
 import { FORECAST_MODELS, type ForecastModelId } from '../services/forecastModelsApi';
+import { FORECAST_WINDOW_OPTIONS } from '../utils/forecastFormat';
 import { RainDataTable, type SortField, type SortDirection } from './RainDataTable';
 import {
   MapLayers,
@@ -1102,7 +1103,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">
             Previsão ({forecastModel === 'max' ? 'maior entre os modelos' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
           </span>
-          {[6, 12, 24].map((h) => (
+          {FORECAST_WINDOW_OPTIONS.map((h) => (
             <button
               key={h}
               type="button"

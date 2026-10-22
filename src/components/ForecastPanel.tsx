@@ -7,7 +7,19 @@ import {
   type ForecastModelsResult,
 } from '../services/forecastModelsApi';
 import { ModelStrip } from './ForecastModelStrip';
-import { fmtDateHour, fmtMm, gustClass, nowInRio, rainClass, slotKey, upcomingSlots } from '../utils/forecastFormat';
+import {
+  coverageNote,
+  fmtDateHour,
+  fmtMm,
+  gustClass,
+  nextRainLabel,
+  nowInRio,
+  rainClass,
+  slotKey,
+  summarizeWindow,
+  upcomingSlots,
+  type WindowSummary,
+} from '../utils/forecastFormat';
 
 interface ForecastPanelProps {
   data: ForecastModelsResult | null;
@@ -44,6 +56,20 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
     [data, point.id, firstModelId, windowHours]
   );
   const highlight = useMemo(() => new Set(windowSlots.map(slotKey)), [windowSlots]);
+
+  // summaries[pointId][modelId] na janela + modelos com buraco em algum ponto (para o aviso).
+  const summaries = useMemo(() => {
+    const out: Record<string, Partial<Record<ForecastModelId, WindowSummary>>> = {};
+    for (const p of FORECAST_POINTS) {
+      out[p.id] = {};
+      for (const m of models) out[p.id][m.id] = summarizeWindow(data?.forecasts[p.id]?.[m.id] ?? [], windowHours);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, windowHours, models.map((m) => m.id).join()]);
+  const gaps = models
+    .filter((m) => FORECAST_POINTS.some((p) => (summaries[p.id][m.id]?.missingBlocks ?? 0) > 0))
+    .map((m) => m.label);
   const first = windowSlots[0];
   const last = windowSlots[windowSlots.length - 1];
 
@@ -98,13 +124,26 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
             >
               <td className="py-1 pr-2 font-semibold text-gray-800">{p.name}</td>
               {models.map((m) => {
-                const slots = upcomingSlots(data.forecasts[p.id]?.[m.id] ?? [], windowHours);
-                const total = Math.round(slots.reduce((sum, s) => sum + (s.rainMm ?? 0), 0) * 10) / 10;
-                const gust = slots.reduce<number | null>((g, s) => (s.gustKt == null ? g : Math.max(g ?? 0, s.gustKt)), null);
+                const s = summaries[p.id][m.id]!;
+                const note = coverageNote(s);
                 return (
-                  <td key={m.id} className="px-1 py-1 text-right whitespace-nowrap">
-                    <span className={`rounded px-1 font-bold ${rainClass(total)}`}>{fmtMm(total)}</span>
-                    {gust != null && <span className={`ml-1 text-[10px] ${gustClass(gust)}`}>{gust}kt</span>}
+                  <td key={m.id} className="px-1 py-1 text-right whitespace-nowrap" title={note ?? undefined}>
+                    {s.totalMm == null ? (
+                      <span className="text-[10px] italic text-amber-700">sem dados</span>
+                    ) : s.totalMm === 0 && s.missingBlocks === 0 ? (
+                      <span className="inline-flex flex-col items-end leading-tight">
+                        <span className="text-[10px] font-semibold text-slate-500">sem chuva</span>
+                        <span className="text-[9px] text-slate-400">{nextRainLabel(s)}</span>
+                      </span>
+                    ) : (
+                      <span className={`rounded px-1 font-bold ${rainClass(s.totalMm)}`}>
+                        {fmtMm(s.totalMm)}
+                        {s.missingBlocks > 0 && <span className="text-amber-700">*</span>}
+                      </span>
+                    )}
+                    {s.maxGustKmh != null && (
+                      <span className={`ml-1 text-[10px] ${gustClass(s.maxGustKmh)}`}>{s.maxGustKmh} km/h</span>
+                    )}
                   </td>
                 );
               })}
@@ -112,7 +151,14 @@ export const ForecastPanel: React.FC<ForecastPanelProps> = ({
           ))}
         </tbody>
       </table>
-      <p className="-mt-2 text-[10px] text-gray-500">mm acumulados na janela · maior rajada em nós. Clique num ponto para comparar.</p>
+      <p className="-mt-2 text-[10px] text-gray-500">mm acumulados na janela · maior rajada em km/h. Clique num ponto para comparar.</p>
+      {gaps.length > 0 && (
+        <p className="-mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+          Não foi possível obter a previsão completa de {gaps.join(', ')} para as próximas {windowHours} h — "sem dados" =
+          o modelo não trouxe nada para o período; "*" = total parcial (passe o mouse para ver quantos blocos faltam).
+          Tente outra janela ou aguarde a próxima rodada.
+        </p>
+      )}
 
       {/* Comparação estilo Windy do ponto selecionado */}
       <div>

@@ -9,50 +9,40 @@ import {
   type ForecastSlot,
 } from '../services/forecastModelsApi';
 import { getAccumulatedRainLevel } from '../utils/rainLevel';
-import { fmtMm, upcomingSlots } from '../utils/forecastFormat';
+import { coverageNote, fmtMm, GUST_ALERT_KMH, nextRainLabel, summarizeWindow, type WindowSummary } from '../utils/forecastFormat';
 
 /** 'max' = pior cenário entre os modelos ligados (útil pro telão: mostra o mais pessimista). */
 export type ForecastMapModel = ForecastModelId | 'max';
 
-interface ModelSummary {
-  modelId: ForecastModelId;
-  totalMm: number;
-  maxGustKt: number | null;
-  /** Bloco com mais chuva (pico), para dizer "quando". */
-  peak: ForecastSlot | null;
-}
-
-function summarize(modelId: ForecastModelId, slots: ForecastSlot[]): ModelSummary {
-  let totalMm = 0;
-  let maxGustKt: number | null = null;
-  let peak: ForecastSlot | null = null;
-  for (const s of slots) {
-    totalMm += s.rainMm ?? 0;
-    if (s.gustKt != null) maxGustKt = Math.max(maxGustKt ?? 0, s.gustKt);
-    if ((s.rainMm ?? 0) > 0 && (!peak || (s.rainMm ?? 0) > (peak.rainMm ?? 0))) peak = s;
-  }
-  return { modelId, totalMm: Math.round(totalMm * 10) / 10, maxGustKt, peak };
-}
+type ModelSummary = WindowSummary & { modelId: ForecastModelId };
 
 const slotLabel = (s: ForecastSlot) => `${s.date.slice(8, 10)}/${s.date.slice(5, 7)} ${String(s.hour).padStart(2, '0')}h`;
 
 /** Etiqueta retangular tracejada — diferente das bolinhas das estações, pra não confundir
  * previsão com chuva observada. */
-function buildForecastIcon(totalMm: number, gustKt: number | null, windowHours: number): L.DivIcon {
-  const level = getAccumulatedRainLevel(totalMm);
-  const dark = totalMm > 16;
+function buildForecastIcon(summary: WindowSummary, gustKmh: number | null, windowHours: number): L.DivIcon {
+  const { totalMm } = summary;
+  const level = getAccumulatedRainLevel(totalMm ?? 0);
+  const dark = (totalMm ?? 0) > 16;
   const gust =
-    gustKt != null && gustKt >= 22
-      ? `<span style="margin-left:4px;color:${gustKt >= 30 ? '#dc2626' : '#d97706'};font-weight:700">${gustKt}kt</span>`
+    gustKmh != null && gustKmh >= GUST_ALERT_KMH
+      ? `<span style="margin-left:4px;color:${gustKmh >= 55 ? '#dc2626' : '#d97706'};font-weight:700">${gustKmh} km/h</span>`
       : '';
+  const value =
+    totalMm == null
+      ? '<span style="font-style:italic;font-weight:600">sem dados</span>'
+      : totalMm === 0 && summary.missingBlocks === 0
+        ? '<span style="font-weight:600">sem chuva</span>'
+        : `${fmtMm(totalMm)} mm${summary.missingBlocks > 0 ? '*' : ''}`;
   return L.divIcon({
     className: '',
     iconSize: undefined,
     iconAnchor: [0, 0],
     html: `<div style="transform:translate(-50%,-50%);display:inline-flex;align-items:center;white-space:nowrap;
-      padding:2px 6px;border-radius:6px;border:1.5px dashed #1e3a8a;background:${level.color};
+      padding:2px 6px;border-radius:6px;border:1.5px dashed ${totalMm == null ? '#b45309' : '#1e3a8a'};
+      background:${totalMm == null ? '#fef3c7' : level.color};
       color:${dark ? '#fff' : '#0f172a'};font:700 11px Arial,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.3)">
-      ${fmtMm(totalMm)} mm<span style="margin-left:3px;font-weight:400;font-size:9px;opacity:.8">/${windowHours}h</span>${gust}</div>`,
+      ${value}<span style="margin-left:3px;font-weight:400;font-size:9px;opacity:.8">/${windowHours}h</span>${gust}</div>`,
   });
 }
 
@@ -72,28 +62,37 @@ export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, en
   return (
     <>
       {FORECAST_POINTS.map((point) => {
-        const summaries = models.map((m) =>
-          summarize(m.id, upcomingSlots(data.forecasts[point.id]?.[m.id] ?? [], windowHours))
-        );
+        const summaries: ModelSummary[] = models.map((m) => ({
+          modelId: m.id,
+          ...summarizeWindow(data.forecasts[point.id]?.[m.id] ?? [], windowHours),
+        }));
         if (!summaries.length) return null;
+        // "Maior" ignora modelo sem dados (null conta como -1); só fica "sem dados" se todos estiverem sem.
         const shown =
           model === 'max'
-            ? summaries.reduce((a, b) => (b.totalMm > a.totalMm ? b : a))
+            ? summaries.reduce((a, b) => ((b.totalMm ?? -1) > (a.totalMm ?? -1) ? b : a))
             : summaries.find((s) => s.modelId === model) ?? summaries[0];
+        const shownNote = coverageNote(shown);
         const maxGust =
           model === 'max'
-            ? summaries.reduce<number | null>((g, s) => (s.maxGustKt == null ? g : Math.max(g ?? 0, s.maxGustKt)), null)
-            : shown.maxGustKt;
+            ? summaries.reduce<number | null>((g, s) => (s.maxGustKmh == null ? g : Math.max(g ?? 0, s.maxGustKmh)), null)
+            : shown.maxGustKmh;
 
         return (
           <Marker
             key={`${point.id}-${model}-${windowHours}-${shown.totalMm}-${maxGust}`}
             position={[point.lat, point.lng]}
-            icon={buildForecastIcon(shown.totalMm, maxGust, windowHours)}
+            icon={buildForecastIcon(shown, maxGust, windowHours)}
             eventHandlers={onSelectPoint ? { click: () => onSelectPoint(point.id) } : undefined}
           >
             <Tooltip direction="top" offset={[0, -12]}>
               {point.name} — previsão próx. {windowHours} h
+              {shownNote && (
+                <>
+                  <br />
+                  <span style={{ color: '#b45309' }}>{shownNote}</span>
+                </>
+              )}
             </Tooltip>
             <Popup>
               <div style={{ padding: '6px', fontFamily: 'Arial, sans-serif', minWidth: '230px' }}>
@@ -108,12 +107,23 @@ export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, en
                       return (
                         <tr key={s.modelId} style={{ borderTop: '1px solid #e2e8f0' }}>
                           <td style={{ padding: '3px 4px 3px 0', fontWeight: 700, color: m.color }}>{m.label}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700 }}>{fmtMm(s.totalMm)} mm</td>
+                          <td
+                            style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700 }}
+                            title={coverageNote(s) ?? undefined}
+                          >
+                            {s.totalMm == null ? (
+                              <span style={{ color: '#b45309', fontStyle: 'italic', fontWeight: 600 }}>sem dados</span>
+                            ) : s.totalMm === 0 && s.missingBlocks === 0 ? (
+                              <span style={{ color: '#64748b', fontWeight: 600 }}>sem chuva</span>
+                            ) : (
+                              `${fmtMm(s.totalMm)} mm${s.missingBlocks > 0 ? '*' : ''}`
+                            )}
+                          </td>
                           <td style={{ padding: '3px 4px', textAlign: 'right', color: '#475569' }}>
-                            {s.maxGustKt != null ? `${s.maxGustKt} kt` : '–'}
+                            {s.maxGustKmh != null ? `${s.maxGustKmh} km/h` : '–'}
                           </td>
                           <td style={{ padding: '3px 0 3px 4px', textAlign: 'right', color: '#64748b', fontSize: '11px' }}>
-                            {s.peak ? `pico ${slotLabel(s.peak)}` : ''}
+                            {s.peak ? `pico ${slotLabel(s.peak)}` : s.totalMm === 0 && s.missingBlocks === 0 ? nextRainLabel(s) : ''}
                           </td>
                         </tr>
                       );
@@ -121,6 +131,8 @@ export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, en
                   </tbody>
                 </table>
                 <p style={{ margin: '6px 0 0 0', fontSize: '10px', color: '#94a3b8' }}>
+                  {summaries.some((s) => s.missingBlocks > 0) &&
+                    '“sem dados” = o modelo não trouxe previsão para o período; * = total parcial. '}
                   Comparação hora a hora aberta no painel “Previsão” ao lado.
                 </p>
               </div>

@@ -37,7 +37,7 @@ API key**. O browser não chama direto: passa pela Netlify Function
 `netlify/functions/meteoblue-forecast.js` (rota `/api/meteoblue-forecast`), que:
 
 - esconde a chave (mesmo esquema do REDEMET);
-- faz 1 chamada por ponto em `https://my.meteoblue.com/packages/<pacote>?lat=…&lon=…&apikey=…&format=json&tz=America/Sao_Paulo&windspeed=kn&forecast_days=5`;
+- faz 1 chamada por ponto em `https://my.meteoblue.com/packages/<pacote>?lat=…&lon=…&apikey=…&format=json&tz=America/Sao_Paulo&windspeed=kmh&forecast_days=5`;
 - devolve a série horária de todos os pontos num formato igual ao do Open-Meteo;
 - põe **cache de 1 h na borda** — cada ponto consome créditos, então com 8 pontos são ~200
   chamadas/dia no máximo, não importa quantas pessoas estejam com o site aberto.
@@ -85,7 +85,7 @@ A ordem das colunas segue a planilha manual: ECMWF, meteoblue, GFS, ICON.
 ### Variáveis pedidas (Open-Meteo)
 
 `precipitation`, `wind_gusts_10m`, `wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, com
-`wind_speed_unit=kn` (nós, como o Windy) e `timezone=America/Sao_Paulo`.
+`wind_speed_unit=kmh` (km/h; o meteoblue usa `windspeed=kmh`) e `timezone=America/Sao_Paulo`.
 
 ### Pontos
 
@@ -114,29 +114,34 @@ As duas fontes entregam série **horária**, em que a chuva da hora H é o acumu
 (H-1 → H). O app agrupa em blocos de 3 h nos horários 00, 03, 06 … 21, e **o horário do bloco é o
 fim do intervalo**:
 
-> **15h · 1,2 mm · 34 kt** = choveu 1,2 mm **entre 12h e 15h**, e a maior rajada nesse intervalo foi 34 kt.
+> **15h · 1,2 mm · 63 km/h** = choveu 1,2 mm **entre 12h e 15h**, e a maior rajada nesse intervalo foi 63 km/h.
 
 Isso segue a documentação do Windy ("accumulation of all precipitation for the preceding 3
 hours"), então os números ficam alinhados com a planilha feita a partir do Windy.
 
 - **Chuva (mm):** soma das horas H-2, H-1 e H.
-- **Rajada (kt):** maior valor nas mesmas 3 horas.
+- **Rajada (km/h):** maior valor nas mesmas 3 horas.
 - **Vento médio, direção e temperatura:** valor no horário H.
 - Blocos já encerrados (H ≤ hora atual) somem da tela, como no Windy.
 
 Código: `toThreeHourSlots` em `src/services/forecastModelsApi.ts`; `isPast` e `upcomingSlots`
 em `src/utils/forecastFormat.ts`.
 
-### Janela do mapa (6 / 12 / 24 h)
+### Janela do mapa (3 / 6 / 12 / 24 h)
 
-`upcomingSlots` pega os próximos N/3 blocos a partir do primeiro bloco ainda não encerrado. A
+`upcomingSlots` pega os próximos N/3 blocos a partir do primeiro bloco ainda não encerrado
+(calculados pelo relógio, então um bloco faltando no modelo não puxa horários de fora da janela). A
 etiqueta no mapa mostra a soma da chuva nesses blocos (ex.: `3,1 mm/12h`) e a maior rajada,
-quando ≥ 22 kt. O período exato ("De Qua 21/10 15h até Qui 22/10 03h") aparece no topo da aba
+quando ≥ 40 km/h. O período exato ("De Qua 21/10 15h até Qui 22/10 03h") aparece no topo da aba
 Previsão do painel de dados, e os blocos correspondentes ficam destacados em lilás nas faixas.
 
 No seletor de modelo do mapa, **"Maior"** mostra o maior acumulado entre ECMWF, meteoblue, GFS e
 ICON em cada ponto (cenário mais pessimista); a rajada é a maior entre eles. Modelo indisponível
 fica de fora da comparação.
+
+**Sem dados × 0 mm:** `summarizeWindow` conta quantos blocos da janela vieram com chuva. Nenhum →
+"sem dados" (etiqueta amarela no mapa, aviso no painel); alguns → total com `*` (parcial, tooltip
+diz quantos blocos faltam). `0` é previsão de "sem chuva", não falta de dado.
 
 ### Cores
 
@@ -144,7 +149,7 @@ fica de fora da comparação.
 |---|---|
 | Etiquetas do mapa | Escala de **acumulado** do app (`getAccumulatedRainLevel`): fraca ≤ 7, moderada ≤ 16, forte ≤ 26, muito forte > 26 mm |
 | Blocos de 3 h nas tabelas | ≥ 1 mm azul claro, ≥ 5 amarelo, ≥ 10 laranja, ≥ 25 vermelho |
-| Rajada | ≥ 22 kt (~40 km/h) laranja, ≥ 30 kt (~55 km/h) vermelho. Passe o mouse para ver em km/h (1 kt = 1,852 km/h) |
+| Rajada | ≥ 40 km/h laranja, ≥ 55 km/h vermelho (o Windy mostra em nós: 1 kt = 1,852 km/h) |
 
 ## Atualização
 
@@ -170,7 +175,7 @@ fuso. Pequenas diferenças continuam normais:
 Para conferir à mão a resposta crua de um ponto:
 
 ```
-https://api.open-meteo.com/v1/forecast?latitude=-22.911&longitude=-43.213&hourly=precipitation,wind_gusts_10m&models=ecmwf_ifs,gfs_seamless,icon_seamless&wind_speed_unit=kn&timezone=America/Sao_Paulo&forecast_days=3
+https://api.open-meteo.com/v1/forecast?latitude=-22.911&longitude=-43.213&hourly=precipitation,wind_gusts_10m&models=ecmwf_ifs,gfs_seamless,icon_seamless&wind_speed_unit=kmh&timezone=America/Sao_Paulo&forecast_days=3
 ```
 
 E a previsão feita N dias atrás (útil para comparar com uma foto antiga do Windy ou com a chuva

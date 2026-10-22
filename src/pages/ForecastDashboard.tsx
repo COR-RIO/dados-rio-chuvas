@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CloudRain, Loader2, RefreshCw, AlertTriangle, MapPin, Info } from 'lucide-react';
 import { ModelStrip } from '../components/ForecastModelStrip';
-import { dayLabel, fmtMm, gustClass, isPast, ktToKmh, nowInRio, rainClass } from '../utils/forecastFormat';
+import { dayLabel, fmtMm, gustClass, isPast, nowInRio, rainClass } from '../utils/forecastFormat';
 import { useForecastModels } from '../hooks/useForecastModels';
 import {
   FORECAST_MODELS,
@@ -148,7 +148,7 @@ export default function ForecastDashboard() {
                 Blocos de 3 h com chuva ≥ {fmtMm(rainThreshold)} mm
               </h3>
               <p className="text-[11px] text-slate-500">
-                <span className="font-semibold">15h · 1,2 mm · 34 kt</span> = chuva entre 12h e 15h (3 h anteriores, como no Windy) e maior rajada no
+                <span className="font-semibold">15h · 1,2 mm · 63 km/h</span> = chuva entre 12h e 15h (3 h anteriores, como no Windy) e maior rajada no
                 bloco. Clique no ponto para ver o detalhe.
               </p>
             </div>
@@ -239,9 +239,9 @@ export default function ForecastDashboard() {
                                       <span className={`rounded px-1 font-bold ${rainClass(s.rainMm ?? 0)}`}>
                                         {fmtMm(s.rainMm ?? 0)} mm
                                       </span>
-                                      {s.gustKt != null && (
-                                        <span className={gustClass(s.gustKt)} title={`${ktToKmh(s.gustKt)} km/h`}>
-                                          {s.gustKt} kt
+                                      {s.gustKmh != null && (
+                                        <span className={gustClass(s.gustKmh)}>
+                                          {s.gustKmh} km/h
                                         </span>
                                       )}
                                     </div>
@@ -290,8 +290,7 @@ export default function ForecastDashboard() {
         <p className="flex items-start gap-2 text-[11px] text-slate-500">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           Dados dos modelos ECMWF (open data), NOAA GFS e DWD ICON via Open-Meteo, atualizados a cada rodada (3–6 h).
-          Rajada e vento em nós (kt); passe o mouse para ver em km/h. O meteoblue do Windy é proprietário e não tem dado
-          aberto. Valores do modelo para a célula da grade mais próxima do ponto — podem diferir levemente do Windy, que
+          Rajada e vento em km/h. Valores do modelo para a célula da grade mais próxima do ponto — podem diferir levemente do Windy, que
           interpola de outra forma.
         </p>
       </div>

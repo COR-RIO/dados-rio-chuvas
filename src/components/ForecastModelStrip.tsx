@@ -1,6 +1,6 @@
 import { ArrowUp } from 'lucide-react';
 import type { ForecastSlot } from '../services/forecastModelsApi';
-import { dayLabel, fmtMm, gustClass, isPast, ktToKmh, rainClass, slotKey } from '../utils/forecastFormat';
+import { dayLabel, fmtMm, gustClass, isPast, rainClass, slotKey } from '../utils/forecastFormat';
 
 function WindArrow({ deg }: { deg: number | null }) {
   if (deg == null) return null;
@@ -56,32 +56,36 @@ export function ModelStrip({
                 [
                   'mm',
                   (s: ForecastSlot) =>
-                    s.rainMm != null && s.rainMm > 0 ? (
+                    s.rainMm == null ? (
+                      <span className="text-amber-600" title="Sem dado do modelo para este horário">
+                        –
+                      </span>
+                    ) : s.rainMm > 0 ? (
                       <span className={`rounded px-1 font-bold ${rainClass(s.rainMm)}`}>{fmtMm(s.rainMm)}</span>
                     ) : (
                       ''
                     ),
                 ],
                 [
-                  'Vento kt',
+                  'Vento km/h',
                   (s: ForecastSlot) =>
-                    s.windKt == null ? (
+                    s.windKmh == null ? (
                       ''
                     ) : (
-                      <span className="inline-flex items-center gap-0.5 text-slate-600" title={`${ktToKmh(s.windKt)} km/h`}>
+                      <span className="inline-flex items-center gap-0.5 text-slate-600">
                         <WindArrow deg={s.windDirDeg} />
-                        {s.windKt}
+                        {s.windKmh}
                       </span>
                     ),
                 ],
                 [
-                  'Rajada kt',
+                  'Rajada km/h',
                   (s: ForecastSlot) =>
-                    s.gustKt == null ? (
+                    s.gustKmh == null ? (
                       <span className="text-slate-300">–</span>
                     ) : (
-                      <span className={gustClass(s.gustKt)} title={`${ktToKmh(s.gustKt)} km/h`}>
-                        {s.gustKt}
+                      <span className={gustClass(s.gustKmh)}>
+                        {s.gustKmh}
                       </span>
                     ),
                 ],
