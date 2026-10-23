@@ -29,14 +29,17 @@ const findFreePort = async (start: number) => {
   throw new Error(`Nenhuma porta livre entre ${start} e ${start + 49}`);
 };
 
-// meteoblue em dev: roda a própria function localmente com METEOBLUE_API_KEY do .env (em produção
-// a VPS registra /api/meteoblue-forecast via netlify/functions/server.js) — não depende do Netlify.
-const meteobluePlugin = (apiKey?: string): Plugin => ({
-  name: 'meteoblue-forecast-dev',
+// Roda uma Netlify Function localmente em dev, com as variáveis do .env (em produção a VPS registra
+// /api/<nome> via netlify/functions/server.js) — mesmo código e mesmos fallbacks da produção.
+// - meteoblue-forecast: METEOBLUE_API_KEY.
+// - redemet-wind: REDEMET_API_KEY + REDEMET_PROXY_URL. Na rede da Prefeitura o DNS recusa
+//   api-redemet.decea.mil.br (ENOTFOUND); a function cai no proxy do Netlify, um proxy direto não.
+const localFunctionPlugin = (name: string, envVars: Record<string, string | undefined>): Plugin => ({
+  name: `${name}-dev`,
   configureServer(server) {
-    if (apiKey) process.env.METEOBLUE_API_KEY = apiKey;
-    const { handler } = createRequire(import.meta.url)('./netlify/functions/meteoblue-forecast.js');
-    server.middlewares.use('/api/meteoblue-forecast', async (req, res) => {
+    for (const [key, value] of Object.entries(envVars)) if (value) process.env[key] = value;
+    const { handler } = createRequire(import.meta.url)(`./netlify/functions/${name}.js`);
+    server.middlewares.use(`/api/${name}`, async (req, res) => {
       const url = new URL(req.url || '/', 'http://localhost');
       const result = await handler({
         httpMethod: req.method,
@@ -52,10 +55,15 @@ export default defineConfig(async ({ mode, command, isPreview }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const devPort = command === 'serve' && !isPreview ? await findFreePort(DEV_PORT) : DEV_PORT;
   const historicalProxy = env.VITE_HISTORICAL_RAIN_PROXY || 'https://chovendo-agora.netlify.app';
-  const redemetApiKey = env.REDEMET_API_KEY || env.VITE_REDEMET_API_KEY;
-
   return {
-    plugins: [react(), meteobluePlugin(env.METEOBLUE_API_KEY)],
+    plugins: [
+      react(),
+      localFunctionPlugin('meteoblue-forecast', { METEOBLUE_API_KEY: env.METEOBLUE_API_KEY }),
+      localFunctionPlugin('redemet-wind', {
+        REDEMET_API_KEY: env.REDEMET_API_KEY || env.VITE_REDEMET_API_KEY,
+        REDEMET_PROXY_URL: env.REDEMET_PROXY_URL,
+      }),
+    ],
     server: {
       port: devPort,
       strictPort: true,
@@ -89,21 +97,6 @@ export default defineConfig(async ({ mode, command, isPreview }) => {
           target: 'https://websempre.rio.rj.gov.br',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/websempre-weather/, '/json/dados_meteorologicos'),
-        },
-        '/api/redemet-wind': {
-          target: 'https://api-redemet.decea.mil.br',
-          changeOrigin: true,
-          configure: (proxy) => {
-            proxy.on('proxyReq', (proxyReq, req) => {
-              const url = new URL(req.url || '/', 'http://localhost');
-              const icao = url.searchParams.get('icao');
-              if (!icao || !redemetApiKey) return;
-
-              const params = new URLSearchParams(url.searchParams);
-              params.set('api_key', redemetApiKey);
-              proxyReq.path = `/mensagens/metar/${icao.toUpperCase()}?${params.toString()}`;
-            });
-          },
         },
         '/api/wind-events-history': {
           target: historicalProxy,
