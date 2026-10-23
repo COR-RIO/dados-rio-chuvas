@@ -13,7 +13,8 @@ const PORT = process.env.PORT || 3000;
 const projectRoot = path.resolve(__dirname, '../..');
 const distPath = path.join(projectRoot, 'dist');
 const functionsDir = path.join(projectRoot, 'netlify', 'functions');
-const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
+// websempre com fallback para o XML do Alerta Rio — ver lib/rioRain.js.
+const { fetchRioRainObjects } = require('./lib/rioRain');
 
 // Middleware
 app.use(express.json());
@@ -43,17 +44,10 @@ app.get('/health', (req, res) => {
 // Proxy da chuva oficial da Prefeitura do Rio, sem CORS e com cache curto
 app.get('/api/json/chuvas', async (req, res) => {
   try {
-    const upstream = await fetch(RIO_RAIN_API_URL, {
-      headers: { Accept: 'application/json' },
-    });
-
-    if (!upstream.ok) {
-      return res.status(503).json({ error: 'usage_exceeded', message: 'Fonte de chuva indisponível' });
-    }
-
-    const data = await upstream.json();
+    const { objects, source } = await fetchRioRainObjects();
     res.set('Cache-Control', 'public, max-age=20, s-maxage=20');
-    return res.json(data);
+    res.set('X-Rain-Source', source);
+    return res.json({ objects });
   } catch (error) {
     console.error('Proxy chuva falhou:', error);
     return res.status(503).json({ error: 'upstream_error', message: 'Falha ao consultar dados de chuva' });

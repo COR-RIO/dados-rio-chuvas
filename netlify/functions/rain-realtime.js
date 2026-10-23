@@ -25,7 +25,8 @@ const CORS_HEADERS = {
 const CACHE_CONTROL_SUCCESS = 'public, max-age=20, s-maxage=20, stale-while-revalidate=40';
 const CACHE_CONTROL_ERROR = 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0';
 
-const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
+// websempre com fallback para o XML do Alerta Rio — ver lib/rioRain.js.
+const { fetchRioRainObjects } = require('./lib/rioRain');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -41,22 +42,12 @@ exports.handler = async (event) => {
   }
 
   try {
-    const response = await fetch(RIO_RAIN_API_URL, { headers: { Accept: 'application/json' } });
-
-    if (!response.ok) {
-      return {
-        statusCode: 200,
-        headers: { ...CORS_HEADERS, 'Cache-Control': CACHE_CONTROL_ERROR },
-        body: JSON.stringify({ objects: [], error: `API da Prefeitura retornou ${response.status}` }),
-      };
-    }
-
-    const json = await response.json();
+    const { objects, source } = await fetchRioRainObjects();
 
     return {
       statusCode: 200,
-      headers: { ...CORS_HEADERS, 'Cache-Control': CACHE_CONTROL_SUCCESS },
-      body: JSON.stringify(json),
+      headers: { ...CORS_HEADERS, 'Cache-Control': CACHE_CONTROL_SUCCESS, 'X-Rain-Source': source },
+      body: JSON.stringify({ objects }),
     };
   } catch (err) {
     console.error('rain-realtime error:', err.message);

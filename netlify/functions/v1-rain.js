@@ -23,7 +23,7 @@ const NO_STORE_HEADERS = {
 // Prefeitura a cada chamada de consumidores externos desta API pública.
 const CACHE_HEADERS = { 'Cache-Control': 'public, max-age=20, s-maxage=20, stale-while-revalidate=40' };
 
-const RIO_RAIN_API_URL = 'https://websempre.rio.rj.gov.br/json/chuvas';
+const { fetchRioRainObjects } = require('./lib/rioRain');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -39,18 +39,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const response = await fetch(RIO_RAIN_API_URL, { headers: { Accept: 'application/json' } });
-
-    if (!response.ok) {
-      return {
-        statusCode: 200,
-        headers: { ...CORS_HEADERS, ...NO_STORE_HEADERS },
-        body: JSON.stringify({ success: false, error: `API da Prefeitura retornou ${response.status}` }),
-      };
-    }
-
-    const json = await response.json();
-    const objects = Array.isArray(json?.objects) ? json.objects : [];
+    const { objects, source } = await fetchRioRainObjects();
 
     const stations = objects
       .filter((station) => station.kind === 'pluviometric')
@@ -79,7 +68,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         success: true,
         fetchedAt: new Date().toISOString(),
-        source: 'Prefeitura do Rio de Janeiro (websempre)',
+        source: source === 'websempre' ? 'Prefeitura do Rio de Janeiro (websempre)' : 'Prefeitura do Rio de Janeiro (Alerta Rio)',
         count: stations.length,
         data: stations,
       }),
