@@ -137,23 +137,20 @@ etiqueta no mapa mostra a soma da chuva nesses blocos (ex.: `3,1 mm/12h`) e a ma
 quando ≥ 40 km/h. O período exato ("De Qua 21/10 15h até Qui 22/10 03h") aparece no topo da aba
 Previsão do painel de dados, e os blocos correspondentes ficam destacados em lilás nas faixas.
 
-No seletor de modelo do mapa, **"Consenso"** (padrão) resume ECMWF, meteoblue, GFS e ICON em cada ponto:
+No seletor de modelo do mapa, **"Máximo"** (padrão) resume ECMWF, meteoblue, GFS e ICON em cada ponto:
 
 ```
-0,3 mm /24h
-máx 5,7 ECMWF · 1/4 ≥5 mm
+5,7 mm /24h
+ECMWF
 ```
 
-- **Número principal = mediana** dos acumulados (rajada também pela mediana). Mediana e não média:
-  chuva não é simétrica — se um modelo prevê 30 mm e três preveem 0, a média dá 7,5 mm, cenário que
-  nenhum modelo prevê; a mediana também não infla quando um modelo exagera (ex.: GFS em convecção).
-- **Máximo com o nome do modelo**: o pior cenário continua visível, sem misturar chuva de um modelo
-  com rajada de outro.
-- **Concordância**: quantos modelos preveem ≥ 5 mm (`CONSENSUS_THRESHOLD_MM` em `ForecastModelLayer.tsx`).
-- **Borda vermelha** quando algum modelo passa de 5 mm mas a mediana não — o sinal de alerta não
-  some só porque a maioria discorda. O popup repete o resumo e lista cada modelo.
+- **Número principal = maior acumulado** entre os modelos (cenário mais pessimista) e rajada = a
+  maior entre os modelos.
+- **Nome do modelo** que previu o máximo, na segunda linha.
+- O popup repete o máximo e lista cada modelo — útil quando o máximo vem de um modelo isolado
+  exagerando (ex.: GFS em pancadas).
 
-Modelo indisponível ou sem dados para a janela fica de fora da mediana e da contagem (o tooltip avisa).
+Modelo indisponível ou sem dados para a janela fica de fora do máximo (o tooltip avisa).
 Lembrete: o meteoblue já é um multimodelo, então pesa um pouco mais na concordância.
 
 **Sem dados × 0 mm:** `summarizeWindow` conta quantos blocos da janela vieram com chuva. Nenhum →

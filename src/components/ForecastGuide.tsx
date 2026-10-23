@@ -3,7 +3,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { accumulatedRainLevels } from '../utils/rainLevel';
 import { GUST_ALERT_KMH, gustClass, rainClass } from '../utils/forecastFormat';
 import { WIND_CATEGORY_COLORS, WIND_CATEGORY_LABELS, WIND_CATEGORY_ORDER, WIND_CATEGORY_RANGES } from '../types/wind';
-import { CONSENSUS_THRESHOLD_MM } from './ForecastModelLayer';
 
 /** Blocos de 3 h: limites de rainClass (forecastFormat.ts). */
 const BLOCK_SAMPLES: { mm: number; label: string }[] = [
@@ -18,7 +17,7 @@ const MODEL_NOTES: { name: string; text: string }[] = [
   { name: 'meteoblue', text: 'Suíça, multimodelo (o mesmo do Windy), atualiza de hora em hora. Rajada de 3 em 3 h; usa créditos pagos.' },
   { name: 'GFS', text: 'EUA, 13–25 km, a cada 6 h. Tende a exagerar pancadas (chuva convectiva).' },
   { name: 'ICON', text: 'Alemanha, 13 km, a cada 3 h.' },
-  { name: 'ECMWF AIFS', text: 'Modelo de IA, 25 km. Só na aba Previsão; não traz rajada e fica fora do Consenso.' },
+  { name: 'ECMWF AIFS', text: 'Modelo de IA, 25 km. Só na aba Previsão; não traz rajada e fica fora do Máximo.' },
 ];
 
 const Swatch = ({ color }: { color: string }) => (
@@ -99,10 +98,6 @@ export function ForecastGuide({ defaultOpen = true }: { defaultOpen?: boolean })
                 <li><b>0</b> — modelo prevê que não chove (mouse: quando começa)</li>
                 <li><b>4,2*</b> — total parcial, faltam blocos de 3 h</li>
                 <li><i className="text-amber-700">sem dados</i> — modelo não trouxe o período</li>
-                <li className="flex items-center gap-2">
-                  <span className="inline-block h-3.5 w-6 rounded-sm border-2 border-dashed border-red-600" />
-                  algum modelo ≥ {CONSENSUS_THRESHOLD_MM} mm, mediana abaixo
-                </li>
               </ul>
             </div>
           </div>
@@ -116,53 +111,15 @@ export function ForecastGuide({ defaultOpen = true }: { defaultOpen?: boolean })
             </div>
 
             <div className="space-y-1">
-              <p>• <strong>Modo Consenso (padrão do mapa):</strong> número principal = <strong>mediana</strong> dos modelos (valor mais provável); segunda linha = <strong>maior acumulado e qual modelo</strong> previu + <strong>quantos modelos preveem ≥ {CONSENSUS_THRESHOLD_MM} mm</strong> (ex.: "máx 5,7 ECMWF · 1/4 ≥5 mm").</p>
-              <p>• <strong>Por que mediana e não média:</strong> se um modelo prevê 30 mm e três preveem 0, a média dá 7,5 mm — cenário que nenhum modelo prevê. A mediana também não infla quando um modelo exagera.</p>
-              <p>• <strong>Borda vermelha:</strong> algum modelo vê chuva relevante que a maioria não confirma. Não descartar: acompanhar com radar e estações.</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="font-semibold text-gray-700">Leitura para análise preditiva (Consenso):</p>
-              <div className="overflow-x-auto">
-                <table className="w-full max-w-2xl border-collapse text-[11px]">
-                  <thead>
-                    <tr className="bg-gray-50 text-left text-gray-700">
-                      <th className="border border-gray-200 px-2 py-1">Situação</th>
-                      <th className="border border-gray-200 px-2 py-1">Leitura</th>
-                      <th className="border border-gray-200 px-2 py-1">Ação sugerida</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="border border-gray-200 px-2 py-1">Mediana ≥ {CONSENSUS_THRESHOLD_MM} mm e 3–4 modelos concordam</td>
-                      <td className="border border-gray-200 px-2 py-1 font-semibold text-red-700">Chuva provável</td>
-                      <td className="border border-gray-200 px-2 py-1">Reduzir a janela para achar o horário do pico; preparar comunicação</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-gray-200 px-2 py-1">Mediana ≥ {CONSENSUS_THRESHOLD_MM} mm com 2 modelos</td>
-                      <td className="border border-gray-200 px-2 py-1 font-semibold text-orange-700">Possível, com divergência</td>
-                      <td className="border border-gray-200 px-2 py-1">Abrir a comparação do ponto e ver qual modelo diverge</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-gray-200 px-2 py-1">Borda vermelha (1 modelo acima, mediana abaixo)</td>
-                      <td className="border border-gray-200 px-2 py-1 font-semibold text-amber-700">Sinal isolado</td>
-                      <td className="border border-gray-200 px-2 py-1">Monitorar; reavaliar na próxima rodada</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-gray-200 px-2 py-1">0/4 ≥ {CONSENSUS_THRESHOLD_MM} mm</td>
-                      <td className="border border-gray-200 px-2 py-1 font-semibold text-slate-600">Pouca chuva prevista</td>
-                      <td className="border border-gray-200 px-2 py-1">Rotina; observar radar para pancadas locais</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <p>• <strong>Modo Máximo (padrão do mapa):</strong> número principal = <strong>maior acumulado</strong> entre os modelos (cenário mais pessimista) e a maior rajada; segunda linha = <strong>qual modelo</strong> previu esse máximo.</p>
+              <p>• <strong>O máximo pode vir de um único modelo exagerando</strong> (ex.: GFS em pancadas): clicar na etiqueta para comparar os modelos antes de decidir.</p>
             </div>
 
             <div className="space-y-1">
               <p className="font-semibold text-gray-700">Roteiro do plantão:</p>
               <ol className="list-decimal space-y-0.5 pl-5">
-                <li>Ver o mapa em <strong>Consenso · 24 h</strong> para o panorama da cidade.</li>
-                <li>Nos pontos com borda vermelha ou concordância ≥ 2, clicar na etiqueta e comparar os modelos.</li>
+                <li>Ver o mapa em <strong>Máximo · 24 h</strong> para o panorama da cidade (pior cenário).</li>
+                <li>Nos pontos com máximo ≥ 5 mm, clicar na etiqueta e comparar os modelos.</li>
                 <li>Reduzir a janela (12 → 6 → 3 h) para localizar quando a chuva começa e o pico.</li>
                 <li>Conferir a rajada: a partir de {GUST_ALERT_KMH} km/h ela aparece na etiqueta; 52 km/h ou mais já é vento forte pela categoria oficial.</li>
                 <li>Cruzar com radar e estações (observado) antes de decidir.</li>

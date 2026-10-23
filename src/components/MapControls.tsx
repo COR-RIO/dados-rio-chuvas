@@ -156,9 +156,9 @@ export const ForecastLayerControl: React.FC<ForecastLayerControlProps> = ({
     }`;
   const modelOptions: { id: ForecastMapModel; label: string; title: string }[] = [
     {
-      id: 'consenso',
-      label: 'Consenso',
-      title: 'Mediana entre os modelos + maior acumulado (e qual modelo) + quantos modelos preveem ≥ 5 mm',
+      id: 'max',
+      label: 'Máximo',
+      title: 'Maior acumulado entre os modelos (cenário mais pessimista) e qual modelo previu',
     },
     ...FORECAST_MODELS.filter((m) => m.id !== 'ecmwf_aifs025_single').map((m) => ({
       id: m.id as ForecastModelId,

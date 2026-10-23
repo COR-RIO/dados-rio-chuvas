@@ -11,46 +11,41 @@ import {
 import { getAccumulatedRainLevel } from '../utils/rainLevel';
 import { coverageNote, fmtMm, GUST_ALERT_KMH, nextRainLabel, summarizeWindow, type WindowSummary } from '../utils/forecastFormat';
 
-/** 'consenso' = mediana entre os modelos ligados + máximo (com o modelo) + quantos passam do limiar. */
-export type ForecastMapModel = ForecastModelId | 'consenso';
+/** 'max' = pior cenário entre os modelos ligados (maior acumulado, com o modelo que o previu). */
+export type ForecastMapModel = ForecastModelId | 'max';
 
 type ModelSummary = WindowSummary & { modelId: ForecastModelId };
 
-/** Limiar da concordância ("2/4 ≥ 5 mm") e do destaque de sinal escondido pela mediana. */
-export const CONSENSUS_THRESHOLD_MM = 5;
-
-const median = (values: number[]): number => {
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-};
-
-interface Consensus {
-  /** Mediana dos modelos com dado (null = nenhum modelo trouxe dado). Mediana e não média: chuva
-   * não é simétrica — a média de 30/0/0/0 dá 7,5 mm, cenário que nenhum modelo prevê. */
-  medianMm: number | null;
-  medianGustKmh: number | null;
+interface MaxSummary {
+  /** Modelo com o maior acumulado (null = nenhum modelo trouxe dado). */
   max: ModelSummary | null;
-  /** Modelos com acumulado >= CONSENSUS_THRESHOLD_MM, entre os `withData` que trouxeram dado. */
-  agree: number;
+  /** Modelo com o bloco de 3 h mais chuvoso — pode não ser o de maior acumulado (chuva concentrada
+   * num bloco × espalhada pela janela). */
+  peak: ModelSummary | null;
+  maxGustKmh: number | null;
   withData: number;
-  partial: boolean;
 }
 
-function consensusOf(summaries: ModelSummary[]): Consensus {
+function maxOf(summaries: ModelSummary[]): MaxSummary {
   const withData = summaries.filter((s) => s.totalMm != null);
   const gusts = summaries.map((s) => s.maxGustKmh).filter((g): g is number => g != null);
   return {
-    medianMm: withData.length ? Math.round(median(withData.map((s) => s.totalMm!)) * 10) / 10 : null,
-    medianGustKmh: gusts.length ? Math.round(median(gusts)) : null,
     max: withData.reduce<ModelSummary | null>((a, b) => (!a || b.totalMm! > a.totalMm! ? b : a), null),
-    agree: withData.filter((s) => s.totalMm! >= CONSENSUS_THRESHOLD_MM).length,
+    peak: summaries
+      .filter((s) => s.peak)
+      .reduce<ModelSummary | null>((a, b) => (!a || b.peak!.rainMm! > a.peak!.rainMm! ? b : a), null),
+    maxGustKmh: gusts.length ? Math.max(...gusts) : null,
     withData: withData.length,
-    partial: withData.some((s) => s.missingBlocks > 0),
   };
 }
 
 const slotLabel = (s: ForecastSlot) => `${s.date.slice(8, 10)}/${s.date.slice(5, 7)} ${String(s.hour).padStart(2, '0')}h`;
+
+/** Bloco de 3 h mais chuvoso: o horário do slot é o FIM do bloco ("0,8 mm entre 12h e 15h de 23/10"). */
+const peakLabel = (s: ForecastSlot) => {
+  const pad = (h: number) => `${String(h).padStart(2, '0')}h`;
+  return `${fmtMm(s.rainMm ?? 0)} mm entre ${pad((s.hour + 21) % 24)} e ${pad(s.hour)} de ${s.date.slice(8, 10)}/${s.date.slice(5, 7)}`;
+};
 
 /** Etiqueta retangular tracejada — diferente das bolinhas das estações, pra não confundir
  * previsão com chuva observada. */
@@ -58,8 +53,8 @@ function buildForecastIcon(
   summary: Pick<WindowSummary, 'totalMm' | 'missingBlocks'>,
   gustKmh: number | null,
   windowHours: number,
-  /** Modo consenso: 2ª linha ("máx 5,7 ECMWF · 1/4 ≥5") e borda de alerta. */
-  consensus?: { line: string; alert: boolean }
+  /** Modo máximo: 2ª linha com o modelo que previu o máximo ("ECMWF"). */
+  secondLine?: string
 ): L.DivIcon {
   const { totalMm } = summary;
   const level = getAccumulatedRainLevel(totalMm ?? 0);
@@ -72,9 +67,9 @@ function buildForecastIcon(
     totalMm == null
       ? '<span style="font-style:italic;font-weight:600">sem dados</span>'
       : `${fmtMm(totalMm)} mm${summary.missingBlocks > 0 ? '*' : ''}`;
-  const border = consensus?.alert ? '2px dashed #dc2626' : `1.5px dashed ${totalMm == null ? '#b45309' : '#1e3a8a'}`;
-  const second = consensus
-    ? `<div style="font-weight:600;font-size:9px;opacity:.85;margin-top:1px">${consensus.line}</div>`
+  const border = `1.5px dashed ${totalMm == null ? '#b45309' : '#1e3a8a'}`;
+  const second = secondLine
+    ? `<div style="font-weight:600;font-size:9px;opacity:.85;margin-top:1px">${secondLine}</div>`
     : '';
   return L.divIcon({
     className: '',
@@ -109,33 +104,28 @@ export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, en
           ...summarizeWindow(data.forecasts[point.id]?.[m.id] ?? [], windowHours),
         }));
         if (!summaries.length) return null;
-        const cons = model === 'consenso' ? consensusOf(summaries) : null;
-        const shown = summaries.find((s) => s.modelId === model) ?? summaries[0];
-        const label = cons
-          ? { totalMm: cons.medianMm, missingBlocks: cons.partial ? 1 : 0 }
-          : { totalMm: shown.totalMm, missingBlocks: shown.missingBlocks };
-        const gustKmh = cons ? cons.medianGustKmh : shown.maxGustKmh;
-        const maxLabel = cons?.max && cons.max.totalMm! > 0
-          ? `máx ${fmtMm(cons.max.totalMm!)} ${FORECAST_MODELS.find((m) => m.id === cons.max!.modelId)?.label} · `
-          : '';
-        const consensusLine = cons && cons.withData
-          ? {
-              line: `${maxLabel}${cons.agree}/${cons.withData} ≥${CONSENSUS_THRESHOLD_MM} mm`,
-              // Algum modelo vê chuva relevante que a mediana esconde — não deixa o sinal sumir.
-              alert: cons.agree > 0 && (cons.medianMm ?? 0) < CONSENSUS_THRESHOLD_MM,
-            }
+        // "Máximo" ignora modelo sem dados; só fica "sem dados" se todos estiverem sem.
+        const mx = model === 'max' ? maxOf(summaries) : null;
+        const shown = mx ? mx.max ?? summaries[0] : summaries.find((s) => s.modelId === model) ?? summaries[0];
+        const label = { totalMm: shown.totalMm, missingBlocks: shown.missingBlocks };
+        const gustKmh = mx ? mx.maxGustKmh : shown.maxGustKmh;
+        // No modo máximo o pico é o maior bloco entre TODOS os modelos, não só o do maior acumulado.
+        const peakOwner = mx ? mx.peak : shown;
+        // Sem chuva em nenhum modelo não há "quem previu o máximo" — fica só o número.
+        const secondLine = mx?.max && mx.max.totalMm! > 0
+          ? FORECAST_MODELS.find((m) => m.id === mx.max!.modelId)?.label
           : undefined;
-        const shownNote = cons
-          ? cons.withData < summaries.length
-            ? `${summaries.length - cons.withData} modelo(s) sem dados para o período — fora da mediana.`
-            : null
+        const shownNote = mx
+          ? mx.withData < summaries.length
+            ? `${summaries.length - mx.withData} modelo(s) sem dados para o período — fora do máximo.`
+            : coverageNote(shown)
           : coverageNote(shown);
 
         return (
           <Marker
-            key={`${point.id}-${model}-${windowHours}-${label.totalMm}-${gustKmh}-${consensusLine?.line}`}
+            key={`${point.id}-${model}-${windowHours}-${label.totalMm}-${gustKmh}-${secondLine}`}
             position={[point.lat, point.lng]}
-            icon={buildForecastIcon(label, gustKmh, windowHours, consensusLine)}
+            icon={buildForecastIcon(label, gustKmh, windowHours, secondLine)}
             eventHandlers={onSelectPoint ? { click: () => onSelectPoint(point.id) } : undefined}
           >
             <Tooltip direction="top" offset={[0, -12]}>
@@ -153,20 +143,25 @@ export const ForecastModelLayer: React.FC<ForecastModelLayerProps> = ({ data, en
                 <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: '#64748b' }}>
                   Previsão para as próximas {windowHours} h (chuva acumulada · maior rajada)
                 </p>
-                {cons && cons.withData > 0 && (
+                {shown.totalMm != null && (
                   <p
                     style={{
                       margin: '0 0 6px 0',
                       padding: '4px 6px',
                       borderRadius: '4px',
                       fontSize: '11px',
-                      background: consensusLine?.alert ? '#fef2f2' : '#eef2ff',
-                      color: consensusLine?.alert ? '#991b1b' : '#312e81',
+                      background: '#eef2ff',
+                      color: '#312e81',
                     }}
                   >
-                    <b>Consenso:</b> mediana {fmtMm(cons.medianMm ?? 0)} mm · {cons.agree} de {cons.withData} modelos preveem ≥{' '}
-                    {CONSENSUS_THRESHOLD_MM} mm
-                    {consensusLine?.alert && ' — atenção: há modelo prevendo chuva relevante acima da mediana.'}
+                    <b>{mx ? 'Máximo' : 'Previsão'}:</b> {fmtMm(shown.totalMm)} mm (
+                    {FORECAST_MODELS.find((m) => m.id === shown.modelId)?.label})
+                    {peakOwner?.peak && (
+                      <>
+                        <br />
+                        <b>Pico:</b> {peakLabel(peakOwner.peak)} ({FORECAST_MODELS.find((m) => m.id === peakOwner.modelId)?.label})
+                      </>
+                    )}
                   </p>
                 )}
                 <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>

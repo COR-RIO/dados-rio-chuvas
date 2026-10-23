@@ -479,7 +479,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [showWind, setShowWind] = useState(true);
   const [autoWindFocus, setAutoWindFocus] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
-  const [forecastModel, setForecastModel] = useState<ForecastMapModel>('consenso');
+  const [forecastModel, setForecastModel] = useState<ForecastMapModel>('max');
   const [forecastWindowHours, setForecastWindowHours] = useState(12);
   const [forecastPointId, setForecastPointId] = useState('praca-bandeira');
   const [windCategoryFilter, setWindCategoryFilter] = useState<WindCategory[]>([...WIND_CATEGORY_ORDER]);
@@ -1101,7 +1101,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           style={{ fontFamily: 'Arial, sans-serif' }}
         >
           <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">
-            Previsão ({forecastModel === 'consenso' ? 'consenso dos modelos' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
+            Previsão ({forecastModel === 'max' ? 'máximo entre os modelos' : FORECAST_MODEL_LABELS[forecastModel]}) — próximas
           </span>
           {FORECAST_WINDOW_OPTIONS.map((h) => (
             <button
